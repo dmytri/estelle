@@ -1,6 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
-import type { AgentSession, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	AgentSession,
+	ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 
 export interface LaunchOptions {
 	cwd?: string;
@@ -43,9 +46,15 @@ function relativeToCwd(cwd: string, path: string): string {
  * @planks("Then Estelle reports that the Captain writes specs, assets, \"CAPTAIN.md\", and \"watchbill.json\"")
  * @planks("Then Estelle reports that only the Captain may write \"watchbill.json\"")
  */
-function evaluateWrite(role: string, relPath: string): { allowed: boolean; reason?: string } {
+function evaluateWrite(
+	role: string,
+	relPath: string,
+): { allowed: boolean; reason?: string } {
 	if (relPath === "watchbill.json" && role !== "captain") {
-		return { allowed: false, reason: 'only the Captain may write "watchbill.json"' };
+		return {
+			allowed: false,
+			reason: 'only the Captain may write "watchbill.json"',
+		};
 	}
 	if (role === "crew") {
 		if (relPath.startsWith("src/")) {
@@ -64,7 +73,8 @@ function evaluateWrite(role: string, relPath: string): { allowed: boolean; reaso
 		}
 		return {
 			allowed: false,
-			reason: 'the Captain writes specifications, assets, "CAPTAIN.md", and "watchbill.json"',
+			reason:
+				'the Captain writes specifications, assets, "CAPTAIN.md", and "watchbill.json"',
 		};
 	}
 	return { allowed: true };
@@ -73,7 +83,10 @@ function evaluateWrite(role: string, relPath: string): { allowed: boolean; reaso
 /**
  * @planks("Then Estelle reports that \"CAPTAIN.md\" is private to the Captain")
  */
-function evaluateRead(role: string, relPath: string): { allowed: boolean; reason?: string } {
+function evaluateRead(
+	role: string,
+	relPath: string,
+): { allowed: boolean; reason?: string } {
 	if (relPath === "CAPTAIN.md" && role !== "captain" && role !== "boatswain") {
 		return { allowed: false, reason: '"CAPTAIN.md" is private to the Captain' };
 	}
@@ -92,14 +105,20 @@ function createEstelleExtension(state: EstelleState, cwd: string) {
 		});
 		pi.on("tool_call", (event) => {
 			if (event.toolName === "write" || event.toolName === "edit") {
-				const relPath = relativeToCwd(cwd, (event.input as { path: string }).path);
+				const relPath = relativeToCwd(
+					cwd,
+					(event.input as { path: string }).path,
+				);
 				const decision = evaluateWrite(state.activeSeat.role, relPath);
 				if (!decision.allowed) {
 					return { block: true, reason: decision.reason };
 				}
 			}
 			if (event.toolName === "read") {
-				const relPath = relativeToCwd(cwd, (event.input as { path: string }).path);
+				const relPath = relativeToCwd(
+					cwd,
+					(event.input as { path: string }).path,
+				);
 				const decision = evaluateRead(state.activeSeat.role, relPath);
 				if (!decision.allowed) {
 					return { block: true, reason: decision.reason };
@@ -226,7 +245,10 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			if (!decision.allowed) {
 				return decision;
 			}
-			return { allowed: true, contents: readFileSync(resolve(cwd, path), "utf8") };
+			return {
+				allowed: true,
+				contents: readFileSync(resolve(cwd, path), "utf8"),
+			};
 		},
 		/**
 		 * @planks("When Bonny sends a message to the operator")
@@ -237,7 +259,10 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		 */
 		sendToOperator: (message) => {
 			if (state.activeSeat.role !== "captain") {
-				return { allowed: false, reason: "only the Captain addresses the operator" };
+				return {
+					allowed: false,
+					reason: "only the Captain addresses the operator",
+				};
 			}
 			session.sendUserMessage(message).catch(() => {});
 			return { allowed: true };

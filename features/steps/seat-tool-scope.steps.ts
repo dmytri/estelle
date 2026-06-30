@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Then, When } from "@cucumber/cucumber";
-import { EstelleWorld } from "../support/world.js";
+import type { EstelleWorld } from "../support/world.js";
 
 When(
 	"{word} sends a message to the operator",
@@ -16,14 +16,25 @@ When(
 	},
 );
 
-Then("Estelle delivers the message to the operator", function (this: EstelleWorld) {
-	assert.ok(this.result, "no message was sent");
-	assert.equal(this.result.allowed, true, `message was blocked: ${this.result.reason ?? ""}`);
-});
+Then(
+	"Estelle delivers the message to the operator",
+	function (this: EstelleWorld) {
+		assert.ok(this.result, "no message was sent");
+		assert.equal(
+			this.result.allowed,
+			true,
+			`message was blocked: ${this.result.reason ?? ""}`,
+		);
+	},
+);
 
 Then("Estelle blocks the message", function (this: EstelleWorld) {
 	assert.ok(this.result, "no message was sent");
-	assert.equal(this.result.allowed, false, "message was delivered but should have been blocked");
+	assert.equal(
+		this.result.allowed,
+		false,
+		"message was delivered but should have been blocked",
+	);
 });
 
 Then(

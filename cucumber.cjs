@@ -5,10 +5,10 @@
 require("tsx/esm/api").register();
 
 module.exports = {
-  default: {
-    requireModule: ['tsx/cjs'],
-    require: ['features/steps/**/*.ts', 'features/support/**/*.ts'],
-    paths: ['features/**/*.feature'],
-    format: ['progress'],
-  },
+	default: {
+		requireModule: ["tsx/cjs"],
+		require: ["features/steps/**/*.ts", "features/support/**/*.ts"],
+		paths: ["features/**/*.feature"],
+		format: ["progress"],
+	},
 };

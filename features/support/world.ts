@@ -1,7 +1,12 @@
 import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { After, type IWorldOptions, setWorldConstructor, World } from "@cucumber/cucumber";
+import {
+	After,
+	type IWorldOptions,
+	setWorldConstructor,
+	World,
+} from "@cucumber/cucumber";
 import type { EstelleSession, LaunchOptions } from "../../src/index.js";
 
 /**
@@ -40,12 +45,16 @@ export class EstelleWorld extends World {
 	 * Launch Estelle in a disposable temp workspace seeded with the given files.
 	 * Used by custody and privacy scenarios. Idempotent within a scenario.
 	 */
-	async ensureWorkspace(seed: Record<string, string> = {}): Promise<EstelleSession> {
+	async ensureWorkspace(
+		seed: Record<string, string> = {},
+	): Promise<EstelleSession> {
 		if (!this.launched) {
 			this.workspaceDir = mkdtempSync(join(tmpdir(), "estelle-verify-"));
 			// Mirror a freshly cloned Estelle workspace: the Captain-owned assets
 			// travel with the clone, so seat naming and model selection resolve.
-			cpSync(join(process.cwd(), "assets"), join(this.workspaceDir, "assets"), { recursive: true });
+			cpSync(join(process.cwd(), "assets"), join(this.workspaceDir, "assets"), {
+				recursive: true,
+			});
 			for (const [relPath, contents] of Object.entries(seed)) {
 				writeFileSync(join(this.workspaceDir, relPath), contents, "utf8");
 			}

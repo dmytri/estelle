@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { Given, Then, When } from "@cucumber/cucumber";
-import { EstelleWorld } from "../support/world.js";
+import type { EstelleWorld } from "../support/world.js";
 
 Given("a fresh workspace", function (this: EstelleWorld) {
 	// The project repository at process.cwd() is the workspace under test.
 });
 
-When("the operator runs {string}", async function (this: EstelleWorld, command: string) {
-	assert.equal(command, "npx @dk/estelle");
-	this.launched = await this.ensureLaunched();
-});
+When(
+	"the operator runs {string}",
+	async function (this: EstelleWorld, command: string) {
+		assert.equal(command, "npx @dk/estelle");
+		this.launched = await this.ensureLaunched();
+	},
+);
 
 Then(
 	"the pi session starts with the {string} extension loaded",
@@ -24,14 +27,17 @@ Then(
 	},
 );
 
-Then("the active seat is the Captain {string}", async function (this: EstelleWorld, name: string) {
-	// Captain is the launch default; this asserts that default rather than
-	// selecting it. Other roles are selected explicitly in their own steps.
-	await this.ensureWorkspace();
-	const seat = this.launched!.seat();
-	assert.equal(seat.role, "captain");
-	assert.equal(seat.name, name);
-});
+Then(
+	"the active seat is the Captain {string}",
+	async function (this: EstelleWorld, name: string) {
+		// Captain is the launch default; this asserts that default rather than
+		// selecting it. Other roles are selected explicitly in their own steps.
+		await this.ensureWorkspace();
+		const seat = this.launched!.seat();
+		assert.equal(seat.role, "captain");
+		assert.equal(seat.name, name);
+	},
+);
 
 Given("Estelle has launched", async function (this: EstelleWorld) {
 	this.launched = await this.ensureLaunched();
@@ -43,10 +49,20 @@ When("the operator lists the available skills", function (this: EstelleWorld) {
 
 Then(
 	"the skills {string}, {string}, {string}, {string}, and {string} are present",
-	function (this: EstelleWorld, a: string, b: string, c: string, d: string, e: string) {
+	function (
+		this: EstelleWorld,
+		a: string,
+		b: string,
+		c: string,
+		d: string,
+		e: string,
+	) {
 		const present = new Set(this.skills!.map((s) => s.name));
 		for (const name of [a, b, c, d, e]) {
-			assert.ok(present.has(name), `skill "${name}" missing; present: ${[...present].join(", ")}`);
+			assert.ok(
+				present.has(name),
+				`skill "${name}" missing; present: ${[...present].join(", ")}`,
+			);
 		}
 	},
 );
@@ -56,7 +72,10 @@ Then(
 	function (this: EstelleWorld, name: string) {
 		const skill = this.skills!.find((s) => s.name === name);
 		assert.ok(skill, `skill "${name}" not present`);
-		assert.ok(existsSync(skill.filePath), `skill "${name}" file does not exist: ${skill.filePath}`);
+		assert.ok(
+			existsSync(skill.filePath),
+			`skill "${name}" file does not exist: ${skill.filePath}`,
+		);
 		assert.ok(
 			!skill.filePath.startsWith(process.cwd()),
 			`skill "${name}" is vendored inside the repository at ${skill.filePath}; it must resolve from upstream`,
