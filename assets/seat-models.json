@@ -1,0 +1,10 @@
+{
+  "note": "Default model per seat, shipped as Estelle taste and overridable in operator config. The Captain and Quartermaster defaults are the operator picks. The Crew, Bosun, and Shipwright defaults are provisional and await the operator confirmation.",
+  "seats": {
+    "captain": "glm-5.2",
+    "quartermaster": "deepseek-v4-flash",
+    "crew": "deepseek-v4-flash",
+    "bosun": "glm-5.2",
+    "shipwright": "glm-5.2"
+  }
+}

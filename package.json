@@ -1,0 +1,19 @@
+{
+  "name": "@dk/estelle",
+  "version": "0.0.0",
+  "description": "Estelle launches pi pre-configured with the upstream Shipshape skills and the Estelle enforcement extension.",
+  "license": "MIT",
+  "scripts": {
+    "test": "cucumber-js --tags \"not @captain\""
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.1",
+    "@cucumber/cucumber": "^13.0.0",
+    "@types/node": "^26.0.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.2"
+  }
+}

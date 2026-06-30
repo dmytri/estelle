@@ -1,0 +1,29 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/launch.feature:Launching Estelle boots pi with the Estelle extension active",
+      "features/launch.feature:Estelle serves the Shipshape skills from upstream",
+      "features/crew-naming.feature:A Crew hand is named from the survivor roster",
+      "features/crew-naming.feature:Estelle assigns the Crew name by code before the model runs"
+    ]
+  },
+  "watch2": {
+    "scenarios": [
+      "features/seat-write-scope.feature:The Crew may write production code",
+      "features/seat-write-scope.feature:The Crew may not write a specification",
+      "features/seat-write-scope.feature:The Captain may not write production code",
+      "features/seat-write-scope.feature:Only the Captain may write the watchbill",
+      "features/captain-notes-privacy.feature:The Captain reads their own notes",
+      "features/captain-notes-privacy.feature:The Bosun may read the Captain notes for hygiene",
+      "features/captain-notes-privacy.feature:The Quartermaster may not read the Captain notes"
+    ]
+  },
+  "watch3": {
+    "scenarios": [
+      "features/seat-tool-scope.feature:The Captain addresses the operator",
+      "features/seat-tool-scope.feature:An internal seat may not address the operator",
+      "features/seat-model-selection.feature:The Captain runs on the configured Captain model",
+      "features/seat-model-selection.feature:The Quartermaster runs on the configured Quartermaster model"
+    ]
+  }
+}

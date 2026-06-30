@@ -1,0 +1,19 @@
+{
+  "note": "Crew hands are named in honour of Soviet space dogs who survived their missions and, as far as records show, lived ordinary dog lives afterward. Survivors only, no dogs lost in flight. This roster is curated content; the Estelle extension selects a name from it by code, never the language model. Operators may override or extend the roster.",
+  "survivors": [
+    "Belka",
+    "Strelka",
+    "Veterok",
+    "Ugolyok",
+    "Zvyozdochka",
+    "Chernushka",
+    "Tsygan",
+    "Otvazhnaya",
+    "Albina",
+    "Kozyavka",
+    "Krasavka",
+    "Belyanka",
+    "Pestraya",
+    "Damka"
+  ]
+}
