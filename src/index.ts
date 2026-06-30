@@ -28,6 +28,9 @@ export interface EstelleSession {
 	): void;
 	beginTurn(): Promise<void>;
 	providerRequestCount(): number;
+	systemPrompt(): string;
+	settleDeliveries(): Promise<void>;
+	deliveryFailures(): number;
 	dispose(): void;
 }
 
@@ -35,6 +38,34 @@ interface EstelleState {
 	providerRequestCount: number;
 	activeSeat: { role: string; name: string };
 	seatModels: Record<string, string>;
+	pendingDeliveries: Promise<void>[];
+	deliveryFailures: number;
+}
+
+const CHARACTER_CARDS: Record<string, string> = {
+	captain: "bonny.md",
+	quartermaster: "misson.md",
+	crew: "crew.md",
+	boatswain: "bellamy.md",
+	shipwright: "johnson.md",
+};
+
+/**
+ * @planks("Then the active seat's system prompt includes its character card")
+ */
+function seatSystemPrompt(base: string, role: string, cwd: string): string {
+	const card = readFileSync(
+		join(cwd, "assets", "characters", CHARACTER_CARDS[role]),
+		"utf8",
+	);
+	return `${base}\n\n${card}`;
+}
+
+function defaultSeatModel(cwd: string, role: string): string {
+	const models = JSON.parse(
+		readFileSync(join(cwd, "assets", "seat-models.json"), "utf8"),
+	) as { seats: Record<string, string> };
+	return models.seats[role];
 }
 
 function relativeToCwd(cwd: string, path: string): string {
@@ -103,6 +134,15 @@ function createEstelleExtension(state: EstelleState, cwd: string) {
 		pi.on("before_provider_request", () => {
 			state.providerRequestCount += 1;
 		});
+		pi.on("before_agent_start", (event) => {
+			return {
+				systemPrompt: seatSystemPrompt(
+					event.systemPrompt,
+					state.activeSeat.role,
+					cwd,
+				),
+			};
+		});
 		pi.on("tool_call", (event) => {
 			if (event.toolName === "write" || event.toolName === "edit") {
 				const relPath = relativeToCwd(
@@ -167,6 +207,8 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		providerRequestCount: 0,
 		activeSeat: { role: "captain", name: "Bonny" },
 		seatModels: {},
+		pendingDeliveries: [],
+		deliveryFailures: 0,
 	};
 
 	const {
@@ -264,7 +306,14 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 					reason: "only the Captain addresses the operator",
 				};
 			}
-			session.sendUserMessage(message).catch(() => {});
+			state.pendingDeliveries.push(
+				session.sendUserMessage(message).then(
+					() => {},
+					() => {
+						state.deliveryFailures += 1;
+					},
+				),
+			);
 			return { allowed: true };
 		},
 		/**
@@ -281,7 +330,8 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		 * @planks("Then the provider request uses the model \"deepseek-v4-flash\"")
 		 */
 		beginTurn: async () => {
-			const id = state.seatModels[state.activeSeat.role];
+			const role = state.activeSeat.role;
+			const id = state.seatModels[role] ?? defaultSeatModel(cwd, role);
 			const model = modelRegistry.getAll().find((m) => m.id === id);
 			session.dispose();
 			session = (
@@ -294,6 +344,22 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			).session;
 		},
 		providerRequestCount: () => state.providerRequestCount,
+		/**
+		 * @planks("Then the active seat's system prompt includes its character card")
+		 */
+		systemPrompt: () =>
+			seatSystemPrompt(session.systemPrompt, state.activeSeat.role, cwd),
+		/**
+		 * @planks("When the pending deliveries settle")
+		 */
+		settleDeliveries: async () => {
+			await Promise.all(state.pendingDeliveries);
+			state.pendingDeliveries = [];
+		},
+		/**
+		 * @planks("Then Estelle records one delivery failure")
+		 */
+		deliveryFailures: () => state.deliveryFailures,
 		dispose: () => session.dispose(),
 	};
 }
