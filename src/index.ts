@@ -13,14 +13,14 @@ export interface EstelleSession {
 	seat(): { role: string; name: string };
 	seatCrew(): { role: string; name: string };
 	selectSeat(
-		role: "captain" | "quartermaster" | "crew" | "bosun" | "shipwright",
+		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
 		name: string,
 	): { role: string; name: string };
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
 	read(path: string): { allowed: boolean; reason?: string; contents?: string };
 	sendToOperator(message: string): { allowed: boolean; reason?: string };
 	setSeatModel(
-		role: "captain" | "quartermaster" | "crew" | "bosun" | "shipwright",
+		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
 		id: string,
 	): void;
 	beginTurn(): Promise<void>;
@@ -74,7 +74,7 @@ function evaluateWrite(role: string, relPath: string): { allowed: boolean; reaso
  * @planks("Then Estelle reports that \"CAPTAIN.md\" is private to the Captain")
  */
 function evaluateRead(role: string, relPath: string): { allowed: boolean; reason?: string } {
-	if (relPath === "CAPTAIN.md" && role !== "captain" && role !== "bosun") {
+	if (relPath === "CAPTAIN.md" && role !== "captain" && role !== "boatswain") {
 		return { allowed: false, reason: '"CAPTAIN.md" is private to the Captain' };
 	}
 	return { allowed: true };
@@ -135,7 +135,7 @@ function extensionName(path: string, resolvedPath: string): string {
 
 /**
  * @planks("Then the pi session starts with the \"estelle\" extension loaded")
- * @planks("Then the skills \"captain\", \"qm\", \"crew\", \"bosun\", and \"shipwright\" are present")
+ * @planks("Then the skills \"captain\", \"qm\", \"crew\", \"boatswain\", and \"shipwright\" are present")
  * @planks("Then the \"captain\" skill resolves from the upstream Shipshape install")
  */
 export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
@@ -195,7 +195,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		/**
 		 * @planks("Given the active seat is the Crew hand \"Belka\"")
 		 * @planks("Given the active seat is the Quartermaster \"Misson\"")
-		 * @planks("Given the active seat is the Bosun \"Bellamy\"")
+		 * @planks("Given the active seat is the Boatswain \"Bellamy\"")
 		 */
 		selectSeat: (role, name) => {
 			state.activeSeat = { role, name };

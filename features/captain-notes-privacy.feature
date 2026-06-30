@@ -12,8 +12,8 @@ Feature: Captain notes privacy
     Then Estelle allows the read
     And the contents of "CAPTAIN.md" are returned
 
-  Scenario: The Bosun may read the Captain notes for hygiene
-    Given the active seat is the Bosun "Bellamy"
+  Scenario: The Boatswain may read the Captain notes for hygiene
+    Given the active seat is the Boatswain "Bellamy"
     When Bellamy reads "CAPTAIN.md"
     Then Estelle allows the read
 

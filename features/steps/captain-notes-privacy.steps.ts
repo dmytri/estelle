@@ -8,9 +8,9 @@ Given("a project with a {string} file", async function (this: EstelleWorld, path
 	await this.ensureWorkspace({ [path]: CAPTAIN_NOTES });
 });
 
-Given("the active seat is the Bosun {string}", async function (this: EstelleWorld, name: string) {
+Given("the active seat is the Boatswain {string}", async function (this: EstelleWorld, name: string) {
 	const estelle = await this.ensureWorkspace();
-	this.seat = estelle.selectSeat("bosun", name);
+	this.seat = estelle.selectSeat("boatswain", name);
 });
 
 When("{word} reads {string}", function (this: EstelleWorld, _name: string, path: string) {

@@ -12,5 +12,5 @@ Feature: Estelle launch
   Scenario: Estelle serves the Shipshape skills from upstream
     Given Estelle has launched
     When the operator lists the available skills
-    Then the skills "captain", "qm", "crew", "bosun", and "shipwright" are present
+    Then the skills "captain", "qm", "crew", "boatswain", and "shipwright" are present
     And the "captain" skill resolves from the upstream Shipshape install
