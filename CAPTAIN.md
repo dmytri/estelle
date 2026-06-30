@@ -58,15 +58,19 @@ Deferred to iteration 2+: the async batch loop and `/ship`; Estelle-driven auto-
 - Context firewall (iteration 2): `ctx.newSession()` for a genuine fresh context at the boundary.
 - Launch: pi has no documented `npx` wrapper pattern; the DIY wrapper is the chosen path. Mind the pi project-trust gate on first launch.
 
-## Iteration 1 status, delivered
+## Status, delivered
 
-Commit `72cc063`. All 15 scenarios green across the six iteration-1 features. `src/index.ts` carries the launch seam and the enforcement extension; verification lives under `features/`. `watchbill.json` spent and removed.
+- Iteration 1 (commit `72cc063`): launch seam, seat write custody, Captain notes privacy, seat tool custody, seat model selection, crew naming.
+- Iteration 2 so far (commit `1b074ae`): seat models default from `assets/seat-models.json`, operator config override, character-card injection into each seat's system prompt, operator-delivery-failure recording.
+- Also: all five character cards rewritten in Shipshape Controlled English with full depth; the Bosun to Boatswain rename here and upstream; build-config debt cleared (commit `dd9982e`).
+- Suite: 20 scenarios green. typecheck and lint green. Repo public at `dmytri/estelle`; old version archived at `dmytri/estelle-old`. Not published to npm.
 
-## Flags raised by the cycle, for decision
+The three earlier flags are resolved: build-config debt cleared; operator-delivery failure specced and recorded; seat models default from the asset.
 
-- **Config debt, build-config scope (not Captain-writable).** `tsc --noEmit` is red on `tsconfig.json` `moduleResolution: node10` deprecation (TS5107). `biome check .` is red with no `biome.json`; it was red at the keel, not a regression. Both block the RIGGING `typecheck` and `lint` boundary commands. Resolution is a Shipwright/fitting-out or explicit-edit decision.
-- **Operator-delivery failure unspecified.** `src/index.ts` swallows every rejection from `sendUserMessage` to survive the hermetic tier. No scenario covers a real delivery failure. Iteration-2 candidate: spec the failure behaviour, then narrow the catch.
-- **`seat-models.json` not read by code.** Model-selection scenarios pass model ids as literals through the `setSeatModel` seam; nothing reads `assets/seat-models.json`. Iteration-2 candidate: a scenario that Estelle defaults each seat model from the asset.
+## What is not built yet
+
+- **Estelle is not yet runnable as `npx @dk/estelle`.** There is no `bin`, no `main`, no build output. The green suite verifies the `launch()` seam against a real pi session at the @logic tier. It does not verify the CLI an operator runs, real provider turns (needs keys, a @sandbox tier), or the published package. Per the RIGGING outbound policy, the published package must be verified to boot before release.
+- **The async-orchestration architecture is unbuilt:** the batch loop, `/ship`, Estelle-driven auto-transitions, the live Captain-to-QM context clear, and the live-show TUI. This is the next design pass.
 
 ## Open items for the operator
 
