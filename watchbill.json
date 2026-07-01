@@ -1,7 +1,0 @@
-{
-  "watch1": {
-    "scenarios": [
-      "features/runnable-package.feature:The published package ships its runtime and withholds Captain notes"
-    ]
-  }
-}
