@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import type {
 	AgentSession,
@@ -126,16 +126,25 @@ const SEAT_BY_ROLE: Record<string, Seat> = Object.fromEntries(
 );
 
 /**
+ * @planks("When the operator runs the Estelle package in that directory")
+ */
+function assetsDir(cwd: string): string {
+	const local = join(cwd, "assets");
+	if (existsSync(local)) {
+		return local;
+	}
+	return join(__dirname, "..", "assets");
+}
+
+/**
  * @planks("Then the active seat's system prompt includes its character card")
  * @planks("Then the seat system prompt addresses the operator as \"Commodore\"")
  */
 function seatSystemPrompt(base: string, role: string, cwd: string): string {
-	const houseRules = readFileSync(
-		join(cwd, "assets", "system-prompt.md"),
-		"utf8",
-	);
+	const assets = assetsDir(cwd);
+	const houseRules = readFileSync(join(assets, "system-prompt.md"), "utf8");
 	const card = readFileSync(
-		join(cwd, "assets", "characters", CHARACTER_CARDS[role]),
+		join(assets, "characters", CHARACTER_CARDS[role]),
 		"utf8",
 	);
 	return `${base}\n\n${houseRules}\n\n${card}`;
@@ -143,7 +152,7 @@ function seatSystemPrompt(base: string, role: string, cwd: string): string {
 
 function defaultSeatModel(cwd: string, role: string): string {
 	const models = JSON.parse(
-		readFileSync(join(cwd, "assets", "seat-models.json"), "utf8"),
+		readFileSync(join(assetsDir(cwd), "seat-models.json"), "utf8"),
 	) as { seats: Record<string, string> };
 	return models.seats[role];
 }
@@ -298,7 +307,7 @@ function extensionName(path: string, resolvedPath: string): string {
 export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const cwd = options?.cwd ?? process.cwd();
 	const roster = JSON.parse(
-		readFileSync(join(cwd, "assets", "crew-roster.json"), "utf8"),
+		readFileSync(join(assetsDir(cwd), "crew-roster.json"), "utf8"),
 	) as { survivors: string[] };
 	const survivors = roster.survivors;
 	const state: EstelleState = {

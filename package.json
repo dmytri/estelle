@@ -3,7 +3,11 @@
   "version": "0.0.0",
   "description": "Estelle launches pi pre-configured with the upstream Shipshape skills and the Estelle enforcement extension.",
   "license": "MIT",
+  "bin": {
+    "estelle": "bin/estelle.js"
+  },
   "scripts": {
+    "build": "tsc src/index.ts --ignoreConfig --ignoreDeprecations 6.0 --outDir dist --rootDir src --module commonjs --moduleResolution node --target ES2022 --esModuleInterop --resolveJsonModule --skipLibCheck",
     "test": "cucumber-js --tags \"not @captain\""
   },
   "devDependencies": {
