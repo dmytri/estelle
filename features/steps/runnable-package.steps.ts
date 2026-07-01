@@ -46,3 +46,40 @@ When(
 		this.launched = await launch({ cwd: this.workspaceDir });
 	},
 );
+
+Given("the packaged Estelle artifact", function (this: EstelleWorld) {
+	// Verify what npm would publish, not the working tree. Build first so the
+	// compiled runtime exists, then let real npm pack logic honour package.json
+	// files, .npmignore, and .gitignore to produce the shipped file list.
+	execFileSync("pnpm", ["build"], { cwd: process.cwd(), stdio: "pipe" });
+	const stdout = execFileSync("npm", ["pack", "--json", "--dry-run"], {
+		cwd: process.cwd(),
+		encoding: "utf8",
+	});
+	const packed = JSON.parse(stdout) as Array<{
+		files: Array<{ path: string }>;
+	}>;
+	this.packedFiles = packed[0].files.map((f) => f.path);
+});
+
+Then(
+	"the artifact includes {string}",
+	function (this: EstelleWorld, path: string) {
+		assert.ok(this.packedFiles, "no packaged artifact");
+		assert.ok(
+			this.packedFiles.includes(path),
+			`packaged artifact omits "${path}"`,
+		);
+	},
+);
+
+Then(
+	"the artifact withholds {string}",
+	function (this: EstelleWorld, path: string) {
+		assert.ok(this.packedFiles, "no packaged artifact");
+		assert.ok(
+			!this.packedFiles.includes(path),
+			`packaged artifact leaks "${path}"`,
+		);
+	},
+);

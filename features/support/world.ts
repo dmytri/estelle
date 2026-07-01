@@ -18,6 +18,7 @@ import type { EstelleSession, LaunchOptions } from "../../src/index.js";
  */
 export class EstelleWorld extends World {
 	launched?: EstelleSession;
+	packedFiles?: string[];
 	workspaceDir?: string;
 	agentDir?: string;
 	roster?: string[];

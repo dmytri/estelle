@@ -6,6 +6,11 @@
   "bin": {
     "estelle": "bin/estelle.js"
   },
+  "files": [
+    "dist",
+    "bin",
+    "assets"
+  ],
   "scripts": {
     "build": "tsc src/index.ts --ignoreConfig --ignoreDeprecations 6.0 --outDir dist --rootDir src --module commonjs --moduleResolution node --target ES2022 --esModuleInterop --resolveJsonModule --skipLibCheck",
     "test": "cucumber-js --tags \"not @captain\""
