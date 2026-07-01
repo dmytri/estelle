@@ -67,10 +67,15 @@ Deferred to iteration 2+: the async batch loop and `/ship`; Estelle-driven auto-
 
 The three earlier flags are resolved: build-config debt cleared; operator-delivery failure specced and recorded; seat models default from the asset.
 
+## Architecture decided
+
+- **Orchestration on pi directly, no `pi-subagents`.** Context-isolated agents are a pi primitive (a separate `pi` process per agent, or in-process SDK sessions). `pi-subagents` only adds generic orchestration polish with its own opinions. Estelle's model is specific (Bonny the sole voice, Shipshape seats with custody, the "ship it" batch loop, the live crew), so we build the orchestration on pi for full control.
+- **One architecture, incremental layers, no throwaway.** Layer 1 (foundation): the single-session extension and launcher: seat commands, composed role-plus-card instructions, custody, models, booting the pi TUI as Bonny. Layer 2 (live crew): background context-isolated seats whose output surfaces to the operator and into Bonny's context, a one-way firewall, the ship-it batch loop. Layer 2 is additive on Layer 1.
+
 ## What is not built yet
 
-- **Estelle is not yet runnable as `npx @dk/estelle`.** There is no `bin`, no `main`, no build output. The green suite verifies the `launch()` seam against a real pi session at the @logic tier. It does not verify the CLI an operator runs, real provider turns (needs keys, a @sandbox tier), or the published package. Per the RIGGING outbound policy, the published package must be verified to boot before release.
-- **The async-orchestration architecture is unbuilt:** the batch loop, `/ship`, Estelle-driven auto-transitions, the live Captain-to-QM context clear, and the live-show TUI. This is the next design pass.
+- **The runnable package.** Layer 1 needs the `bin`/`main`/build and the `npm publish`. First milestone target: published `npx @dk/estelle` booting pi as Bonny with the seats, on `opencode-go/deepseek-v4-flash`, for manual testing. The published-package boot is verified by running it (RIGGING outbound policy); the @logic suite verifies the seams.
+- **The live crew (Layer 2):** background seats, output routing to Bonny, the batch loop. Built on pi directly, after Layer 1 is in the operator's hands.
 
 ## Open items for the operator
 
