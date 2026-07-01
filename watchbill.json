@@ -1,9 +1,7 @@
 {
   "watch1": {
     "scenarios": [
-      "features/runnable-package.feature:The package exposes the estelle launch command",
-      "features/runnable-package.feature:Estelle boots as the Captain Bonny from a directory without Estelle assets",
-      "features/runnable-package.feature:The booted Captain runs on the shipped default model from a directory without Estelle assets"
+      "features/runnable-package.feature:The published package ships its runtime and withholds Captain notes"
     ]
   }
 }

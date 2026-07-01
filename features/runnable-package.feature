@@ -18,3 +18,11 @@ Feature: Estelle runnable package
     When the operator runs the Estelle package in that directory
     And "Bonny" begins a turn
     Then the provider request uses the model "opencode-go/deepseek-v4-flash"
+
+  Scenario: The published package ships its runtime and withholds Captain notes
+    Given the packaged Estelle artifact
+    Then the artifact includes "dist/index.js"
+    And the artifact includes "bin/estelle.js"
+    And the artifact includes "assets/seat-models.json"
+    And the artifact withholds "CAPTAIN.md"
+    And the artifact withholds "src/index.ts"

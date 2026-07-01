@@ -23,7 +23,6 @@ export class EstelleWorld extends World {
 	roster?: string[];
 	seat?: { role: string; name: string };
 	requestedSeatModel?: string;
-	skills?: { name: string; filePath: string }[];
 	commands?: string[];
 	commandRun?: boolean;
 	result?: { allowed: boolean; reason?: string; contents?: string };
