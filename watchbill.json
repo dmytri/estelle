@@ -1,0 +1,7 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/runnable-package.feature:The built package boots pi as the Captain Bonny"
+    ]
+  }
+}

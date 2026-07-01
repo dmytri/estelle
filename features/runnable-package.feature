@@ -19,6 +19,12 @@ Feature: Estelle runnable package
     And "Bonny" begins a turn
     Then the provider request uses the model "opencode-go/deepseek-v4-flash"
 
+  Scenario: The built package boots pi as the Captain Bonny
+    Given the built Estelle package
+    When the operator runs the built package in a directory without Estelle assets
+    Then the active seat is the Captain "Bonny"
+    And the pi session starts with the "estelle" extension loaded
+
   Scenario: The published package ships its runtime and withholds Captain notes
     Given the packaged Estelle artifact
     Then the artifact includes "dist/index.js"
