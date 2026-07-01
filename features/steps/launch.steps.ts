@@ -40,7 +40,10 @@ Then(
 );
 
 Given("Estelle has launched", async function (this: EstelleWorld) {
-	this.launched = await this.ensureLaunched();
+	// Launch in a disposable workspace so authoring and other side-effecting
+	// scenarios never read or write the real repository. Read-only scenarios
+	// see the same shipped assets, mirrored into the workspace.
+	this.launched = await this.ensureWorkspace();
 });
 
 When("the operator lists the available skills", function (this: EstelleWorld) {

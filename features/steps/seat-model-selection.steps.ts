@@ -6,6 +6,7 @@ Given(
 	"Estelle config sets the Captain model to {string}",
 	async function (this: EstelleWorld, id: string) {
 		const estelle = await this.ensureWorkspace();
+		this.requestedSeatModel = id;
 		estelle.setSeatModel("captain", id);
 	},
 );
@@ -14,6 +15,7 @@ Given(
 	"Estelle config sets the Quartermaster model to {string}",
 	async function (this: EstelleWorld, id: string) {
 		const estelle = await this.ensureWorkspace();
+		this.requestedSeatModel = id;
 		estelle.setSeatModel("quartermaster", id);
 	},
 );
@@ -28,7 +30,10 @@ When(
 Then(
 	"the provider request uses the model {string}",
 	function (this: EstelleWorld, id: string) {
-		const actual = this.launched!.session.model?.id;
+		// A pi model carries a bare id and a separate provider, so the operator's
+		// qualified "provider/model" selection is observable only as provider/id.
+		const model = this.launched!.session.model;
+		const actual = model ? `${model.provider}/${model.id}` : undefined;
 		assert.equal(
 			actual,
 			id,

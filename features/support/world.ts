@@ -19,8 +19,10 @@ import type { EstelleSession, LaunchOptions } from "../../src/index.js";
 export class EstelleWorld extends World {
 	launched?: EstelleSession;
 	workspaceDir?: string;
+	agentDir?: string;
 	roster?: string[];
 	seat?: { role: string; name: string };
+	requestedSeatModel?: string;
 	skills?: { name: string; filePath: string }[];
 	commands?: string[];
 	commandRun?: boolean;
@@ -56,6 +58,28 @@ export class EstelleWorld extends World {
 		}
 		return this.launched;
 	}
+
+	/**
+	 * Launch Estelle in a disposable workspace with a disposable agent dir, so
+	 * install scenarios start from a clean slate: no host-global skill or
+	 * extension leaks in, and every package the scenario installs is removed on
+	 * teardown. This is what makes an install observable rather than pre-present.
+	 */
+	async ensureFreshWorkspace(): Promise<EstelleSession> {
+		if (!this.launched) {
+			this.workspaceDir = mkdtempSync(join(tmpdir(), "estelle-fresh-"));
+			this.agentDir = mkdtempSync(join(tmpdir(), "estelle-agent-"));
+			cpSync(join(process.cwd(), "assets"), join(this.workspaceDir, "assets"), {
+				recursive: true,
+			});
+			const { launch } = await import("../../src/index.js");
+			this.launched = await launch({
+				cwd: this.workspaceDir,
+				agentDir: this.agentDir,
+			});
+		}
+		return this.launched;
+	}
 }
 
 setWorldConstructor(EstelleWorld);
@@ -66,5 +90,9 @@ After(function (this: EstelleWorld) {
 	if (this.workspaceDir) {
 		rmSync(this.workspaceDir, { recursive: true, force: true });
 		this.workspaceDir = undefined;
+	}
+	if (this.agentDir) {
+		rmSync(this.agentDir, { recursive: true, force: true });
+		this.agentDir = undefined;
 	}
 });

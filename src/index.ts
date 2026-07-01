@@ -7,6 +7,7 @@ import type {
 
 export interface LaunchOptions {
 	cwd?: string;
+	agentDir?: string;
 }
 
 export interface EstelleSession {
@@ -22,6 +23,9 @@ export interface EstelleSession {
 		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
 		name: string,
 	): { role: string; name: string };
+	createSkill(name: string): Promise<{ name: string; filePath: string }>;
+	installSkill(source: string): Promise<void>;
+	installExtension(source: string): Promise<void>;
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
 	read(path: string): { allowed: boolean; reason?: string; contents?: string };
 	sendToOperator(message: string): { allowed: boolean; reason?: string };
@@ -30,6 +34,7 @@ export interface EstelleSession {
 		id: string,
 	): void;
 	beginTurn(): Promise<void>;
+	unavailableModels(): string[];
 	providerRequestCount(): number;
 	systemPrompt(): string;
 	settleDeliveries(): Promise<void>;
@@ -41,8 +46,10 @@ interface EstelleState {
 	providerRequestCount: number;
 	activeSeat: Seat;
 	seatModels: Record<string, string>;
+	unavailableModels: string[];
 	pendingDeliveries: Promise<void>[];
 	deliveryFailures: number;
+	pi?: ExtensionAPI;
 }
 
 const CHARACTER_CARDS: Record<string, string> = {
@@ -120,13 +127,18 @@ const SEAT_BY_ROLE: Record<string, Seat> = Object.fromEntries(
 
 /**
  * @planks("Then the active seat's system prompt includes its character card")
+ * @planks("Then the seat system prompt addresses the operator as \"Commodore\"")
  */
 function seatSystemPrompt(base: string, role: string, cwd: string): string {
+	const houseRules = readFileSync(
+		join(cwd, "assets", "system-prompt.md"),
+		"utf8",
+	);
 	const card = readFileSync(
 		join(cwd, "assets", "characters", CHARACTER_CARDS[role]),
 		"utf8",
 	);
-	return `${base}\n\n${card}`;
+	return `${base}\n\n${houseRules}\n\n${card}`;
 }
 
 function defaultSeatModel(cwd: string, role: string): string {
@@ -134,6 +146,28 @@ function defaultSeatModel(cwd: string, role: string): string {
 		readFileSync(join(cwd, "assets", "seat-models.json"), "utf8"),
 	) as { seats: Record<string, string> };
 	return models.seats[role];
+}
+
+/**
+ * @planks("When the operator asks Estelle to create the skill \"harbour-report\"")
+ */
+function skillContents(name: string): string {
+	return `---
+name: ${name}
+description: Summarize the current harbour state for the operator - working tree, pending outbound, and open Shipwright or Captain items. Use when the operator asks for a harbour report.
+---
+
+# Harbour Report
+
+Give the operator a short, current summary of harbour state.
+
+## Workflow
+
+1. Read the working tree status and note whether it is clean.
+2. Note whether outbound is pending: local commits ahead of upstream or an unmerged release branch.
+3. List any @shipwright-flagged code and unresolved @captain scenarios.
+4. Report the summary through the Captain in the operator's own terms.
+`;
 }
 
 function relativeToCwd(cwd: string, path: string): string {
@@ -199,6 +233,7 @@ function evaluateRead(
  */
 function createEstelleExtension(state: EstelleState, cwd: string) {
 	return (pi: ExtensionAPI) => {
+		state.pi = pi;
 		pi.on("before_provider_request", () => {
 			state.providerRequestCount += 1;
 		});
@@ -257,6 +292,8 @@ function extensionName(path: string, resolvedPath: string): string {
  * @planks("Then the pi session starts with the \"estelle\" extension loaded")
  * @planks("Then the skills \"captain\", \"qm\", \"crew\", \"boatswain\", and \"shipwright\" are present")
  * @planks("Then the \"captain\" skill resolves from the upstream Shipshape install")
+ * @planks("Then the \"update-config\" skill is present")
+ * @planks("Then the \"find-skills\" skill is present")
  */
 export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const cwd = options?.cwd ?? process.cwd();
@@ -268,6 +305,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		providerRequestCount: 0,
 		activeSeat: SEATS.bonny,
 		seatModels: {},
+		unavailableModels: [],
 		pendingDeliveries: [],
 		deliveryFailures: 0,
 	};
@@ -275,18 +313,34 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const {
 		createAgentSession,
 		DefaultResourceLoader,
+		DefaultPackageManager,
+		SettingsManager,
 		getAgentDir,
 		SessionManager,
 		ModelRegistry,
 		AuthStorage,
 	} = await import("@earendil-works/pi-coding-agent");
 
-	const resourceLoader = new DefaultResourceLoader({
-		cwd,
-		agentDir: getAgentDir(),
-		noExtensions: true,
-		extensionFactories: [createEstelleExtension(state, cwd)],
+	const agentDir = options?.agentDir ?? getAgentDir();
+	const settingsManager = SettingsManager.create(cwd, agentDir, {
+		projectTrusted: true,
 	});
+	const extensionFactories = [createEstelleExtension(state, cwd)];
+	const additionalSkillPaths = [
+		join("assets", "skills", "update-config", "SKILL.md"),
+		join("assets", "skills", "find-skills", "SKILL.md"),
+	];
+	const buildResourceLoader = (noExtensions: boolean) =>
+		new DefaultResourceLoader({
+			cwd,
+			agentDir,
+			settingsManager,
+			noExtensions,
+			extensionFactories,
+			additionalSkillPaths,
+		});
+
+	let resourceLoader = buildResourceLoader(true);
 	await resourceLoader.reload();
 
 	const modelRegistry = ModelRegistry.create(AuthStorage.inMemory());
@@ -308,6 +362,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const skillPaths: Record<string, string> = Object.fromEntries(
 		skills.map((s) => [s.name, s.filePath]),
 	);
+	const commands = [...SEAT_COMMANDS];
 
 	return {
 		get session() {
@@ -317,8 +372,9 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		skills,
 		/**
 		 * @planks("Then the commands \"/bonny\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\" are present")
+		 * @planks("Then the command \"/websearch\" is present")
 		 */
-		commands: SEAT_COMMANDS,
+		commands,
 		/**
 		 * @planks("Then the active seat is the Captain \"Bonny\"")
 		 * @planks("Then the active seat is the \"bonny\" seat")
@@ -355,6 +411,84 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		selectSeat: (role, name) => {
 			state.activeSeat = { ...SEAT_BY_ROLE[role], name };
 			return state.activeSeat;
+		},
+		/**
+		 * @planks("When the operator asks Estelle to create the skill \"harbour-report\"")
+		 * @planks("Then the \"harbour-report\" skill is present")
+		 */
+		createSkill: async (name) => {
+			const relPath = join("assets", "skills", name, "SKILL.md");
+			const absolute = resolve(cwd, relPath);
+			mkdirSync(dirname(absolute), { recursive: true });
+			writeFileSync(absolute, skillContents(name), "utf8");
+			resourceLoader.extendResources({
+				skillPaths: [
+					{
+						path: relPath,
+						metadata: {
+							source: "estelle",
+							scope: "temporary",
+							origin: "top-level",
+						},
+					},
+				],
+			});
+			const created = resourceLoader
+				.getSkills()
+				.skills.find((s) => s.name === name);
+			if (!created) {
+				throw new Error(`authored skill "${name}" did not load`);
+			}
+			const entry = { name: created.name, filePath: created.filePath };
+			skills.push(entry);
+			return entry;
+		},
+		/**
+		 * @planks("When Estelle installs the upstream skill package \"dmytri/shipshape\"")
+		 * @planks("Then the \"captain\" skill is present")
+		 */
+		installSkill: async (source) => {
+			const packageManager = new DefaultPackageManager({
+				cwd,
+				agentDir,
+				settingsManager,
+			});
+			await packageManager.installAndPersist(`https://github.com/${source}`, {
+				local: true,
+			});
+			await resourceLoader.reload();
+			const reloaded = resourceLoader
+				.getSkills()
+				.skills.map((s) => ({ name: s.name, filePath: s.filePath }));
+			skills.length = 0;
+			skills.push(...reloaded);
+		},
+		/**
+		 * @planks("When Estelle installs the pi extension package \"npm:pi-web-access\"")
+		 * @planks("Then the command \"/websearch\" is present")
+		 */
+		installExtension: async (source) => {
+			const packageManager = new DefaultPackageManager({
+				cwd,
+				agentDir,
+				settingsManager,
+			});
+			await packageManager.installAndPersist(source, { local: true });
+			resourceLoader = buildResourceLoader(false);
+			await resourceLoader.reload();
+			session.dispose();
+			session = (
+				await createAgentSession({
+					resourceLoader,
+					sessionManager: SessionManager.inMemory(),
+					modelRegistry,
+				})
+			).session;
+			const extCommands =
+				state.pi?.getCommands().map((c) => `/${c.name}`) ?? [];
+			const merged = [...new Set([...SEAT_COMMANDS, ...extCommands])];
+			commands.length = 0;
+			commands.push(...merged);
 		},
 		/**
 		 * @planks("Then Estelle allows the write")
@@ -411,8 +545,8 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			return { allowed: true };
 		},
 		/**
-		 * @planks("Given Estelle config sets the Captain model to \"glm-5.2\"")
-		 * @planks("Given Estelle config sets the Quartermaster model to \"deepseek-v4-flash\"")
+		 * @planks("Given Estelle config sets the Captain model to \"opencode-go/glm-5.2\"")
+		 * @planks("Given Estelle config sets the Quartermaster model to \"opencode-go/glm-5.2\"")
 		 */
 		setSeatModel: (role, id) => {
 			state.seatModels[role] = id;
@@ -420,13 +554,25 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		/**
 		 * @planks("When Bonny begins a turn")
 		 * @planks("When Misson begins a turn")
-		 * @planks("Then the provider request uses the model \"glm-5.2\"")
-		 * @planks("Then the provider request uses the model \"deepseek-v4-flash\"")
+		 * @planks("Then the provider request uses the model \"opencode-go/deepseek-v4-flash\"")
+		 * @planks("Then the provider request uses the model \"opencode-go/glm-5.2\"")
+		 * @planks("Then the provider request uses an available model")
 		 */
 		beginTurn: async () => {
 			const role = state.activeSeat.role;
-			const id = state.seatModels[role] ?? defaultSeatModel(cwd, role);
-			const model = modelRegistry.getAll().find((m) => m.id === id);
+			const configured = state.seatModels[role] ?? defaultSeatModel(cwd, role);
+			const resolveModel = (qualified: string) => {
+				const slash = qualified.indexOf("/");
+				return modelRegistry.find(
+					qualified.slice(0, slash),
+					qualified.slice(slash + 1),
+				);
+			};
+			let model = resolveModel(configured);
+			if (!model) {
+				state.unavailableModels.push(configured);
+				model = resolveModel(defaultSeatModel(cwd, role));
+			}
 			session.dispose();
 			session = (
 				await createAgentSession({
@@ -437,6 +583,10 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 				})
 			).session;
 		},
+		/**
+		 * @planks("Then Estelle reports that the model \"opencode-go/nonexistent-model-9000\" is unavailable")
+		 */
+		unavailableModels: () => state.unavailableModels,
 		providerRequestCount: () => state.providerRequestCount,
 		/**
 		 * @planks("Then the active seat's system prompt includes its character card")
