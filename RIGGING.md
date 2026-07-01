@@ -11,7 +11,7 @@ Procedure lives in the skills. Every role reads this on open.
 
 ## Directories
 
-- implementation: src/
+- implementation: src/, package.json
 - specs: features/
 - verification: features/steps/, features/support/
 - assets: assets/
