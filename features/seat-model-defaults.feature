@@ -6,9 +6,9 @@ Feature: Seat model defaults
   Scenario: The Captain defaults to the shipped Captain model
     Given the active seat is the Captain "Bonny"
     When Bonny begins a turn
-    Then the provider request uses the model "glm-5.2"
+    Then the provider request uses the model "opencode-go/deepseek-v4-flash"
 
   Scenario: The Quartermaster defaults to the shipped Quartermaster model
     Given the active seat is the Quartermaster "Misson"
     When Misson begins a turn
-    Then the provider request uses the model "deepseek-v4-flash"
+    Then the provider request uses the model "opencode-go/deepseek-v4-flash"

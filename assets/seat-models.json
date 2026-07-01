@@ -1,10 +1,10 @@
 {
-  "note": "Default model per seat, shipped as Estelle taste and overridable in operator config. The Captain and Quartermaster defaults are the operator picks. The Crew, Boatswain, and Shipwright defaults are provisional and await the operator confirmation.",
+  "note": "Default model per seat, shipped as Estelle taste and overridable in operator config and pi settings. Model ids are pi-native in provider/model form. For the first test release every seat defaults to the cheapest model; per-seat model taste becomes Estelle's pick in a later pass.",
   "seats": {
-    "captain": "glm-5.2",
-    "quartermaster": "deepseek-v4-flash",
-    "crew": "deepseek-v4-flash",
-    "boatswain": "glm-5.2",
-    "shipwright": "glm-5.2"
+    "captain": "opencode-go/deepseek-v4-flash",
+    "quartermaster": "opencode-go/deepseek-v4-flash",
+    "crew": "opencode-go/deepseek-v4-flash",
+    "boatswain": "opencode-go/deepseek-v4-flash",
+    "shipwright": "opencode-go/deepseek-v4-flash"
   }
 }

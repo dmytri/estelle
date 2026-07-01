@@ -9,8 +9,7 @@ Feature: Estelle launch
     Then the pi session starts with the "estelle" extension loaded
     And the active seat is the Captain "Bonny"
 
-  Scenario: Estelle serves the Shipshape skills from upstream
+  Scenario: Estelle registers a command for each seat
     Given Estelle has launched
-    When the operator lists the available skills
-    Then the skills "captain", "qm", "crew", "boatswain", and "shipwright" are present
-    And the "captain" skill resolves from the upstream Shipshape install
+    When the operator lists the available commands
+    Then the commands "/bonny", "/misson", "/crew", "/bellamy", and "/johnson" are present
