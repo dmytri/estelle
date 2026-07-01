@@ -47,6 +47,23 @@ When(
 	},
 );
 
+When(
+	"the operator runs the built package in a directory without Estelle assets",
+	async function (this: EstelleWorld) {
+		// Boot the compiled dist artifact operators run, not the src seam. A bare
+		// directory carries no assets/, so the built package must resolve its own
+		// shipped assets to seat the Captain and load the extension. Resolve the
+		// built entry by path: the build emits it with no declarations, so type it
+		// through the src it compiles from.
+		this.workspaceDir = mkdtempSync(join(tmpdir(), "estelle-built-"));
+		const builtEntry = join(process.cwd(), "dist", "index.js");
+		const { launch } = (await import(
+			builtEntry
+		)) as typeof import("../../src/index.js");
+		this.launched = await launch({ cwd: this.workspaceDir });
+	},
+);
+
 Given("the packaged Estelle artifact", function (this: EstelleWorld) {
 	// Verify what npm would publish, not the working tree. Build first so the
 	// compiled runtime exists, then let real npm pack logic honour package.json

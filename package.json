@@ -12,7 +12,7 @@
     "assets"
   ],
   "scripts": {
-    "build": "tsc src/index.ts --ignoreConfig --ignoreDeprecations 6.0 --outDir dist --rootDir src --module commonjs --moduleResolution node --target ES2022 --esModuleInterop --resolveJsonModule --skipLibCheck",
+    "build": "tsc src/index.ts --ignoreConfig --ignoreDeprecations 6.0 --outDir dist --rootDir src --module nodenext --moduleResolution nodenext --target ES2022 --esModuleInterop --resolveJsonModule --skipLibCheck",
     "test": "cucumber-js --tags \"not @captain\""
   },
   "devDependencies": {
