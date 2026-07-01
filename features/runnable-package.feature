@@ -1,0 +1,20 @@
+Feature: Estelle runnable package
+  As an operator
+  I want to run the published Estelle package with npx from any directory
+  So that I sail with the crew without cloning the repository
+
+  Scenario: The package exposes the estelle launch command
+    Given the built Estelle package
+    Then the package provides an executable "estelle" command
+
+  Scenario: Estelle boots as the Captain Bonny from a directory without Estelle assets
+    Given an operator directory that carries no Estelle assets
+    When the operator runs the Estelle package in that directory
+    Then the active seat is the Captain "Bonny"
+    And the pi session starts with the "estelle" extension loaded
+
+  Scenario: The booted Captain runs on the shipped default model from a directory without Estelle assets
+    Given an operator directory that carries no Estelle assets
+    When the operator runs the Estelle package in that directory
+    And "Bonny" begins a turn
+    Then the provider request uses the model "opencode-go/deepseek-v4-flash"

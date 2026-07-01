@@ -40,7 +40,9 @@ Procedure lives in the skills. Every role reads this on open.
 ## Outbound
 
 - artifact: scoped public npm package `@dk/estelle`
-- policy: before release, verify the published package launches pi with the Estelle extension loaded; a local green tree alone is not sufficient evidence the published package boots
+- build: `pnpm build` compiles `src/` to `dist/` and produces the `estelle` bin entry
+- publish: `npm publish --access public`
+- policy: before release, run the build, then verify the published package launches pi with the Estelle extension loaded as the Captain Bonny; a local green tree alone is not sufficient evidence the published package boots
 
 ## Known false-failure modes
 

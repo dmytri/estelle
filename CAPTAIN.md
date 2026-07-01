@@ -70,7 +70,12 @@ Deferred to iteration 2+: the async batch loop and `/ship`; Estelle-driven auto-
 
 ## In flight
 
-- Nothing in flight. The self-managing batch (watches 1-7) is delivered in commit `f5ef8da`. Seat-model resolution now uses `ModelRegistry.find(provider, id)` with a shipped-default fallback, and the step asserts the qualified `provider/id`. The `@logic` tier stays hermetic on this host.
+- **Runnable package, iteration 5, specced, in the next `/qm` cycle.** First the milestone that makes Estelle sail: the `bin`/`main`/build so `npx @dk/estelle` boots pi as Bonny, then the `npm publish`. Specced in `features/runnable-package.feature`, focused by `watchbill.json`. Operator chose to sail all the way to a published release this batch, with verification at the packaging seams only.
+- Decisions this batch:
+  - **Asset home is the package, not the operator directory.** For a published `npx` run the operator's working directory carries no Estelle assets, so Estelle MUST resolve its shipped assets (`assets/characters`, `assets/skills`, `assets/seat-models.json`, `assets/system-prompt.md`) from the installed package. Shape: `launch` gains an `assetsDir` option that defaults to the package's shipped assets home; `cwd` stays the operator's working directory for their files, custody scope, and installed packages. The three new scenarios boot from a directory that carries no Estelle assets and still come up as Bonny on the default model with the extension loaded.
+  - **Verification is packaging-seams-only, `@logic`.** The bin entry, the built output, package-relative asset resolution, and boot-as-Bonny are verified locally. The live published boot is the manual outbound check per the RIGGING Outbound policy. The interactive pi TUI handoff is the DIY wrapper; it is exercised by the outbound boot, not a scenario.
+  - **Publish all the way.** `npm publish --access public` for the scoped `@dk/estelle`. Needs npm auth for the `@dk` scope in the environment; if absent, outbound blocks for the operator to authenticate. Bump `version` off `0.0.0` at outbound. Recorded the build and publish commands in RIGGING Outbound.
+  - **Packaging config is production.** The `bin`, `main`, `files`, and `build` script in `package.json`, and any `dist` emit config, are Crew production packaging driven by the runnable-package scenarios.
 
 ## Architecture decided
 
@@ -83,7 +88,7 @@ AGENTS.md holds working agreements, setup, and release process only: the Shipsha
 
 ## What is not built yet
 
-- **The runnable package.** Layer 1 needs the `bin`/`main`/build and the `npm publish`. First milestone target: published `npx @dk/estelle` booting pi as Bonny with the seats, on `opencode-go/deepseek-v4-flash`, for manual testing. The published-package boot is verified by running it (RIGGING outbound policy); the @logic suite verifies the seams.
+- **The runnable package: specced now, see In flight.** Layer 1 needs the `bin`/`main`/build and the `npm publish`. Specced this pass in `features/runnable-package.feature` and in the next `/qm` cycle. First milestone target: published `npx @dk/estelle` booting pi as Bonny with the seats, on `opencode-go/deepseek-v4-flash`, for manual testing. The published-package boot is verified by running it (RIGGING outbound policy); the @logic suite verifies the seams.
 - **The live crew (Layer 2):** background seats, output routing to Bonny, the batch loop. Built on pi directly, after Layer 1 is in the operator's hands.
 
 ## Self-managing Estelle, future arc, captured this session
