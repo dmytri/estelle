@@ -61,16 +61,24 @@ Deferred to iteration 2+: the async batch loop and `/ship`; Estelle-driven auto-
 ## Status, delivered
 
 - Iteration 1 (commit `72cc063`): launch seam, seat write custody, Captain notes privacy, seat tool custody, seat model selection, crew naming.
-- Iteration 2 so far (commit `1b074ae`): seat models default from `assets/seat-models.json`, operator config override, character-card injection into each seat's system prompt, operator-delivery-failure recording.
-- Also: all five character cards rewritten in Shipshape Controlled English with full depth; the Bosun to Boatswain rename here and upstream; build-config debt cleared (commit `dd9982e`).
-- Suite: 20 scenarios green. typecheck and lint green. Repo public at `dmytri/estelle`; old version archived at `dmytri/estelle-old`. Not published to npm.
+- Iteration 2 (commit `1b074ae`): seat models default from `assets/seat-models.json`, operator config override, character-card injection into each seat's system prompt, operator-delivery-failure recording.
+- Iteration 3 (commit `d50085a`): per-name seat commands and aliases (`/bonny` and `/captain`; `/misson`, `/quartermaster`, `/qm`; `/bellamy` and `/boatswain`; `/johnson` and `/shipwright`; `/crew`), plus composed seat instructions (upstream role skill body and character card, identifying both character and role), verified without vendoring.
+- Housekeeping this pass: biome `rules.recommended` deprecation cleared (`93b651c`); AGENTS.md shadow-spec sections trimmed, behaviour now lives in specs and code (`8d12031`).
+- Also earlier: five character cards in Shipshape Controlled English; Bosun to Boatswain rename here and upstream; build-config debt cleared (`dd9982e`).
+- Suite: 34 scenarios, 30 green, 4 red (the seat-model reds below). typecheck and lint green. Repo public at `dmytri/estelle`; old version archived at `dmytri/estelle-old`. Not published to npm.
 
-The three earlier flags are resolved: build-config debt cleared; operator-delivery failure specced and recorded; seat models default from the asset.
+## In flight
+
+- **Seat-model reds (4), implementation bug, specs correct.** `seat-model-defaults` and `seat-model-selection` fail because production resolves the model with `ModelRegistry.getAll().find(id)`, which the in-memory registry does not carry for `opencode-go/...`, so it silently falls back to `accounts/fireworks/models/minimax-m3`. Fix is production plus verification, no spec or asset change: resolve with `ModelRegistry.find(provider, id)` (resolves without an API key), and assert the qualified `provider/id` in the step (a pi model's `.id` is bare, e.g. `deepseek-v4-flash`). Routed to the next `/qm` cycle. QM and Crew cannot read these notes; the red scenario is their signal.
 
 ## Architecture decided
 
 - **Orchestration on pi directly, no `pi-subagents`.** Context-isolated agents are a pi primitive (a separate `pi` process per agent, or in-process SDK sessions). `pi-subagents` only adds generic orchestration polish with its own opinions. Estelle's model is specific (Bonny the sole voice, Shipshape seats with custody, the "ship it" batch loop, the live crew), so we build the orchestration on pi for full control.
 - **One architecture, incremental layers, no throwaway.** Layer 1 (foundation): the single-session extension and launcher: seat commands, composed role-plus-card instructions, custody, models, booting the pi TUI as Bonny. Layer 2 (live crew): background context-isolated seats whose output surfaces to the operator and into Bonny's context, a one-way firewall, the ship-it batch loop. Layer 2 is additive on Layer 1.
+
+## AGENTS.md boundary, decided
+
+AGENTS.md holds working agreements, setup, and release process only: the Shipshape pointer, the `npx skills` install, No vendoring (a project agreement), Outbound verification. Product behaviour belongs in verified `.feature` specs. Implementation mechanism (pi API calls such as `ModelRegistry.find`, `before_agent_start`, `registerCommand`) belongs in code, never in prose and never named in a step; steps assert observables, not a pi method name. The pi project-trust gate is not an AGENTS.md section: the harness caveat lives in RIGGING known-false-failure-modes, and the published-artifact check lives in the Outbound policy.
 
 ## What is not built yet
 
@@ -79,5 +87,7 @@ The three earlier flags are resolved: build-config debt cleared; operator-delive
 
 ## Open items for the operator
 
-- Model defaults for Crew, Boatswain, Shipwright in `assets/seat-models.json` are provisional. Confirm or change.
+- **Unknown seat-model id: surface or fall back?** A configured id pi's registry does not know must not be silently swapped (the current bug). Decide whether Estelle surfaces it as unavailable (catches operator typos) or falls back to a provider default. A real scenario pins it once decided; not yet written.
+- Model defaults are the cheapest model per seat (`opencode-go/deepseek-v4-flash`). Operator wants cheap-and-easy; the pinned id stays because it is deterministic and testable, unlike "whatever the provider defaults to". Per-seat model taste is a later pass.
+- Git commits use the auto-configured identity `exe.dev user <exedev@uniform-spruce.exe.xyz>`; set `user.name`/`user.email` or amend author before any push.
 - Pass-two character detail captured. Misson is now protective-pedantic; deeper detail welcome anytime.
