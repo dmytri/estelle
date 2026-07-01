@@ -131,6 +131,23 @@ Decided: Estelle ships a house-rules preamble as the Captain-owned asset `assets
 
 pi surfaces skills as a listing the model reads on demand, not as injected bodies. So a built-in skill spec asserts presence in the listing, not composition into a seat. Estelle's own composition of the role skill body plus character card into a seat, `seatInstructions`, is separate and stays for seat identity.
 
+## Stale-green perturbation dagger, captured 2026-07-01
+
+Idea, operator-proposed. A manual mutation probe against stale-green, the weakness Article 10 names but arms nobody against. Plant the exact dagger as the first statement of a suspected-stale-green production seam:
+
+```js
+throw new Error("PERTURBATION: stale-green challenge; consider current Gherkin step and Rule context; remove when fixed");
+```
+
+Rebuild if the seam compiles, run the relevant scenarios. A genuine scenario goes red. A scenario that stays green never reached the seam, so it is stale-green. The message is self-explanatory, so it crosses the firewall as its own briefing; QM, Crew, and Boatswain need no separate note.
+
+- **Custody.** Planting the dagger is the sole exception to Captain production-code custody. Nothing else in production is Captain-writable.
+- **Two guards for upstream.** QM confirms every `PERTURBATION` dagger yields a scenario failure; a green-despite-dagger is a stale-green blocker back to Captain to strengthen the scenario. Boatswain treats a live dagger as a foul deck and never commits it.
+- **Caveat.** It proves the seam is reached, not that the scenario asserts anything about the seam's output. Reachability, not assertion strength.
+- **Placement discipline.** Use it post-fix on a green I distrust. A pre-fix dagger masks the real red and tangles the probe with the actual fix, as it would have this ESM cycle.
+- **Estelle enforcement home.** Natural future Estelle feature: a narrow `perturb` tool exposed through the custody gate (`evaluateWrite`), so the Captain still cannot otherwise write production code and every plant is an auditable call. Pure custody, Estelle's charter. Future iteration, specced by a scenario, not this publish cycle.
+- **Interim rule, operator 2026-07-01.** Until this is upstreamed into Shipshape, I MAY use the dagger, and I tell the operator first before planting one.
+
 ## Open items for the operator
 
 - **Operator-config persistence, and merge-not-clobber, deferred.** The self-config "offer to fix" writes a corrected model into operator config. That write must preserve other seats' settings. Speccing this now presupposes a persisted operator-config-write seam that Estelle has not defined; today "operator config" is the in-memory `setSeatModel` dict, so a custody scenario would be trivial or get ahead of undefined machinery. Spec operator-config persistence first, then the merge-not-clobber custody scenario against it. Vocabulary note: align on the existing `Estelle config sets the <seat> model to` phrasing, do not introduce `operator config sets ...`.
