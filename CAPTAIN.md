@@ -69,7 +69,7 @@ Deferred to iteration 2+: the async batch loop and `/ship`; Estelle-driven auto-
 
 ## In flight
 
-- **Seat-model reds (4), implementation bug, specs correct.** `seat-model-defaults` and `seat-model-selection` fail because production resolves the model with `ModelRegistry.getAll().find(id)`, which the in-memory registry does not carry for `opencode-go/...`, so it silently falls back to `accounts/fireworks/models/minimax-m3`. Fix is production plus verification, no spec or asset change: resolve with `ModelRegistry.find(provider, id)` (resolves without an API key), and assert the qualified `provider/id` in the step (a pi model's `.id` is bare, e.g. `deepseek-v4-flash`). Routed to the next `/qm` cycle. QM and Crew cannot read these notes; the red scenario is their signal.
+- **Seat-model reds (4), implementation bug, specs correct.** `seat-model-defaults` and `seat-model-selection` fail because production resolves the model with `ModelRegistry.getAll().find(id)`, which the in-memory registry does not carry for `opencode-go/...`, so it silently falls back to `accounts/fireworks/models/minimax-m3`. Fix is production plus verification, no spec or asset change: resolve with `ModelRegistry.find(provider, id)` (resolves without an API key), and assert the qualified `provider/id` in the step (a pi model's `.id` is bare, e.g. `deepseek-v4-flash`). Routed to the next `/qm` cycle, focused by `watchbill.json` on these four scenarios. QM confirmed the root cause this session: exe.dev preconfigures pi at `~/.pi/agent/settings.json` with `defaultModel: accounts/fireworks/models/minimax-m3`, and the cached catalog `~/.cache/pi-exe-dev/catalog.json` carries no `opencode-go/*`, so `getAll().find` misses and the session falls to the host default. Not a false-failure mode: `ModelRegistry.find(provider, id)` keeps the `@logic` tier hermetic on this host. QM and Crew cannot read these notes; the red scenario is their signal.
 
 ## Architecture decided
 
@@ -85,9 +85,37 @@ AGENTS.md holds working agreements, setup, and release process only: the Shipsha
 - **The runnable package.** Layer 1 needs the `bin`/`main`/build and the `npm publish`. First milestone target: published `npx @dk/estelle` booting pi as Bonny with the seats, on `opencode-go/deepseek-v4-flash`, for manual testing. The published-package boot is verified by running it (RIGGING outbound policy); the @logic suite verifies the seams.
 - **The live crew (Layer 2):** background seats, output routing to Bonny, the batch loop. Built on pi directly, after Layer 1 is in the operator's hands.
 
+## Self-managing Estelle, future arc, captured this session
+
+Operator wants Estelle to manage its own capability surface, not only boot preconfigured. Scope discovered this session:
+
+- Self-configure: ensure provider auth, models, and pi settings are ready so a seat's model resolves, whatever the host preconfigured. exe.dev is the live example.
+- Unavailable model: fall back to an available model, warn naming the bad id, offer to fix. Fall-back and warn are specced in `features/seat-model-fallback.feature`. Offer-to-fix is the self-config skill below.
+- Install other pi extensions.
+- Install upstream skills, the `npx skills` path already in use.
+- Create skills, author new skills in the workspace.
+
+Shape follows the decided posture. Mechanical seams live in the Estelle extension: detect an unavailable model, fall back, surface the warning, perform an install or a write. Judgement lives in a built-in skill Bonny reads: how to configure and extend Estelle, walking the operator through the fix. Bonny is the only operator-facing voice, so warnings and offers surface through Bonny.
+
+Decided this session:
+
+- Config knowledge home: both. Mechanical fixes (fall back, warn, write) live in the extension; a shipped `estelle-config` skill composed into Bonny's instructions carries the judgement to walk the operator through a fix. Specced in `features/estelle-self-configuration.feature`.
+- Install tier: provision `@sandbox` now. Tier defined in `RIGGING.md`. Install scenarios run in a namespaced temporary workspace with idempotent teardown, network allowed, no secret credentials.
+- Create-skill: operator-requested workspace skill. Specced in `features/estelle-skill-authoring.feature` with the concrete example skill `harbour-report`.
+
+Specced this session and ordered in `watchbill.json`:
+
+- `features/estelle-self-configuration.feature`, @logic, watch3: ships the `estelle-config` skill, Captain instructions include it.
+- `features/estelle-skill-authoring.feature`, @logic, watch4: operator asks Estelle to create the `harbour-report` skill, it loads.
+- `features/estelle-skill-installation.feature`, @sandbox, watch5: Estelle installs `dmytri/shipshape`, its `captain` skill loads. Needs the sandbox harness stood up.
+
+Extension install anchored and specced:
+
+- `features/estelle-extension-install.feature`, @sandbox, watch6: Estelle installs `npm:pi-web-access`; its `/websearch` command becomes present. Real package at pi.dev/packages/pi-web-access, installs via `pi install npm:pi-web-access`, the same packages mechanism as `npm:pi-shipshape` in pi settings.
+
 ## Open items for the operator
 
-- **Unknown seat-model id: surface or fall back?** A configured id pi's registry does not know must not be silently swapped (the current bug). Decide whether Estelle surfaces it as unavailable (catches operator typos) or falls back to a provider default. A real scenario pins it once decided; not yet written.
+- **Unknown seat-model id: decided, fall back and warn and offer to fix.** A configured id pi's registry does not know falls back to an available model, warns naming the unavailable id, and offers to fix. Fall-back and warn are specced in `features/seat-model-fallback.feature` and ordered in `watchbill.json` watch2. Offer-to-fix belongs to the self-managing arc below.
 - Model defaults are the cheapest model per seat (`opencode-go/deepseek-v4-flash`). Operator wants cheap-and-easy; the pinned id stays because it is deterministic and testable, unlike "whatever the provider defaults to". Per-seat model taste is a later pass.
 - Git commits use the auto-configured identity `exe.dev user <exedev@uniform-spruce.exe.xyz>`; set `user.name`/`user.email` or amend author before any push.
 - Pass-two character detail captured. Misson is now protective-pedantic; deeper detail welcome anytime.

@@ -1,0 +1,37 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/seat-model-defaults.feature:The Captain defaults to the shipped Captain model",
+      "features/seat-model-defaults.feature:The Quartermaster defaults to the shipped Quartermaster model",
+      "features/seat-model-selection.feature:Operator config overrides the shipped Captain model",
+      "features/seat-model-selection.feature:Operator config overrides the shipped Quartermaster model"
+    ]
+  },
+  "watch2": {
+    "scenarios": [
+      "features/seat-model-fallback.feature:An unavailable seat model falls back to an available model",
+      "features/seat-model-fallback.feature:An unavailable seat model is reported as unavailable"
+    ]
+  },
+  "watch3": {
+    "scenarios": [
+      "features/estelle-self-configuration.feature:Estelle ships its configuration skill",
+      "features/estelle-self-configuration.feature:The Captain carries the configuration skill"
+    ]
+  },
+  "watch4": {
+    "scenarios": [
+      "features/estelle-skill-authoring.feature:Estelle creates a workspace skill on request"
+    ]
+  },
+  "watch5": {
+    "scenarios": [
+      "features/estelle-skill-installation.feature:Estelle installs an upstream skill"
+    ]
+  },
+  "watch6": {
+    "scenarios": [
+      "features/estelle-extension-install.feature:Estelle installs a pi extension"
+    ]
+  }
+}

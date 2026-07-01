@@ -29,7 +29,7 @@ Procedure lives in the skills. Every role reads this on open.
 ## Tiers
 
 - default: @logic; pure local tests, no external accounts; fast, deterministic, safe; needs no credentials
-- sandbox: not provisioned yet; no @sandbox tier in iteration one
+- sandbox: @sandbox; tests that install real pi extensions or upstream skills from public npm and the skills CLI; each scenario runs in a namespaced temporary workspace with idempotent best-effort teardown; needs network access, no secret credentials
 
 ## Dependencies
 
