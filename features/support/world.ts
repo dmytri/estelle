@@ -1,12 +1,7 @@
 import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	After,
-	type IWorldOptions,
-	setWorldConstructor,
-	World,
-} from "@cucumber/cucumber";
+import { After, setWorldConstructor, World } from "@cucumber/cucumber";
 import type { EstelleSession, LaunchOptions } from "../../src/index.js";
 
 /**
@@ -27,11 +22,9 @@ export class EstelleWorld extends World {
 	roster?: string[];
 	seat?: { role: string; name: string };
 	skills?: { name: string; filePath: string }[];
+	commands?: string[];
+	commandRun?: boolean;
 	result?: { allowed: boolean; reason?: string; contents?: string };
-
-	constructor(options: IWorldOptions) {
-		super(options);
-	}
 
 	async ensureLaunched(options?: LaunchOptions): Promise<EstelleSession> {
 		if (!this.launched) {

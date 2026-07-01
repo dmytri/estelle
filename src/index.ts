@@ -13,8 +13,11 @@ export interface EstelleSession {
 	session: AgentSession;
 	extensions: string[];
 	skills: { name: string; filePath: string }[];
-	seat(): { role: string; name: string };
+	commands: string[];
+	seat(): { id: string; role: string; name: string };
 	seatCrew(): { role: string; name: string };
+	runCommand(command: string): { id: string; role: string; name: string };
+	seatInstructions(): string;
 	selectSeat(
 		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
 		name: string,
@@ -36,7 +39,7 @@ export interface EstelleSession {
 
 interface EstelleState {
 	providerRequestCount: number;
-	activeSeat: { role: string; name: string };
+	activeSeat: Seat;
 	seatModels: Record<string, string>;
 	pendingDeliveries: Promise<void>[];
 	deliveryFailures: number;
@@ -49,6 +52,71 @@ const CHARACTER_CARDS: Record<string, string> = {
 	boatswain: "bellamy.md",
 	shipwright: "johnson.md",
 };
+
+interface Seat {
+	id: string;
+	role: string;
+	name: string;
+	roleName: string;
+	skill: string;
+}
+
+const SEATS: Record<string, Seat> = {
+	bonny: {
+		id: "bonny",
+		role: "captain",
+		name: "Bonny",
+		roleName: "Captain",
+		skill: "captain",
+	},
+	misson: {
+		id: "misson",
+		role: "quartermaster",
+		name: "Misson",
+		roleName: "Quartermaster",
+		skill: "qm",
+	},
+	crew: {
+		id: "crew",
+		role: "crew",
+		name: "Crew",
+		roleName: "Crew",
+		skill: "crew",
+	},
+	bellamy: {
+		id: "bellamy",
+		role: "boatswain",
+		name: "Bellamy",
+		roleName: "Boatswain",
+		skill: "boatswain",
+	},
+	johnson: {
+		id: "johnson",
+		role: "shipwright",
+		name: "Johnson",
+		roleName: "Shipwright",
+		skill: "shipwright",
+	},
+};
+
+const SEAT_BY_COMMAND: Record<string, string> = {
+	"/bonny": "bonny",
+	"/captain": "bonny",
+	"/misson": "misson",
+	"/quartermaster": "misson",
+	"/qm": "misson",
+	"/bellamy": "bellamy",
+	"/boatswain": "bellamy",
+	"/johnson": "johnson",
+	"/shipwright": "johnson",
+	"/crew": "crew",
+};
+
+const SEAT_COMMANDS = ["/bonny", "/misson", "/crew", "/bellamy", "/johnson"];
+
+const SEAT_BY_ROLE: Record<string, Seat> = Object.fromEntries(
+	Object.values(SEATS).map((seat) => [seat.role, seat]),
+);
 
 /**
  * @planks("Then the active seat's system prompt includes its character card")
@@ -169,13 +237,6 @@ function createEstelleExtension(state: EstelleState, cwd: string) {
 }
 
 /**
- * @planks("Then the active seat is the Captain \"Bonny\"")
- */
-function captainSeat(): { role: string; name: string } {
-	return { role: "captain", name: "Bonny" };
-}
-
-/**
  * @planks("When Estelle seats a new Crew hand")
  * @planks("Then the hand name appears in \"assets/crew-roster.json\"")
  * @planks("Then the Estelle extension assigns the name")
@@ -205,7 +266,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const survivors = roster.survivors;
 	const state: EstelleState = {
 		providerRequestCount: 0,
-		activeSeat: { role: "captain", name: "Bonny" },
+		activeSeat: SEATS.bonny,
 		seatModels: {},
 		pendingDeliveries: [],
 		deliveryFailures: 0,
@@ -244,6 +305,9 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const skills = resourceLoader
 		.getSkills()
 		.skills.map((s) => ({ name: s.name, filePath: s.filePath }));
+	const skillPaths: Record<string, string> = Object.fromEntries(
+		skills.map((s) => [s.name, s.filePath]),
+	);
 
 	return {
 		get session() {
@@ -251,15 +315,45 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		},
 		extensions,
 		skills,
-		seat: captainSeat,
+		/**
+		 * @planks("Then the commands \"/bonny\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\" are present")
+		 */
+		commands: SEAT_COMMANDS,
+		/**
+		 * @planks("Then the active seat is the Captain \"Bonny\"")
+		 * @planks("Then the active seat is the \"bonny\" seat")
+		 */
+		seat: () => state.activeSeat,
 		seatCrew: () => assignCrewSeat(survivors),
+		/**
+		 * @planks("When the operator runs the command \"/bonny\"")
+		 */
+		runCommand: (command) => {
+			const id = SEAT_BY_COMMAND[command];
+			state.activeSeat = SEATS[id];
+			return state.activeSeat;
+		},
+		/**
+		 * @planks("Then the active seat's instructions include the upstream \"captain\" role instructions")
+		 * @planks("Then the active seat's instructions include the \"bonny\" character card")
+		 * @planks("Then the active seat's instructions identify it as both \"Bonny\" and \"Captain\"")
+		 */
+		seatInstructions: () => {
+			const seat = state.activeSeat;
+			const roleInstructions = readFileSync(skillPaths[seat.skill], "utf8");
+			const card = readFileSync(
+				join(cwd, "assets", "characters", `${seat.id}.md`),
+				"utf8",
+			);
+			return `${roleInstructions}\n\n${card}`;
+		},
 		/**
 		 * @planks("Given the active seat is the Crew hand \"Belka\"")
 		 * @planks("Given the active seat is the Quartermaster \"Misson\"")
 		 * @planks("Given the active seat is the Boatswain \"Bellamy\"")
 		 */
 		selectSeat: (role, name) => {
-			state.activeSeat = { role, name };
+			state.activeSeat = { ...SEAT_BY_ROLE[role], name };
 			return state.activeSeat;
 		},
 		/**

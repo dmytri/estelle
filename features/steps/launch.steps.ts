@@ -82,3 +82,30 @@ Then(
 		);
 	},
 );
+
+When(
+	"the operator lists the available commands",
+	function (this: EstelleWorld) {
+		this.commands = this.launched!.commands;
+	},
+);
+
+Then(
+	"the commands {string}, {string}, {string}, {string}, and {string} are present",
+	function (
+		this: EstelleWorld,
+		a: string,
+		b: string,
+		c: string,
+		d: string,
+		e: string,
+	) {
+		const present = new Set(this.commands ?? []);
+		for (const command of [a, b, c, d, e]) {
+			assert.ok(
+				present.has(command),
+				`command "${command}" missing; present: ${[...present].join(", ")}`,
+			);
+		}
+	},
+);
