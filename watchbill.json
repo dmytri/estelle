@@ -15,23 +15,27 @@
   },
   "watch3": {
     "scenarios": [
-      "features/estelle-self-configuration.feature:Estelle ships its configuration skill",
-      "features/estelle-self-configuration.feature:The Captain carries the configuration skill"
+      "features/built-in-skills.feature:Estelle ships each built-in skill"
     ]
   },
   "watch4": {
     "scenarios": [
-      "features/estelle-skill-authoring.feature:Estelle creates a workspace skill on request"
+      "features/skill-authoring.feature:Estelle creates a workspace skill on request"
     ]
   },
   "watch5": {
     "scenarios": [
-      "features/estelle-skill-installation.feature:Estelle installs an upstream skill"
+      "features/skill-installation.feature:Estelle installs an upstream skill"
     ]
   },
   "watch6": {
     "scenarios": [
-      "features/estelle-extension-install.feature:Estelle installs a pi extension"
+      "features/extension-install.feature:Estelle installs a pi extension"
+    ]
+  },
+  "watch7": {
+    "scenarios": [
+      "features/system-prompt.feature:Every seat carries Estelle's house rules"
     ]
   }
 }
