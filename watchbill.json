@@ -1,8 +1,0 @@
-{
-  "watch1": {
-    "scenarios": [
-      "features/skill-installation.feature:A fresh Estelle installs the upstream Shipshape package on launch",
-      "features/skill-installation.feature:An unrelated shipshape package does not satisfy the launch install"
-    ]
-  }
-}

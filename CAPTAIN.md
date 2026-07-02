@@ -54,17 +54,31 @@ Build order: Slice 1 (below, in flight), Slice 2 fitting out, then the shim agai
 
 Bonny is always-on and the only seat the operator speaks with. The operator gives the word ("ship it") to seal a batch. Estelle freezes the batch, clears context, and runs the crew (QM, Crew, Boatswain) as a live show the operator watches while Bonny stays alongside; new intent queues as the next batch. Visibility is asymmetric: crew output is operator-visible read-only; the operator's words reach only Bonny; the crew work from durable artifacts. Layer 2 of the architecture (live crew) builds this on pi directly, no `pi-subagents`: context-isolated pi sessions, one-way firewall, output routed to Bonny. Additive on the shipped single-session foundation, after fitting out.
 
-## Slice 1: Bonny is actually the Captain, in flight
+## Slice 1: Bonny is actually the Captain, shipping as 0.1.3
 
-Operator report: live Estelle loaded only the character card; no Shipshape skills, no Articles. Both root causes proven (perturbation dagger showed `seatInstructions` orphaned from the live prompt; role skills present only via host-leak, never installed) and fixed in commit `61d30e4`:
+Live Estelle loaded only the character card; no Shipshape skills, no Articles. Both root causes proven (perturbation dagger showed `seatInstructions` orphaned from the live prompt; role skills present only via host-leak, never installed) and fixed:
 
-- `seatSystemPrompt` composes base + house rules + upstream role skill body (resource-loader `skillPaths`) + character card on both `launch()` and `run()` paths; dead `seatInstructions` seam removed.
-- `ensureShipshapePackage` installs `https://github.com/dmytri/shipshape` via pi's `DefaultPackageManager.installAndPersist` (user-scope) before resource loading when not already persisted; pi auto-loads it on later launches. The external `skills` CLI is off-design; `AGENTS.md` corrected. The npm `pi-shipshape` is stale (0.1.15, "bosun"); git source is current.
-- Suite 54/54 green after the cycle.
+- `seatSystemPrompt` composes base + house rules + upstream role skill body (resource-loader `skillPaths`) + character card on both `launch()` and `run()` paths; dead `seatInstructions` seam removed (`61d30e4`).
+- `ensureShipshapePackage` installs `https://github.com/dmytri/shipshape` via pi's `DefaultPackageManager.installAndPersist` (user-scope) before resource loading when the exact source is not persisted; pi auto-loads it on later launches (`61d30e4`, exact-source idempotence `5bbc6c1` after Boatswain flagged the substring match would let the stale `npm:pi-shipshape` suppress the install). The external `skills` CLI is off-design; `AGENTS.md` corrected.
+- Suite 55/55 green across both tiers; verification honesty fix landed with it (persistence assert is exact-entry, not substring).
 
-**Open before 0.1.3 ships:** Boatswain flagged the idempotence match as substring `"shipshape"`, so an operator holding the stale `npm:pi-shipshape` never receives `dmytri/shipshape` and seat prompts build from wrong or missing role skills. Specced this pass: exact-source persistence assertion plus the unrelated-package scenario in `features/skill-installation.feature`; `watchbill.json` focuses them. Second flag accepted as environment state, recorded in RIGGING known-false-failure-modes: on a host without a persisted shipshape package the first `@logic` run performs one real git clone.
+Outbound this pass: bump 0.1.3, build, PTY boot check that the Articles reach Bonny's live prompt, publish `--access public`, push. Standing operator approval.
 
-Ship as `0.1.3` when green: bump, build, PTY boot check that the Articles reach Bonny's live prompt, publish `--access public`, push. Standing operator approval to commit and push.
+## Upstream proposals: firewall hardening, to review with the operator
+
+Live leak inventory from this voyage: the dispatch prompt (Captain-authored channel through the firewall; I carried craft notes), the disk side channel (one QM `grep` surfaced `CAPTAIN.md`; held by discipline), and honour-system self-reports. Proposals for `dmytri/shipshape`, layered:
+
+1. **Dispatch contract (skills).** Define what a role dispatch MAY contain: role + base commit + nothing else; the durable artifacts are the hand-off. Craft notes, seams, and expected failure modes are contamination even when labelled tooling facts.
+2. **Contamination protocol (skills).** Abort-on-sight, not exclude-and-continue: Captain content entering an internal role's context mid-run means stop, report contamination, fresh re-dispatch.
+3. **Frozen sentinel (plugin).** Freeze the exact `CAPTAIN.md` STOP-banner string in the template so hooks can grep for it.
+4. **Dispatch guard at spawn (plugin).** Pre-tool hook on subagent dispatch: sentinel in the outgoing prompt blocks; a length cap for internal-role dispatches mechanizes the thin-dispatch rule.
+5. **Output sentinel scan (plugin).** Post-tool hook greps tool output for the sentinel and returns a contamination directive; closes the broad-Bash side channel the per-file guard misses.
+6. **Exclude by construction (fitting out).** Shipwright scaffolds `.rgignore`/`.ignore` carrying `CAPTAIN.md`; ripgrep-based search skips it by default. Cheapest, highest-value single change.
+7. **Firewall conformance tests (plugin repo).** Article 10 applied to itself: tests spawn a role agent, attempt each leak path (Read, Bash cat, broad grep, fat dispatch), assert each is blocked. Today the firewall is a claim; nothing reddens when a hook regresses.
+
+Intersection rule applies: each mechanism ships at layer 2 only if every supported runtime delivers it identically; the rest is flagship-layer (Estelle on pi: fresh sessions and `CAPTAIN.md` outside crew-visible filesystem by construction). Held structural option: move `CAPTAIN.md` out of the worktree; trades repo durability, `.rgignore` buys most of it.
+
+**Adopted immediately here: thin dispatches.** From the next cycle, my role dispatches carry role + base commit + watchbill pointer only; QM pays the honest rediscovery cost.
 
 ## Next arcs, captured not specced
 
