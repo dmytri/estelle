@@ -26,6 +26,11 @@ Procedure lives in the skills. Every role reads this on open.
 - typecheck: `pnpm exec tsc --noEmit`
 - lint: `pnpm exec biome check .`
 
+## Perturbation
+
+- message: `PERTURBATION: consider current durable context; remove when fixed`
+- fail-fast: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`
+
 ## Tiers
 
 - default: @logic; pure local tests, no external accounts; fast, deterministic, safe; needs no credentials
