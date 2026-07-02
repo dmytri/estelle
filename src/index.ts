@@ -23,7 +23,10 @@ export interface EstelleSession {
 		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
 		name: string,
 	): { role: string; name: string };
-	createSkill(name: string): Promise<{ name: string; filePath: string }>;
+	createSkill(
+		name: string,
+		body: string,
+	): Promise<{ name: string; filePath: string }>;
 	installSkill(source: string): Promise<void>;
 	installExtension(source: string): Promise<void>;
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
@@ -137,7 +140,6 @@ function assetsDir(cwd: string): string {
 }
 
 /**
- * @planks("Then the active seat's system prompt includes its character card")
  * @planks("Then the seat system prompt addresses the operator as \"Commodore\"")
  */
 function seatSystemPrompt(base: string, role: string, cwd: string): string {
@@ -155,28 +157,6 @@ function defaultSeatModel(cwd: string, role: string): string {
 		readFileSync(join(assetsDir(cwd), "seat-models.json"), "utf8"),
 	) as { seats: Record<string, string> };
 	return models.seats[role];
-}
-
-/**
- * @planks("When the operator asks Estelle to create the skill \"harbour-report\"")
- */
-function skillContents(name: string): string {
-	return `---
-name: ${name}
-description: Summarize the current harbour state for the operator - working tree, pending outbound, and open Shipwright or Captain items. Use when the operator asks for a harbour report.
----
-
-# Harbour Report
-
-Give the operator a short, current summary of harbour state.
-
-## Workflow
-
-1. Read the working tree status and note whether it is clean.
-2. Note whether outbound is pending: local commits ahead of upstream or an unmerged release branch.
-3. List any @shipwright-flagged code and unresolved @captain scenarios.
-4. Report the summary through the Captain in the operator's own terms.
-`;
 }
 
 function relativeToCwd(cwd: string, path: string): string {
@@ -422,14 +402,19 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			return state.activeSeat;
 		},
 		/**
-		 * @planks("When the operator asks Estelle to create the skill \"harbour-report\"")
-		 * @planks("Then the \"harbour-report\" skill is present")
+		 * @planks("When the operator asks Estelle to create a skill named \"deploy-notes\" with the body \"Record deploy notes for the current release.\"")
+		 * @planks("Then the \"deploy-notes\" skill is present")
+		 * @planks("Then the \"deploy-notes\" skill body is \"Record deploy notes for the current release.\"")
 		 */
-		createSkill: async (name) => {
+		createSkill: async (name, body) => {
 			const relPath = join("assets", "skills", name, "SKILL.md");
 			const absolute = resolve(cwd, relPath);
 			mkdirSync(dirname(absolute), { recursive: true });
-			writeFileSync(absolute, skillContents(name), "utf8");
+			writeFileSync(
+				absolute,
+				`---\nname: ${name}\ndescription: ${body}\n---\n\n${body}\n`,
+				"utf8",
+			);
 			resourceLoader.extendResources({
 				skillPaths: [
 					{
@@ -598,7 +583,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		unavailableModels: () => state.unavailableModels,
 		providerRequestCount: () => state.providerRequestCount,
 		/**
-		 * @planks("Then the active seat's system prompt includes its character card")
+		 * @planks("Then the seat system prompt addresses the operator as \"Commodore\"")
 		 */
 		systemPrompt: () =>
 			seatSystemPrompt(session.systemPrompt, state.activeSeat.role, cwd),
