@@ -224,10 +224,21 @@ function evaluateRead(
  * @planks("Then the name is present before the hand first provider request")
  * @planks("Then Estelle blocks the write")
  * @planks("Then Estelle blocks the read")
+ * @planks("Then the started session registers the commands \"/bonny\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\"")
+ * @planks("When the operator runs the \"/misson\" command in the started session")
  */
 function createEstelleExtension(state: EstelleState, cwd: string) {
 	return (pi: ExtensionAPI) => {
 		state.pi = pi;
+		for (const command of SEAT_COMMANDS) {
+			const id = SEAT_BY_COMMAND[command];
+			pi.registerCommand(command.slice(1), {
+				description: `Switch to the ${SEATS[id].role} ${SEATS[id].name} seat`,
+				handler: async () => {
+					state.activeSeat = SEATS[id];
+				},
+			});
+		}
 		pi.on("before_provider_request", () => {
 			state.providerRequestCount += 1;
 		});
@@ -613,6 +624,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
  * @planks("Then Estelle runs pi's interactive session")
  * @planks("Then that interactive session boots as the Captain \"Bonny\"")
  * @planks("Then that interactive session has the \"estelle\" extension loaded")
+ * @planks("Then the started session is recorded under the operator's agent directory so the operator can resume it")
  */
 export async function run(options?: RunOptions): Promise<void> {
 	const cwd = options?.cwd ?? process.cwd();
@@ -670,7 +682,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		{
 			cwd,
 			agentDir,
-			sessionManager: SessionManager.inMemory(),
+			sessionManager: SessionManager.create(cwd, join(agentDir, "sessions")),
 		},
 	);
 
