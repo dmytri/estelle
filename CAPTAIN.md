@@ -95,13 +95,13 @@ Verification-layer notes for the QM cycle:
 
 ## Harbour prep and 0.1.1, 2026-07-02
 
-Skill-authoring + upstream-resolution cycle closed; deck readied for harbour and shipped.
+Skill-authoring + upstream-resolution cycle closed; deck readied for harbour. Publish held to fix a built-in-skill defect the outbound boot check exposed.
 
 - **Cycle landed** (commits `a2de705`, `956e15b`, `960d1bf`). `createSkill(name, body)` writes the operator-provided body with loadable frontmatter and no longer ships the harbour-report stub in `dist`; the two launch step defs verify the five upstream role skills resolve from outside the repository. Suite green: 47 `@logic` plus 2 `@sandbox`, typecheck and lint clean.
-- **Tier tags fixed.** QM flagged that RIGGING declared `default: @logic` while no scenario carried the tag, so the `@logic` boundary selected zero. Resolved by tagging every local feature file `@logic` at the feature level; the two install features stay `@sandbox`. `@logic and not @captain` now selects 47, `@sandbox` selects 2, no overlap. The RIGGING tier convention is unchanged and now accurate.
-- **bin lint cleared.** Dropped the redundant `"use strict"` from the Captain-owned `bin/estelle.js`.
-- **Released `@dk/estelle@0.1.1`** `--access public`. Version bumped, built, packed, the tarball boot-checked from a fresh assetless directory (Bonny active, `estelle` extension loaded), then published and pushed to origin.
-- **Harbour entry guard satisfied:** working tree clean, outbound not pending, no `@captain` scenarios, no `@shipwright` flags. Ready for Shipwright inventory on the operator's word.
+- **Tier tags fixed.** QM flagged that RIGGING declared `default: @logic` while no scenario carried the tag, so the `@logic` boundary selected zero. Resolved by tagging every local feature file `@logic` at the feature level; the two install features stay `@sandbox`. `@logic and not @captain` now selects 47, `@sandbox` selects 2, no overlap. The RIGGING tier convention is unchanged and now accurate. Version bumped to 0.1.1 and bin `"use strict"` dropped in commit `bb69a31`.
+- **Publish held: built-in skills do not load in a clean operator directory.** The 0.1.1 tarball boot-checked from a fresh assetless install as Bonny with the `estelle` extension and all five upstream role skills. But `update-config` was absent, because `launch` registers the two built-in skills via `additionalSkillPaths` as cwd-relative paths (`assets/skills/<name>/SKILL.md`). The package ships those assets, yet the relative path resolves against the operator's directory, so in a bare operator dir they do not load. `find-skills` only appeared through a host-global skills-dir leak on this VM; a clean environment loses both. This is pre-existing in 0.1.0. The old `built-in-skills` scenario stayed stale-green because it booted from a cwd that carries `assets/`.
+- **Fix decided (operator, 2026-07-02): fix first, then publish clean 0.1.1.** Respecced `features/built-in-skills.feature` to boot from a fresh operator directory with no Estelle assets or installed skills, so a built-in skill is present only if the package supplies it. `watchbill.json` watch1 focuses it. Crew work: resolve `additionalSkillPaths` from the package assets home the same way `assetsDir` already resolves the character cards and models, so the built-ins load regardless of operator cwd.
+- **Harbour entry:** clean tree and pushed origin still pending the fix cycle. No `@captain` scenarios, no `@shipwright` flags. Enter harbour after 0.1.1 ships clean.
 
 ## Architecture decided
 
