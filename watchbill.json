@@ -1,0 +1,7 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/interactive-launch.feature:Running Estelle starts pi's interactive session as the Captain Bonny"
+    ]
+  }
+}
