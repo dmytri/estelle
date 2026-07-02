@@ -29,7 +29,6 @@ export interface EstelleSession {
 	seat(): { id: string; role: string; name: string };
 	seatCrew(): { role: string; name: string };
 	runCommand(command: string): { id: string; role: string; name: string };
-	seatInstructions(): string;
 	selectSeat(
 		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
 		name: string,
@@ -59,6 +58,7 @@ export interface EstelleSession {
 interface EstelleState {
 	providerRequestCount: number;
 	activeSeat: Seat;
+	skillPaths: Record<string, string>;
 	seatModels: Record<string, string>;
 	unavailableModels: string[];
 	pendingDeliveries: Promise<void>[];
@@ -146,15 +146,23 @@ function assetsDir(cwd: string): string {
 
 /**
  * @planks("Then the seat system prompt addresses the operator as \"Commodore\"")
+ * @planks("Then the seat system prompt includes the upstream \"captain\" role instructions")
+ * @planks("Then the seat system prompt includes the \"bonny\" character card")
  */
-function seatSystemPrompt(base: string, role: string, cwd: string): string {
+function seatSystemPrompt(
+	base: string,
+	seat: Seat,
+	cwd: string,
+	skillPaths: Record<string, string>,
+): string {
 	const assets = assetsDir(cwd);
 	const houseRules = readFileSync(join(assets, "system-prompt.md"), "utf8");
+	const roleInstructions = readFileSync(skillPaths[seat.skill], "utf8");
 	const card = readFileSync(
-		join(assets, "characters", CHARACTER_CARDS[role]),
+		join(assets, "characters", CHARACTER_CARDS[seat.role]),
 		"utf8",
 	);
-	return `${base}\n\n${houseRules}\n\n${card}`;
+	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${card}`;
 }
 
 function defaultSeatModel(cwd: string, role: string): string {
@@ -246,8 +254,9 @@ function createEstelleExtension(state: EstelleState, cwd: string) {
 			return {
 				systemPrompt: seatSystemPrompt(
 					event.systemPrompt,
-					state.activeSeat.role,
+					state.activeSeat,
 					cwd,
+					state.skillPaths,
 				),
 			};
 		});
@@ -286,6 +295,35 @@ function assignCrewSeat(survivors: string[]): { role: string; name: string } {
 	return { role: "crew", name };
 }
 
+const SHIPSHAPE_PACKAGE_SOURCE = "https://github.com/dmytri/shipshape";
+
+/**
+ * @planks("When the operator starts Estelle in that workspace")
+ * @planks("Then the \"dmytri/shipshape\" package is persisted in the operator's pi settings")
+ */
+async function ensureShipshapePackage(options: {
+	cwd: string;
+	agentDir: string;
+	settingsManager: import("@earendil-works/pi-coding-agent").SettingsManager;
+	DefaultPackageManager: typeof import("@earendil-works/pi-coding-agent").DefaultPackageManager;
+}): Promise<void> {
+	const { cwd, agentDir, settingsManager, DefaultPackageManager } = options;
+	const packages = settingsManager.getGlobalSettings().packages ?? [];
+	const present = packages.some((entry) => {
+		const source = typeof entry === "string" ? entry : entry.source;
+		return source.includes("shipshape");
+	});
+	if (present) {
+		return;
+	}
+	const packageManager = new DefaultPackageManager({
+		cwd,
+		agentDir,
+		settingsManager,
+	});
+	await packageManager.installAndPersist(SHIPSHAPE_PACKAGE_SOURCE);
+}
+
 function extensionName(path: string, resolvedPath: string): string {
 	if (path.startsWith("<inline:")) {
 		return "estelle";
@@ -296,7 +334,7 @@ function extensionName(path: string, resolvedPath: string): string {
 /**
  * @planks("Then the pi session starts with the \"estelle\" extension loaded")
  * @planks("Then the skills \"captain\", \"qm\", \"crew\", \"boatswain\", and \"shipwright\" are present")
- * @planks("Then the \"captain\" skill resolves from the upstream Shipshape install")
+ * @planks("Then the upstream Shipshape role instructions resolve from outside the Estelle repository")
  * @planks("Then the \"update-config\" skill is present")
  * @planks("Then the \"find-skills\" skill is present")
  */
@@ -309,6 +347,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const state: EstelleState = {
 		providerRequestCount: 0,
 		activeSeat: SEATS.bonny,
+		skillPaths: {},
 		seatModels: {},
 		unavailableModels: [],
 		pendingDeliveries: [],
@@ -329,6 +368,12 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const agentDir = options?.agentDir ?? getAgentDir();
 	const settingsManager = SettingsManager.create(cwd, agentDir, {
 		projectTrusted: true,
+	});
+	await ensureShipshapePackage({
+		cwd,
+		agentDir,
+		settingsManager,
+		DefaultPackageManager,
 	});
 	const extensionFactories = [createEstelleExtension(state, cwd)];
 	const skillsRoot = join(assetsDir(cwd), "skills");
@@ -365,7 +410,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const skills = resourceLoader
 		.getSkills()
 		.skills.map((s) => ({ name: s.name, filePath: s.filePath }));
-	const skillPaths: Record<string, string> = Object.fromEntries(
+	state.skillPaths = Object.fromEntries(
 		skills.map((s) => [s.name, s.filePath]),
 	);
 	const commands = [...SEAT_COMMANDS];
@@ -394,20 +439,6 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			const id = SEAT_BY_COMMAND[command];
 			state.activeSeat = SEATS[id];
 			return state.activeSeat;
-		},
-		/**
-		 * @planks("Then the active seat's instructions include the upstream \"captain\" role instructions")
-		 * @planks("Then the active seat's instructions include the \"bonny\" character card")
-		 * @planks("Then the active seat's instructions identify it as both \"Bonny\" and \"Captain\"")
-		 */
-		seatInstructions: () => {
-			const seat = state.activeSeat;
-			const roleInstructions = readFileSync(skillPaths[seat.skill], "utf8");
-			const card = readFileSync(
-				join(cwd, "assets", "characters", `${seat.id}.md`),
-				"utf8",
-			);
-			return `${roleInstructions}\n\n${card}`;
 		},
 		/**
 		 * @planks("Given the active seat is the Crew hand \"Belka\"")
@@ -603,7 +634,12 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		 * @planks("Then the seat system prompt addresses the operator as \"Commodore\"")
 		 */
 		systemPrompt: () =>
-			seatSystemPrompt(session.systemPrompt, state.activeSeat.role, cwd),
+			seatSystemPrompt(
+				session.systemPrompt,
+				state.activeSeat,
+				cwd,
+				state.skillPaths,
+			),
 		/**
 		 * @planks("When the pending deliveries settle")
 		 */
@@ -631,6 +667,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	const state: EstelleState = {
 		providerRequestCount: 0,
 		activeSeat: SEATS.bonny,
+		skillPaths: {},
 		seatModels: {},
 		unavailableModels: [],
 		pendingDeliveries: [],
@@ -641,6 +678,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		createAgentSessionRuntime,
 		createAgentSessionServices,
 		createAgentSessionFromServices,
+		DefaultPackageManager,
 		InteractiveMode,
 		SessionManager,
 		SettingsManager,
@@ -650,6 +688,12 @@ export async function run(options?: RunOptions): Promise<void> {
 	const agentDir = options?.agentDir ?? getAgentDir();
 	const settingsManager = SettingsManager.create(cwd, agentDir, {
 		projectTrusted: true,
+	});
+	await ensureShipshapePackage({
+		cwd,
+		agentDir,
+		settingsManager,
+		DefaultPackageManager,
 	});
 	const skillsRoot = join(assetsDir(cwd), "skills");
 	const additionalSkillPaths = [
@@ -669,6 +713,11 @@ export async function run(options?: RunOptions): Promise<void> {
 					noExtensions: false,
 				},
 			});
+			state.skillPaths = Object.fromEntries(
+				services.resourceLoader
+					.getSkills()
+					.skills.map((s) => [s.name, s.filePath]),
+			);
 			return {
 				...(await createAgentSessionFromServices({
 					services,

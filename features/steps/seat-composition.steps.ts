@@ -63,40 +63,25 @@ Then(
 );
 
 Then(
-	"the active seat's instructions include the upstream {string} role instructions",
+	"the seat system prompt includes the upstream {string} role instructions",
 	function (this: EstelleWorld, role: string) {
 		const upstream = upstreamRoleInstructions(this, role);
-		const instructions = this.launched!.seatInstructions();
+		const prompt = this.launched!.systemPrompt();
 		assert.ok(
-			instructions.includes(upstream.contents),
-			`active seat instructions did not include the upstream "${role}" role instructions from ${upstream.filePath}`,
+			prompt.includes(upstream.contents),
+			`seat system prompt did not include the upstream "${role}" role instructions from ${upstream.filePath}`,
 		);
 	},
 );
 
 Then(
-	"the active seat's instructions include the {string} character card",
+	"the seat system prompt includes the {string} character card",
 	function (this: EstelleWorld, seat: string) {
 		const card = characterCard(this, seat);
-		const instructions = this.launched!.seatInstructions();
+		const prompt = this.launched!.systemPrompt();
 		assert.ok(
-			instructions.includes(card),
-			`active seat instructions did not include the "${seat}" character card`,
-		);
-	},
-);
-
-Then(
-	"the active seat's instructions identify it as both {string} and {string}",
-	function (this: EstelleWorld, character: string, roleName: string) {
-		const instructions = this.launched!.seatInstructions();
-		assert.ok(
-			instructions.includes(character),
-			`active seat instructions did not identify the character "${character}"`,
-		);
-		assert.ok(
-			instructions.includes(roleName),
-			`active seat instructions did not identify the role "${roleName}"`,
+			prompt.includes(card),
+			`seat system prompt did not include the "${seat}" character card`,
 		);
 	},
 );

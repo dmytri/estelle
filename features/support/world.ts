@@ -70,13 +70,27 @@ export class EstelleWorld extends World {
 	 * extension leaks in, and every package the scenario installs is removed on
 	 * teardown. This is what makes an install observable rather than pre-present.
 	 */
-	async ensureFreshWorkspace(): Promise<EstelleSession> {
-		if (!this.launched) {
+	/**
+	 * Create the disposable workspace and empty agent dir without launching, so
+	 * a scenario can assert what launch itself installs into a clean slate.
+	 * Idempotent within a scenario; teardown removes both directories.
+	 */
+	prepareFreshWorkspace(): { workspaceDir: string; agentDir: string } {
+		if (!this.workspaceDir) {
 			this.workspaceDir = mkdtempSync(join(tmpdir(), "estelle-fresh-"));
-			this.agentDir = mkdtempSync(join(tmpdir(), "estelle-agent-"));
 			cpSync(join(process.cwd(), "assets"), join(this.workspaceDir, "assets"), {
 				recursive: true,
 			});
+		}
+		if (!this.agentDir) {
+			this.agentDir = mkdtempSync(join(tmpdir(), "estelle-agent-"));
+		}
+		return { workspaceDir: this.workspaceDir, agentDir: this.agentDir };
+	}
+
+	async ensureFreshWorkspace(): Promise<EstelleSession> {
+		if (!this.launched) {
+			this.prepareFreshWorkspace();
 			const { launch } = await import("../../src/index.js");
 			this.launched = await launch({
 				cwd: this.workspaceDir,
