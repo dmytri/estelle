@@ -299,7 +299,7 @@ const SHIPSHAPE_PACKAGE_SOURCE = "https://github.com/dmytri/shipshape";
 
 /**
  * @planks("When the operator starts Estelle in that workspace")
- * @planks("Then the \"dmytri/shipshape\" package is persisted in the operator's pi settings")
+ * @planks("Then the \"https://github.com/dmytri/shipshape\" package is persisted in the operator's pi settings")
  */
 async function ensureShipshapePackage(options: {
 	cwd: string;
@@ -311,7 +311,7 @@ async function ensureShipshapePackage(options: {
 	const packages = settingsManager.getGlobalSettings().packages ?? [];
 	const present = packages.some((entry) => {
 		const source = typeof entry === "string" ? entry : entry.source;
-		return source.includes("shipshape");
+		return source === SHIPSHAPE_PACKAGE_SOURCE;
 	});
 	if (present) {
 		return;

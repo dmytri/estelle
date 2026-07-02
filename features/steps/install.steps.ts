@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Given, Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
@@ -15,6 +15,18 @@ Given(
 	"a fresh workspace with no installed pi packages",
 	function (this: EstelleWorld) {
 		this.prepareFreshWorkspace();
+	},
+);
+
+Given(
+	"a fresh workspace whose pi settings already persist the {string} package",
+	function (this: EstelleWorld, pkg: string) {
+		const { agentDir } = this.prepareFreshWorkspace();
+		writeFileSync(
+			join(agentDir, "settings.json"),
+			JSON.stringify({ packages: [pkg] }),
+			"utf8",
+		);
 	},
 );
 
@@ -35,12 +47,14 @@ Then(
 			`operator pi settings file does not exist: ${settingsPath}`,
 		);
 		const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
-			packages?: string[];
+			packages?: Array<string | { source: string }>;
 		};
-		const packages = settings.packages ?? [];
+		const sources = (settings.packages ?? []).map((entry) =>
+			typeof entry === "string" ? entry : entry.source,
+		);
 		assert.ok(
-			packages.some((entry) => entry.includes(pkg)),
-			`package "${pkg}" is not persisted in ${settingsPath}; packages: ${packages.join(", ")}`,
+			sources.includes(pkg),
+			`package "${pkg}" is not persisted as an exact entry in ${settingsPath}; packages: ${sources.join(", ")}`,
 		);
 	},
 );
