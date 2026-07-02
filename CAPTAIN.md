@@ -80,11 +80,27 @@ Intersection rule applies: each mechanism ships at layer 2 only if every support
 
 **Adopted immediately here: thin dispatches.** From the next cycle, my role dispatches carry role + base commit + watchbill pointer only; QM pays the honest rediscovery cost.
 
+## Slice 2: fitting out and seat models, in flight
+
+Operator decisions, 2026-07-02:
+
+- **Greeting is model-voiced, gated on an active model.** Bonny greets first, in character, as soon as `/login` and `/model` make a model available; a session with no active model presents fitting-out guidance naming `/login` and `/model`. No banner requirement. `pi-greeter` evaluated and skipped: it is a static startup dashboard (session and model menus), not a voice; it would compete with Bonny's stage.
+- **Per-seat models move to `estelle.json` in the operator's agent directory** (pi `CONFIG_DIR_NAME` idiom). Existing `Estelle config sets the <seat> model to` vocabulary retained and now file-backed. New scenarios: recorded model lands in the file, recording one seat preserves the others (merge-not-clobber), a recorded model is used at launch (forces the read path, anti-stale-green). Shipped `assets/seat-models.json` struck; a seat with no recorded model rides the operator's pi default model. Never force a default seat model; operator pi config wins.
+- Specced in `features/greeting.feature`, `features/seat-model-defaults.feature`, `features/seat-model-selection.feature`; `features/seat-model-fallback.feature` survives unchanged (fallback target is now an available model, steps already say so). `runnable-package` scenario "booted Captain runs on the shipped default model" struck with the shipped default. Watchbill orders greeting first, then the seat-model batch. Expect the hand-off deck red on seat-model scenarios: the asset is gone and the contract changed; that red is the discovered work.
+- **Skill-conflict startup noise is plain pi, not Estelle.** Reproduced with bare `pi` from `$HOME`: project scope (`$cwd/.agents/skills`) equals user scope when cwd is home, so every skill collides with itself. Courtesy report upstream to pi: identical resolved paths should not register as collisions. No Estelle machinery.
+
+## Workspace model: the harbour, operator direction 2026-07-02
+
+Estelle's launch directory is a harbour, not a project. Captured for the next arc, not yet specced:
+
+- Starting Estelle in `$HOME` or any non-project parent MUST fit out Estelle (global), never assume the directory is a project.
+- Several repos berth under the workspace at once. Bonny infers from operator intent which repo the conversation is about, whether an existing repo under the harbour or a new one to create, and whether that repo needs project fitting (Shipwright rigging). Project fitting happens during discovery, when intent starts flowing, not at launch.
+- Mechanical successors this implies: repo discovery under the workspace (git dirs), per-repo fitting-state derivation (RIGGING.md presence), and per-repo custody scoping (today `evaluateWrite` computes paths relative to one cwd; with berthed repos, custody paths like `src/**` bind per target repo). The inference itself is judgement and lives in Bonny's skill layer, not the extension.
+- Spec alongside the live-crew Layer 2 machinery; the custody rescoping is the first mechanical slice.
+
 ## Next arcs, captured not specced
 
-- **Slice 2, Estelle fitting out.** Global first-run onboarding, distinct from per-project fitting (Shipwright rigging). Friendly Bonny greeting when unfitted; providers and models via pi-native onboarding (`/login`, `/model`); per-seat models recorded in `~/.pi/agent/estelle.json` (pi `CONFIG_DIR_NAME` idiom), file presence is the fitted signal. Shipped `assets/seat-models.json` defaults go away; unfitted Estelle rides pi's `defaultModel`; the operator's pi config always wins (decided: never force a default seat model in the interactive path). Mechanical seams in the extension; judgement in the `update-config` skill Bonny reads.
 - **The shim and `pi-shipshape` packages**, per the stack section above.
-- **Operator-config persistence, merge-not-clobber.** Spec the persisted operator-config-write seam first (Slice 2 `estelle.json`), then the custody scenario that a seat-model write preserves other seats' settings. Vocabulary: keep `Estelle config sets the <seat> model to` phrasing.
 - **Perturb as product.** A narrow `perturb` tool through the custody gate so every Captain dagger is an auditable call. Future iteration, specced by scenario.
 
 ## Design pointers (pi)
@@ -101,6 +117,6 @@ Plant the RIGGING `fail-fast` statement as the first statement of a suspected st
 
 ## Status
 
-- Shipped: `@dk/estelle@0.1.2` on npm (interactive TUI as Bonny, live seat commands, persistent auth/model/session storage, built-ins served from the package, createSkill with operator body, custody gates, crew naming, Commodore address). Suite green across `@logic` and `@sandbox`; repo `dmytri/estelle`.
-- In flight: Slice 1 idempotence fix, then `0.1.3`.
-- Watch items: firewall grep leak (QM excluded `CAPTAIN.md` by discipline; a runtime gate should exclude it by construction); Misson character detail welcome anytime.
+- Shipped: `@dk/estelle@0.1.3` on npm, registry-verified: fresh-operator boot installs `dmytri/shipshape` itself (exact-source idempotence), the captain Articles reach Bonny's live prompt with card and house rules, interactive TUI, live seat commands, persistent auth/model/session storage. Operator confirmed live: Bonny loads with Shipshape skills.
+- In flight: Slice 2 (greeting, fitting-out steer, `estelle.json` seat models).
+- Watch items: firewall grep leak (a runtime gate should exclude `CAPTAIN.md` by construction; see upstream proposals); Misson character detail welcome anytime.

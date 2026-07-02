@@ -14,12 +14,6 @@ Feature: Estelle runnable package
     Then the active seat is the Captain "Bonny"
     And the pi session starts with the "estelle" extension loaded
 
-  Scenario: The booted Captain runs on the shipped default model from a directory without Estelle assets
-    Given an operator directory that carries no Estelle assets
-    When the operator runs the Estelle package in that directory
-    And "Bonny" begins a turn
-    Then the provider request uses the model "opencode-go/deepseek-v4-flash"
-
   Scenario: The built package boots pi as the Captain Bonny
     Given the built Estelle package
     When the operator runs the built package in a directory without Estelle assets
@@ -30,6 +24,6 @@ Feature: Estelle runnable package
     Given the packaged Estelle artifact
     Then the artifact includes "dist/index.js"
     And the artifact includes "bin/estelle.js"
-    And the artifact includes "assets/seat-models.json"
+    And the artifact includes "assets/crew-roster.json"
     And the artifact withholds "CAPTAIN.md"
     And the artifact withholds "src/index.ts"
