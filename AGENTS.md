@@ -4,10 +4,10 @@ This project uses the Shipshape workflow.
 
 Machine-read tooling values such as stack, directories, and commands live in `RIGGING.md`.
 
-Install the Shipshape skills with the open skills CLI:
+Estelle installs the upstream Shipshape package through pi's native package manager on launch; it persists to the operator's pi settings and pi auto-loads it on later launches. For manual setup use pi directly:
 
 ```bash
-npx skills add dmytri/shipshape --skill '*'
+pi install https://github.com/dmytri/shipshape
 ```
 
 ## No vendoring

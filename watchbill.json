@@ -1,0 +1,12 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/seat-composition.feature:An active seat's system prompt composes the upstream role with its character card"
+    ]
+  },
+  "watch2": {
+    "scenarios": [
+      "features/skill-installation.feature:A fresh Estelle installs the upstream Shipshape package on launch"
+    ]
+  }
+}

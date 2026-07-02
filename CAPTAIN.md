@@ -124,6 +124,24 @@ Operator direction: do not defer the follow-ups; batch all known interactive-ses
 - **Verification stays "test our use of pi, not pi."** All four scenarios assert Estelle's wiring at the run seam (registered commands, active-seat switch, persistent storage locations, recorded session), reusing the `@exceptional-double` interactive runner for the TTY boundary. No test drives a real TUI or a real provider.
 - **0.1.2 shipping this pass.** Batch green (commit `152a383`, 54 scenarios / 245 steps, tsc and biome clean). Live seat commands register via `pi.registerCommand`, seat switch flips `state.activeSeat`, `run()` uses `SessionManager.create(cwd, agentDir/sessions)` for resume, and file-backed auth/model storage is guarded. Version bumped to 0.1.2, built, PTY boot clean (TUI up, `estelle` extension loaded, no crash from the new command registration). Publishing `--access public` and pushing this pass, per the operator's standing commit-and-push approval.
 
+## Slice 1: Bonny is actually the Captain, 2026-07-02
+
+Operator report: live Estelle loads only the character card; no Shipshape skills, no Articles, no role instructions. Two root causes, both proven:
+
+- **Role composition orphaned.** Perturbation dagger at `seatInstructions` reddened only the 5 `seat-composition` outline rows; all boot and system-prompt scenarios stayed green. The live `before_agent_start` hook injects only base + house rules + card. The role skill body never reaches the live session.
+- **Shipshape never installed.** `run()` and `launch()` add only Estelle's two built-ins. The role skills appeared in my dev env through a host-leak (`npx skills add` run manually); a fresh operator gets nothing. The old `launch.feature:Launch bundles the upstream Shipshape role skills` scenario was stale-green through the same leak; struck this pass, superseded by the honest `@sandbox` install-on-launch scenario.
+
+Decisions, operator 2026-07-02:
+
+- **pi-native package management.** Estelle installs upstream Shipshape via pi's package manager (`DefaultPackageManager.installAndPersist`, git source `https://github.com/dmytri/shipshape`), persisted to the operator's pi settings so pi auto-loads it on later launches. The external `skills` CLI is off-design; `AGENTS.md` corrected. The upstream repo layout (skills/ dir with SKILL.md folders) satisfies pi's convention-directory discovery with no pi manifest, so no adapter and no vendoring. The npm `pi-shipshape` package is stale (0.1.15, "bosun"); git source is current.
+- **Skills-as-skills is optional; injection is the contract.** The requirement is that the active seat's role instructions reach the live system prompt. Resolution order per the old `~/estelle` adapter (logic migrated, package not vendored): project-local override, then installed package.
+- **Respec, not patch.** `seat-composition` outline respecced from the orphaned `seatInstructions` accessor to the live seat system prompt vocabulary (`the seat system prompt includes ...`), same seam the Commodore scenario already exercises. The identify-as-both assertion dropped: card + role inclusion carries identity. `seatInstructions` loses all step references; Crew removes the dead seam when landing the fix.
+
+Next arcs, captured not specced:
+
+- **Slice 2, Estelle fitting out.** Global first-run onboarding: friendly Bonny greeting when unfitted, providers/models via pi-native onboarding (`/login`, `/model`), per-seat models recorded in `~/.pi/agent/estelle.json` (pi `CONFIG_DIR_NAME` idiom), presence of that file is the fitted signal. Shipped `assets/seat-models.json` defaults go away; unfitted Estelle rides pi's `defaultModel`. Estelle fitting is global and first; project fitting (Shipwright rigging) is per-repo.
+- **Generic pi open-plugin bridge, own package.** Upstream Shipshape 0.6.0 ships the vendor-neutral plugin layout (plugin.json, skills/ commands/ agents/ hooks/) that Claude Code, Cursor, and Vercel's plugin converge on. A reusable pi extension consuming that format (hooks to pi events, commands to registerCommand) would let pi run the whole ecosystem and would slim Estelle to seats + launcher. Build after Slice 1 proves the seat-role-custody seam; no published spec yet, so extract from the working boundary rather than guess.
+
 ## Architecture decided
 
 - **Orchestration on pi directly, no `pi-subagents`.** Context-isolated agents are a pi primitive (a separate `pi` process per agent, or in-process SDK sessions). `pi-subagents` only adds generic orchestration polish with its own opinions. Estelle's model is specific (Bonny the sole voice, Shipshape seats with custody, the "ship it" batch loop, the live crew), so we build the orchestration on pi for full control.

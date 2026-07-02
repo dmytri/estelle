@@ -21,18 +21,17 @@ Feature: Seat commands and composition
       | /shipwright | johnson |
       | /crew | crew |
 
-  Scenario Outline: An active seat's instructions compose the upstream role with its character card
+  Scenario Outline: An active seat's system prompt composes the upstream role with its character card
     Given the active seat is the "<seat>" seat
-    Then the active seat's instructions include the upstream "<role>" role instructions
-    And the active seat's instructions include the "<seat>" character card
-    And the active seat's instructions identify it as both "<character>" and "<role-name>"
+    Then the seat system prompt includes the upstream "<role>" role instructions
+    And the seat system prompt includes the "<seat>" character card
     Examples:
-      | seat | role | character | role-name |
-      | bonny | captain | Bonny | Captain |
-      | misson | qm | Misson | Quartermaster |
-      | crew | crew | Crew | Crew |
-      | bellamy | boatswain | Bellamy | Boatswain |
-      | johnson | shipwright | Johnson | Shipwright |
+      | seat | role |
+      | bonny | captain |
+      | misson | qm |
+      | crew | crew |
+      | bellamy | boatswain |
+      | johnson | shipwright |
 
   Scenario: Estelle does not vendor the upstream Shipshape role instructions
     Given Estelle has launched
