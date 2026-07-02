@@ -2,12 +2,23 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import type {
 	AgentSession,
+	AgentSessionRuntime,
 	ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 
 export interface LaunchOptions {
 	cwd?: string;
 	agentDir?: string;
+}
+
+interface InteractiveHandle {
+	runtime: AgentSessionRuntime;
+	extensions: string[];
+	seat(): { id: string; role: string; name: string };
+}
+
+export interface RunOptions extends LaunchOptions {
+	interactive?: (handle: InteractiveHandle) => void | Promise<void>;
 }
 
 export interface EstelleSession {
@@ -595,4 +606,90 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		deliveryFailures: () => state.deliveryFailures,
 		dispose: () => session.dispose(),
 	};
+}
+
+/**
+ * @planks("When the operator starts Estelle in that directory")
+ * @planks("Then Estelle runs pi's interactive session")
+ * @planks("Then that interactive session boots as the Captain \"Bonny\"")
+ * @planks("Then that interactive session has the \"estelle\" extension loaded")
+ */
+export async function run(options?: RunOptions): Promise<void> {
+	const cwd = options?.cwd ?? process.cwd();
+	const state: EstelleState = {
+		providerRequestCount: 0,
+		activeSeat: SEATS.bonny,
+		seatModels: {},
+		unavailableModels: [],
+		pendingDeliveries: [],
+		deliveryFailures: 0,
+	};
+
+	const {
+		createAgentSessionRuntime,
+		createAgentSessionServices,
+		createAgentSessionFromServices,
+		InteractiveMode,
+		SessionManager,
+		SettingsManager,
+		getAgentDir,
+	} = await import("@earendil-works/pi-coding-agent");
+
+	const agentDir = options?.agentDir ?? getAgentDir();
+	const settingsManager = SettingsManager.create(cwd, agentDir, {
+		projectTrusted: true,
+	});
+	const skillsRoot = join(assetsDir(cwd), "skills");
+	const additionalSkillPaths = [
+		join(skillsRoot, "update-config", "SKILL.md"),
+		join(skillsRoot, "find-skills", "SKILL.md"),
+	];
+
+	const runtime = await createAgentSessionRuntime(
+		async ({ cwd: runtimeCwd, sessionManager, sessionStartEvent }) => {
+			const services = await createAgentSessionServices({
+				cwd: runtimeCwd,
+				agentDir,
+				settingsManager,
+				resourceLoaderOptions: {
+					extensionFactories: [createEstelleExtension(state, runtimeCwd)],
+					additionalSkillPaths,
+					noExtensions: false,
+				},
+			});
+			return {
+				...(await createAgentSessionFromServices({
+					services,
+					sessionManager,
+					sessionStartEvent,
+				})),
+				services,
+				diagnostics: services.diagnostics,
+			};
+		},
+		{
+			cwd,
+			agentDir,
+			sessionManager: SessionManager.inMemory(),
+		},
+	);
+
+	const extensions = runtime.services.resourceLoader
+		.getExtensions()
+		.extensions.map((e) => extensionName(e.path, e.resolvedPath));
+
+	const interactive =
+		options?.interactive ??
+		(async (handle: InteractiveHandle) => {
+			const mode = new InteractiveMode(handle.runtime);
+			await mode.run();
+		});
+
+	await interactive({
+		runtime,
+		extensions,
+		seat: () => state.activeSeat,
+	});
+
+	runtime.session.dispose();
 }

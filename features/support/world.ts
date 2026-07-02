@@ -27,6 +27,11 @@ export class EstelleWorld extends World {
 	commands?: string[];
 	commandRun?: boolean;
 	result?: { allowed: boolean; reason?: string; contents?: string };
+	interactiveSession?: {
+		runtime: unknown;
+		extensions: string[];
+		seat(): { id: string; role: string; name: string };
+	};
 
 	async ensureLaunched(options?: LaunchOptions): Promise<EstelleSession> {
 		if (!this.launched) {
