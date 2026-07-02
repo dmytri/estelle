@@ -93,6 +93,16 @@ Verification-layer notes for the QM cycle:
 - **Keep create-skill off the real tree.** `createSkill` writes a `SKILL.md` under the session `cwd`. The new skill-authoring scenario MUST run in a disposable workspace, as the install scenarios do via `ensureFreshWorkspace`, so the created file lands in a temp dir with teardown rather than the real repo's `assets/skills/`.
 - **Orphaned step definition.** `features/steps/seat-persona-injection.steps.ts:15` (`the active seat's system prompt includes its character card`) is defined but used by no scenario. Its production accessor `systemPrompt()` stays live via the Commodore scenario, so no production orphaning. Boatswain removes the unused step definition during hygiene.
 
+## Harbour prep and 0.1.1, 2026-07-02
+
+Skill-authoring + upstream-resolution cycle closed; deck readied for harbour and shipped.
+
+- **Cycle landed** (commits `a2de705`, `956e15b`, `960d1bf`). `createSkill(name, body)` writes the operator-provided body with loadable frontmatter and no longer ships the harbour-report stub in `dist`; the two launch step defs verify the five upstream role skills resolve from outside the repository. Suite green: 47 `@logic` plus 2 `@sandbox`, typecheck and lint clean.
+- **Tier tags fixed.** QM flagged that RIGGING declared `default: @logic` while no scenario carried the tag, so the `@logic` boundary selected zero. Resolved by tagging every local feature file `@logic` at the feature level; the two install features stay `@sandbox`. `@logic and not @captain` now selects 47, `@sandbox` selects 2, no overlap. The RIGGING tier convention is unchanged and now accurate.
+- **bin lint cleared.** Dropped the redundant `"use strict"` from the Captain-owned `bin/estelle.js`.
+- **Released `@dk/estelle@0.1.1`** `--access public`. Version bumped, built, packed, the tarball boot-checked from a fresh assetless directory (Bonny active, `estelle` extension loaded), then published and pushed to origin.
+- **Harbour entry guard satisfied:** working tree clean, outbound not pending, no `@captain` scenarios, no `@shipwright` flags. Ready for Shipwright inventory on the operator's word.
+
 ## Architecture decided
 
 - **Orchestration on pi directly, no `pi-subagents`.** Context-isolated agents are a pi primitive (a separate `pi` process per agent, or in-process SDK sessions). `pi-subagents` only adds generic orchestration polish with its own opinions. Estelle's model is specific (Bonny the sole voice, Shipshape seats with custody, the "ship it" batch loop, the live crew), so we build the orchestration on pi for full control.

@@ -1,3 +1,4 @@
+@logic
 Feature: Operator delivery failure
   As Estelle
   I want a failed delivery to the operator recorded rather than swallowed

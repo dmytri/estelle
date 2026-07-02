@@ -1,3 +1,4 @@
+@logic
 Feature: Seat model selection
   As an operator
   I want each seat to run on the model I set in Estelle config

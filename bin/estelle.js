@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-"use strict";
 
 // Operator launch command. Boots Estelle from the operator's directory; the
 // seam resolves its own shipped assets when the directory carries none.

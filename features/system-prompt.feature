@@ -1,3 +1,4 @@
+@logic
 Feature: Estelle system prompt
   As Estelle
   I want every seat to carry Estelle's house rules above its role and character

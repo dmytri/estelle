@@ -1,3 +1,4 @@
+@logic
 Feature: Estelle launch
   As an operator
   I want "npx @dk/estelle" to boot pi with the Estelle extension and the upstream Shipshape skills

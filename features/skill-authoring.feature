@@ -1,3 +1,4 @@
+@logic
 Feature: Estelle skill authoring
   As an operator
   I want to ask Estelle to create a new skill in my workspace

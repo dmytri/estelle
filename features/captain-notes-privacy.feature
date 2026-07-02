@@ -1,3 +1,4 @@
+@logic
 Feature: Captain notes privacy
   As Estelle
   I want "CAPTAIN.md" readable only by the seats the Articles permit

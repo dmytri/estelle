@@ -1,3 +1,4 @@
+@logic
 Feature: Seat model fallback
   As an operator
   I want a seat to keep running when I configure a model pi does not know

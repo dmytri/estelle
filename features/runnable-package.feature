@@ -1,3 +1,4 @@
+@logic
 Feature: Estelle runnable package
   As an operator
   I want to run the published Estelle package with npx from any directory

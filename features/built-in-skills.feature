@@ -1,3 +1,4 @@
+@logic
 Feature: Built-in skills
   As an operator
   I want Estelle to ship its own configuration and skill-management skills

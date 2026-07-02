@@ -1,3 +1,4 @@
+@logic
 Feature: Seat commands and composition
   As Estelle
   I want each seat reachable by a command for every name it answers to, its instructions composed from the upstream Shipshape role and its character card

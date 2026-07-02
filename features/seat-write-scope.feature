@@ -1,3 +1,4 @@
+@logic
 Feature: Seat write custody
   As Estelle
   I want each seat limited to the files its role may write

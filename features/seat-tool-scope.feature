@@ -1,3 +1,4 @@
+@logic
 Feature: Seat tool custody
   As Estelle
   I want only the Captain to address the operator

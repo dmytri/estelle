@@ -1,3 +1,4 @@
+@logic
 Feature: Seat model defaults
   As an operator
   I want each seat to default to the model Estelle ships in "assets/seat-models.json"

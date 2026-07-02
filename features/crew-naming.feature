@@ -1,3 +1,4 @@
+@logic
 Feature: Crew naming
   As Estelle
   I want each Crew hand named by code from the survivor roster
