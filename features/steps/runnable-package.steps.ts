@@ -43,7 +43,10 @@ When(
 	"the operator runs the Estelle package in that directory",
 	async function (this: EstelleWorld) {
 		const { launch } = await import("../../src/index.js");
-		this.launched = await launch({ cwd: this.workspaceDir });
+		this.launched = await launch({
+			cwd: this.workspaceDir,
+			agentDir: this.agentDir,
+		});
 	},
 );
 

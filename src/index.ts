@@ -315,9 +315,10 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		projectTrusted: true,
 	});
 	const extensionFactories = [createEstelleExtension(state, cwd)];
+	const skillsRoot = join(assetsDir(cwd), "skills");
 	const additionalSkillPaths = [
-		join("assets", "skills", "update-config", "SKILL.md"),
-		join("assets", "skills", "find-skills", "SKILL.md"),
+		join(skillsRoot, "update-config", "SKILL.md"),
+		join(skillsRoot, "find-skills", "SKILL.md"),
 	];
 	const buildResourceLoader = (noExtensions: boolean) =>
 		new DefaultResourceLoader({

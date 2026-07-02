@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
-import { Then } from "@cucumber/cucumber";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Given, Then } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
+
+Given(
+	"a fresh operator directory with no Estelle assets or installed skills",
+	function (this: EstelleWorld) {
+		// Bare directory an operator runs the package in: no assets/ travel with it
+		// and no skills are installed. Isolate the agent dir too so no host-global
+		// skill leaks in, making any skill present one the package itself serves.
+		this.workspaceDir = mkdtempSync(join(tmpdir(), "estelle-builtin-"));
+		this.agentDir = mkdtempSync(join(tmpdir(), "estelle-builtin-agent-"));
+	},
+);
 
 Then(
 	"the {string} skill is present",
