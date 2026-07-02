@@ -13,3 +13,9 @@ Feature: Estelle launch
     Given Estelle has launched
     When the operator lists the available commands
     Then the commands "/bonny", "/misson", "/crew", "/bellamy", and "/johnson" are present
+
+  Scenario: Launch bundles the upstream Shipshape role skills
+    Given a fresh workspace
+    When the operator runs "npx @dk/estelle"
+    Then the skills "captain", "qm", "crew", "boatswain", and "shipwright" are present
+    And the "captain" skill resolves from the upstream Shipshape install
