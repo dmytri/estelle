@@ -1,7 +1,0 @@
-{
-  "watch1": {
-    "scenarios": [
-      "features/built-in-skills.feature:Estelle serves each built-in skill from the package in a clean operator directory"
-    ]
-  }
-}
