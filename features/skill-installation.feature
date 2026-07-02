@@ -14,4 +14,10 @@ Feature: Estelle skill installation
     Given a fresh workspace with no installed pi packages
     When the operator starts Estelle in that workspace
     Then the skills "captain", "qm", "crew", "boatswain", and "shipwright" are present
-    And the "dmytri/shipshape" package is persisted in the operator's pi settings
+    And the "https://github.com/dmytri/shipshape" package is persisted in the operator's pi settings
+
+  @sandbox
+  Scenario: An unrelated shipshape package does not satisfy the launch install
+    Given a fresh workspace whose pi settings already persist the "npm:pi-shipshape" package
+    When the operator starts Estelle in that workspace
+    Then the "https://github.com/dmytri/shipshape" package is persisted in the operator's pi settings

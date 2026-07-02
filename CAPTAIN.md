@@ -19,7 +19,7 @@ Only Captain MAY edit this file. Boatswain MAY read it to evaluate spec quality 
 
 ## What Estelle is
 
-Estelle is the vessel: an npm package `@dk/estelle` launched with `npx`. Estelle boots pi (pi.dev) pre-configured to taste, with the upstream Shipshape skills installed via `npx skills`, and an Estelle pi extension that mechanically enforces the workflow. Estelle vendors nothing it can pull upstream. After SV Estelle.
+Estelle is the vessel: an npm package `@dk/estelle` launched with `npx`. Estelle boots pi (pi.dev) into its interactive TUI as the Captain Bonny, installs the upstream Shipshape package through pi's native package manager, injects each seat's role instructions and character card into the live system prompt, and mechanically enforces custody through the Estelle pi extension. Estelle vendors nothing it can pull upstream. After SV Estelle.
 
 ## The crew
 
@@ -37,184 +37,56 @@ All seats are they/them, gender-neutral abstractions of their inspirations. Char
 
 Estelle enforces custody and context, not craft. Hard-gate the deterministic boundaries: who may write or read which files, which tools a seat holds, which model a seat runs, the Captain-to-Quartermaster context firewall. Leave judgement to the agent: simplicity, premature abstraction, whether code matches its steps, real-vs-mock. The skill prompts carry the fuzzy half.
 
+## The four-layer stack, operator direction 2026-07-02
+
+Proven live: this very development session runs the Shipshape open plugin on Claude Code (session hooks raised the RIGGING fail-fast blocker, role subagents held the firewall). The stack:
+
+1. **Skills** (upstream `dmytri/shipshape`): canonical doctrine, 100% portable and complete alone. Skill-only agents run full Shipshape; discipline is theirs. No higher layer adds doctrine.
+2. **Open plugin** (upstream `dmytri/shipshape`): mechanical enforcement limited to the **safe intersection of what all supported agents deliver reliably and identically**. No per-runtime maximalism, no graceful degradation; a guarantee that is not uniformly real is not claimed at this layer. Anything Claude-Code-only migrates down to unsupported or up to a flagship layer; that scoping is an upstream voyage.
+3. **`pi-vercel-plugin-shim`** (this repo): generic pi extension consuming the open-plugin format (plugin.json, skills/ commands/ agents/ hooks/ to pi resources, registerCommand, events). Zero Shipshape or Estelle opinion; runs any plugin in the format. Conformance target is exactly the layer-2 intersection. No published format spec exists; extract the boundary from Estelle's working seam, do not guess.
+4. **`@dk/estelle`** (this repo, flagship): seats and personas, Bonny as sole voice, fitting out, per-seat models, and enforcement beyond the intersection: real context isolation via fresh pi sessions, seat-scoped custody, opinionated config and UX. Stays a good pi citizen; any pi extension works alongside.
+
+**Monorepo, operator 2026-07-02.** The shim and `pi-shipshape` (Shipshape's plugin delivered to plain pi users through the shim) live in this repo, published independently to the pi directory with links back to Estelle. Estelle-first scope: built to what Estelle needs, others welcome, no speculative generality. Consequences when the shim materializes: `packages/` layout, per-package RIGGING and outbound values. Estelle's hand-rolled custody (`evaluateWrite`/`evaluateRead`) migrates down to plugin-through-shim over time; Estelle keeps only what is beyond the plugin's reach.
+
+Build order: Slice 1 (below, in flight), Slice 2 fitting out, then the shim against the proven seam, then Estelle refactors onto it.
+
 ## The loop, decided
 
-Bonny is always-on and the only seat the operator speaks with. The operator gives the word ("ship it") to seal a batch. Estelle then freezes the batch, clears context, and runs the crew (QM, Crew, Boatswain). The crew work is a live show the operator watches in the session flow, each seat in its own voice, while Bonny stays alongside. The operator keeps talking to Bonny; new intent queues as the next batch.
+Bonny is always-on and the only seat the operator speaks with. The operator gives the word ("ship it") to seal a batch. Estelle freezes the batch, clears context, and runs the crew (QM, Crew, Boatswain) as a live show the operator watches while Bonny stays alongside; new intent queues as the next batch. Visibility is asymmetric: crew output is operator-visible read-only; the operator's words reach only Bonny; the crew work from durable artifacts. Layer 2 of the architecture (live crew) builds this on pi directly, no `pi-subagents`: context-isolated pi sessions, one-way firewall, output routed to Bonny. Additive on the shipped single-session foundation, after fitting out.
 
-The experience we want: concurrent, not blocking. The operator never waits on a black box; they watch a real crew work and talk to the captain at the same time. Visibility is asymmetric. Crew output is visible to the operator, read-only. The operator's words reach only Bonny; the crew never see them and work from the durable artifacts. Bonny holds the operator's intent, can reference it, and is the signal layer over the live feed: adds meaning, catches what matters, fields reactions. The crew speak through their visible output, not to the operator. The TUI and UX implementation of this show is refined in later revisions; this captures the target experience.
+## Slice 1: Bonny is actually the Captain, in flight
 
-## Iteration map
+Operator report: live Estelle loaded only the character card; no Shipshape skills, no Articles. Both root causes proven (perturbation dagger showed `seatInstructions` orphaned from the live prompt; role skills present only via host-leak, never installed) and fixed in commit `61d30e4`:
 
-Iteration 1, this batch: launch, seat write custody, Captain notes privacy, seat tool custody, seat model selection, crew naming. Deterministic gates only.
+- `seatSystemPrompt` composes base + house rules + upstream role skill body (resource-loader `skillPaths`) + character card on both `launch()` and `run()` paths; dead `seatInstructions` seam removed.
+- `ensureShipshapePackage` installs `https://github.com/dmytri/shipshape` via pi's `DefaultPackageManager.installAndPersist` (user-scope) before resource loading when not already persisted; pi auto-loads it on later launches. The external `skills` CLI is off-design; `AGENTS.md` corrected. The npm `pi-shipshape` is stale (0.1.15, "bosun"); git source is current.
+- Suite 54/54 green after the cycle.
 
-Deferred to iteration 2+: the async batch loop and `/ship`; Estelle-driven auto-transitions and the live Captain-to-QM context clear; `@captain` exclusion injection, watchbill schema validation, RIGGING required-value gate, harbour git/grep guards, outbound gate, `@planks` lint; injecting the character cards as per-seat prompt addenda; themes, keybindings, the rest of the tastes.
+**Open before 0.1.3 ships:** Boatswain flagged the idempotence match as substring `"shipshape"`, so an operator holding the stale `npm:pi-shipshape` never receives `dmytri/shipshape` and seat prompts build from wrong or missing role skills. Specced this pass: exact-source persistence assertion plus the unrelated-package scenario in `features/skill-installation.feature`; `watchbill.json` focuses them. Second flag accepted as environment state, recorded in RIGGING known-false-failure-modes: on a host without a persisted shipshape package the first `@logic` run performs one real git clone.
 
-## Design pointers (pi hooks)
+Ship as `0.1.3` when green: bump, build, PTY boot check that the Articles reach Bonny's live prompt, publish `--access public`, push. Standing operator approval to commit and push.
 
-- Write/read/tool gates: the `tool_call` event returns `{ block: true, reason }` (examples `protected-paths.ts`, `permission-gate.ts`).
-- Per-seat model: the `before_provider_request` event, plus `model_select`.
-- Per-seat toolset: `setActiveTools` / `getActiveTools`.
-- Skills from upstream: `resources_discover` and the `packages` array in `.pi/settings.json`; installed via `npx skills`, never vendored.
-- Context firewall (iteration 2): `ctx.newSession()` for a genuine fresh context at the boundary.
-- Launch: pi has no documented `npx` wrapper pattern; the DIY wrapper is the chosen path. Mind the pi project-trust gate on first launch.
+## Next arcs, captured not specced
 
-## Status, delivered
+- **Slice 2, Estelle fitting out.** Global first-run onboarding, distinct from per-project fitting (Shipwright rigging). Friendly Bonny greeting when unfitted; providers and models via pi-native onboarding (`/login`, `/model`); per-seat models recorded in `~/.pi/agent/estelle.json` (pi `CONFIG_DIR_NAME` idiom), file presence is the fitted signal. Shipped `assets/seat-models.json` defaults go away; unfitted Estelle rides pi's `defaultModel`; the operator's pi config always wins (decided: never force a default seat model in the interactive path). Mechanical seams in the extension; judgement in the `update-config` skill Bonny reads.
+- **The shim and `pi-shipshape` packages**, per the stack section above.
+- **Operator-config persistence, merge-not-clobber.** Spec the persisted operator-config-write seam first (Slice 2 `estelle.json`), then the custody scenario that a seat-model write preserves other seats' settings. Vocabulary: keep `Estelle config sets the <seat> model to` phrasing.
+- **Perturb as product.** A narrow `perturb` tool through the custody gate so every Captain dagger is an auditable call. Future iteration, specced by scenario.
 
-- Iteration 1 (commit `72cc063`): launch seam, seat write custody, Captain notes privacy, seat tool custody, seat model selection, crew naming.
-- Iteration 2 (commit `1b074ae`): seat models default from `assets/seat-models.json`, operator config override, character-card injection into each seat's system prompt, operator-delivery-failure recording.
-- Iteration 3 (commit `d50085a`): per-name seat commands and aliases (`/bonny` and `/captain`; `/misson`, `/quartermaster`, `/qm`; `/bellamy` and `/boatswain`; `/johnson` and `/shipwright`; `/crew`), plus composed seat instructions (upstream role skill body and character card, identifying both character and role), verified without vendoring.
-- Housekeeping this pass: biome `rules.recommended` deprecation cleared (`93b651c`); AGENTS.md shadow-spec sections trimmed, behaviour now lives in specs and code (`8d12031`).
-- Also earlier: five character cards in Shipshape Controlled English; Bosun to Boatswain rename here and upstream; build-config debt cleared (`dd9982e`).
-- Iteration 4 (commit `f5ef8da`): seat-model fallback and unavailable-report; built-in skills `update-config` and `find-skills` shipped; operator-requested skill authoring (`createSkill`); house-rules append addressing the operator as "Commodore" on every seat; `@sandbox` skill install (`dmytri/shipshape`) and extension install (`npm:pi-web-access`, `/websearch`). Fresh-workspace install scenarios launch with a disposable empty agent dir, so an installed skill is proven absent before install. `watchbill.json` removed after the batch landed.
-- Suite: 48 scenarios green across `@logic` and `@sandbox`. typecheck and lint green. Repo public at `dmytri/estelle`; old version archived at `dmytri/estelle-old`. Published to npm as `@dk/estelle@0.1.0`.
+## Design pointers (pi)
 
-## Iteration 5, shipped
+- Custody gates: `tool_call` returns `{ block: true, reason }`; seat commands: `pi.registerCommand`; per-seat model: `before_provider_request` + `model_select`; per-seat toolset: `setActiveTools`.
+- Interactive: `createAgentSessionRuntime` + `InteractiveMode.run()` per pi sdk.md; persistent storage comes from `createAgentSessionServices` (`auth.json`, `models.json`, sessions under agentDir).
+- Context firewall (live crew): `ctx.newSession()` for a genuine fresh context.
+- Packages: `DefaultPackageManager.installAndPersist`; convention dirs (skills/ with SKILL.md folders) need no pi manifest.
+- Extension config idiom: `CONFIG_DIR_NAME` for project-local, `~/.pi/agent/<name>.json` for global.
 
-- **`@dk/estelle@0.1.0` published `--access public`** (commit `10bf260`). The compiled `dist` boots pi as Bonny from an installed tarball; the manual outbound boot check passed; `@logic` and `@sandbox` suites green. The runnable package (bin, build, package-relative asset resolution, packed-artifact custody) landed across `bd7344c`, `063f813`, and the ESM-boot fix.
-- **ESM-boot blocker resolved, note corrected.** The earlier plan here said add `"type": "module"`. What actually landed (commit `008f185`) keeps the package CommonJS (no `"type"` field) and builds with `--module nodenext`, which preserves the dynamic `await import("@earendil-works/pi-coding-agent")` as a native ESM import instead of downlevelling it to `require(...)`. So the CJS `dist` boots pi's ESM-only dependency, and `bin/estelle.js` stays CJS with a working `require("../dist/index.js").launch()`. The scenario `The built package boots pi as the Captain Bonny` is the executable gate that guards it. The `--module node16` plus resolution-mode-attribute attempt is superseded.
+## Stale-green perturbation dagger, operative rule
 
-Durable decisions from the runnable-package arc, now embodied in code and specs:
+Plant the RIGGING `fail-fast` statement as the first statement of a suspected stale-green production seam; run the relevant scenarios. Red proves the seam is reached; green-despite-dagger is stale-green evidence. Reachability, not assertion strength. Custody: the dagger is the sole Captain production-write exception; QM confirms every dagger reddens discovery; Boatswain never commits a live one. Use post-fix on a distrusted green, never pre-fix. Interim rule, operator 2026-07-01: I MAY use the dagger and I tell the operator before planting one. Proven in service 2026-07-02: exposed the orphaned `seatInstructions` seam.
 
-- **Asset home is the package.** `launch` takes `assetsDir` defaulting to the package's shipped assets; `cwd` stays the operator's directory. Boot-from-assetless-directory scenarios cover it.
-- **Verification is packaging-seams-only, `@logic`.** Bin entry, built output, package-relative asset resolution, and boot-as-Bonny are verified locally. Live published boot is the manual outbound check per RIGGING Outbound. The interactive pi TUI handoff is exercised by the outbound boot, not a scenario.
-- **Packaging config split by coverage.** `main`, `files`, `build`, and the `dist` module config are Crew production (spec-covered by `The built package boots pi as the Captain Bonny`); RIGGING `implementation` lists `package.json`. `bin/estelle.js` stays Captain-owned; its real launch is the manual outbound boot check. Operator rule 2026-07-01: widen Crew scope only for work a falsifiable spec covers; outbound-only-covered work stays Captain-owned.
+## Status
 
-## This batch: harbour inventory and skill-authoring, decided
-
-Harbour full-tier boundary check green: 48 scenarios (46 `@logic` plus 2 `@sandbox`), typecheck and lint clean. No dead code, no `@shipwright` flags. Shipwright raised two `@captain` scenarios and two verification-layer findings.
-
-- **Launch-gap scenario promoted.** `features/launch.feature:Launch bundles the upstream Shipshape role skills` re-specs real shipped behaviour whose steps were deleted, restoring the two stale planks on the `launch` seam (src/index.ts:302-303). Its `Given a fresh workspace / When the operator runs "npx @dk/estelle"` matches the existing `@logic` launch harness. QM adds the two missing step defs: `the skills ... are present` (plural) and `the "captain" skill resolves from the upstream Shipshape install`.
-- **create-skill is the feature; harbour-report is a non-shipped fixture.** Shipwright flagged `skillContents()` (src/index.ts:163-180) hardcoding the full harbour-report `SKILL.md` body in production. Operator decision: harbour-report is not an Estelle feature and MUST NOT ship. It is only the example payload for the create-skill test, so it belongs in verification as QM-owned test support under `features/support/`, not in `assets/` (which ships via `files: ["assets"]`) and not hardcoded in production. `skillContents()` currently ships the body inside `dist/index.js`; removing it is what gets harbour-report out of the published artifact.
-- **Skill-authoring respec, stub-resistant.** `features/skill-authoring.feature` is rewritten to one scenario: the operator asks Estelle to create a skill with a given body, and the skill lands in the workspace and loads carrying that body. Test-controlled content means a canned blob cannot pass, so the create-skill seam must write the content it is given. This supersedes the old present-only harbour-report scenario, which was stale-green (a hardcoded stub satisfied it), and Shipwright's extract-to-asset `@captain` scenario, which would have relocated the stub rather than removing it. Crew work: make `createSkill` write provided content to the loadable path and drop the hardcoded `skillContents()` stub.
-
-Verification-layer notes for the QM cycle:
-
-- **No `@sandbox` harmless-by-design violation (finding retracted).** Shipwright reported a first-run `@sandbox` install deleting the real-repo `watchbill.json`. Misattribution: Captain removed `watchbill.json` with `rm` during this batch's tidy, and Shipwright, in isolated context, saw it missing mid-run. Verification references no real `watchbill.json` (a grep of `features/` is clean), `@sandbox` installs clone into temp workspaces (`/tmp/estelle-fresh-*`) with `After`-hook teardown, and the write-gate at src/index.ts:195 enforces Captain-only writes to `watchbill.json`. Nothing to fix.
-- **Keep create-skill off the real tree.** `createSkill` writes a `SKILL.md` under the session `cwd`. The new skill-authoring scenario MUST run in a disposable workspace, as the install scenarios do via `ensureFreshWorkspace`, so the created file lands in a temp dir with teardown rather than the real repo's `assets/skills/`.
-- **Orphaned step definition.** `features/steps/seat-persona-injection.steps.ts:15` (`the active seat's system prompt includes its character card`) is defined but used by no scenario. Its production accessor `systemPrompt()` stays live via the Commodore scenario, so no production orphaning. Boatswain removes the unused step definition during hygiene.
-
-## Harbour prep and 0.1.1, 2026-07-02
-
-Skill-authoring + upstream-resolution cycle closed; deck readied for harbour. Publish held to fix a built-in-skill defect the outbound boot check exposed.
-
-- **Cycle landed** (commits `a2de705`, `956e15b`, `960d1bf`). `createSkill(name, body)` writes the operator-provided body with loadable frontmatter and no longer ships the harbour-report stub in `dist`; the two launch step defs verify the five upstream role skills resolve from outside the repository. Suite green: 47 `@logic` plus 2 `@sandbox`, typecheck and lint clean.
-- **Tier tags fixed.** QM flagged that RIGGING declared `default: @logic` while no scenario carried the tag, so the `@logic` boundary selected zero. Resolved by tagging every local feature file `@logic` at the feature level; the two install features stay `@sandbox`. `@logic and not @captain` now selects 47, `@sandbox` selects 2, no overlap. The RIGGING tier convention is unchanged and now accurate. Version bumped to 0.1.1 and bin `"use strict"` dropped in commit `bb69a31`.
-- **Publish held: built-in skills do not load in a clean operator directory.** The 0.1.1 tarball boot-checked from a fresh assetless install as Bonny with the `estelle` extension and all five upstream role skills. But `update-config` was absent, because `launch` registers the two built-in skills via `additionalSkillPaths` as cwd-relative paths (`assets/skills/<name>/SKILL.md`). The package ships those assets, yet the relative path resolves against the operator's directory, so in a bare operator dir they do not load. `find-skills` only appeared through a host-global skills-dir leak on this VM; a clean environment loses both. This is pre-existing in 0.1.0. The old `built-in-skills` scenario stayed stale-green because it booted from a cwd that carries `assets/`.
-- **Fix landed (commit `58cc687`).** Respecced `features/built-in-skills.feature` to boot from a fresh operator directory with no Estelle assets or installed skills, so a built-in skill is present only if the package supplies it. Crew resolved `additionalSkillPaths` through the same `assetsDir` fallback the character cards and models use, so the built-ins load regardless of operator cwd. Suite green, 0 undefined, typecheck and lint clean.
-- **`@dk/estelle@0.1.1` published `--access public` and pushed to origin.** Outbound boot check on the packed tarball, and again on the registry-installed package, booted as Bonny with the `estelle` extension and both built-ins (`update-config`, `find-skills`) package-served from a clean operator directory. `watchbill.json` struck after watch1 spent.
-- **Harbour entry guard satisfied:** working tree clean, outbound not pending, no `@captain` scenarios, no `@shipwright` flags. Ready for Shipwright inventory on the operator's word.
-
-## Interactive TUI handoff bug, 2026-07-02
-
-Operator report: `npx @dk/estelle` returns to the shell instead of dropping into the pi TUI. Root cause: `bin/estelle.js` calls `launch()`, which configures and returns an `EstelleSession` (created via `createAgentSession`) but never runs pi's interactive mode, so the process boots and exits. This is the long-noted "DIY wrapper" handoff that had no scenario guarding it; the manual outbound boot check read `exit 0` as success when `exit 0` was the symptom.
-
-- **Documented fix path (pi sdk.md "InteractiveMode").** Build a runtime with `createAgentSessionRuntime(factory, {cwd, agentDir, sessionManager})` where the factory calls `createAgentSessionServices({cwd, agentDir, settingsManager, resourceLoaderOptions: {extensionFactories, additionalSkillPaths, noExtensions:false}})`, then `new InteractiveMode(runtime, opts)` and `await mode.run()`. `createAgentSessionServices` accepts `resourceLoaderOptions` (Omit cwd/agentDir/settingsManager), which is how Estelle injects its extension and built-in skills. The estelle extension carries the seat system prompt, custody gates, and model behaviour, so it all rides along.
-- **Shape.** Keep `launch()` as the configure-and-return seam (all current @logic coverage rides on it, untouched). Add a `run()` seam that boots pi's `InteractiveMode` on the Estelle-configured runtime. `bin/estelle.js` (Captain-owned) calls `run()`.
-- **Verification decision (operator, 2026-07-02): test that Estelle uses pi as documented, do not test pi itself.** New @logic scenario `features/interactive-launch.feature` asserts Estelle hands pi's documented `InteractiveMode` an Estelle-configured runtime (Bonny active, `estelle` extension loaded) and runs it. The real TUI needs a TTY the hermetic tier cannot provide, so the interactive runner is an `@exceptional-double` at that boundary: we verify our call into pi's documented entry, and trust pi to render the TUI. `watchbill.json` watch1 focuses it.
-- **Known follow-up, not this cycle.** Seat-switch commands (`/bonny` etc.) are Estelle's conceptual model tested at @logic via the `commands` array; the estelle extension does not register them as live pi commands. Whether seat switching works inside the live TUI is a separate gap to spec later. This cycle fixes only the reported bug: entering the TUI at all.
-- **Ship as 0.1.2 after the scenario is green.** Bump, build, publish `--access public`, push.
-
-## Interactive session, full known intent batched, 2026-07-02
-
-Operator direction: do not defer the follow-ups; batch all known interactive-session intent now. The interactive-TUI entry (`run()` + `InteractiveMode`) landed (commit `85234b6`, bin wired `c873959`). This batch adds the rest of the real-pi-session experience, all @logic, all through Estelle's use of pi's documented API.
-
-- **Live seat commands.** The estelle extension registers the seat commands (`/bonny`, `/misson`, `/crew`, `/bellamy`, `/johnson`) with pi via `pi.registerCommand(name, {description, handler})` (pi extensions.md, same shape as the `/switch` example). Each handler sets `state.activeSeat` to the matching seat. The existing `before_agent_start` and `tool_call` hooks already read `state.activeSeat`, so switching propagates to system prompt and custody on the next turn. Scenario asserts the started session registers all five commands and that invoking `/misson` switches the active seat to the Quartermaster. Crew exposes an active-seat observation seam on the interactive path for verification.
-- **Provider and model configuration persist.** Confirmed `run()` builds real persistent storage: `createAgentSessionServices` creates `AuthStorage.create(agentDir/auth.json)` and `ModelRegistry.create(authStorage, agentDir/models.json)`, not the in-memory versions the SDK `launch()` path uses for hermetic tests. So `/login` (provider auth) and `/model` (model selection) persist to the operator's agent directory, and Bonny's `update-config` skill guides it. Scenario guards that the started session resolves auth and model config from the operator's agent directory, so a regression to in-memory storage is caught. Decided: do NOT force a default seat model in the interactive path; let the operator's pi config win.
-- **Session persistence.** `run()` currently uses `SessionManager.inMemory()`, so conversations do not resume across restarts; native pi persists them. Crew switches the interactive path to a persistent session manager (`SessionManager.create(cwd)` per pi's cli/main). Scenario asserts the started session is recorded under the operator's agent directory for resume.
-- **Verification stays "test our use of pi, not pi."** All four scenarios assert Estelle's wiring at the run seam (registered commands, active-seat switch, persistent storage locations, recorded session), reusing the `@exceptional-double` interactive runner for the TTY boundary. No test drives a real TUI or a real provider.
-- **0.1.2 shipping this pass.** Batch green (commit `152a383`, 54 scenarios / 245 steps, tsc and biome clean). Live seat commands register via `pi.registerCommand`, seat switch flips `state.activeSeat`, `run()` uses `SessionManager.create(cwd, agentDir/sessions)` for resume, and file-backed auth/model storage is guarded. Version bumped to 0.1.2, built, PTY boot clean (TUI up, `estelle` extension loaded, no crash from the new command registration). Publishing `--access public` and pushing this pass, per the operator's standing commit-and-push approval.
-
-## Slice 1: Bonny is actually the Captain, 2026-07-02
-
-Operator report: live Estelle loads only the character card; no Shipshape skills, no Articles, no role instructions. Two root causes, both proven:
-
-- **Role composition orphaned.** Perturbation dagger at `seatInstructions` reddened only the 5 `seat-composition` outline rows; all boot and system-prompt scenarios stayed green. The live `before_agent_start` hook injects only base + house rules + card. The role skill body never reaches the live session.
-- **Shipshape never installed.** `run()` and `launch()` add only Estelle's two built-ins. The role skills appeared in my dev env through a host-leak (`npx skills add` run manually); a fresh operator gets nothing. The old `launch.feature:Launch bundles the upstream Shipshape role skills` scenario was stale-green through the same leak; struck this pass, superseded by the honest `@sandbox` install-on-launch scenario.
-
-Decisions, operator 2026-07-02:
-
-- **pi-native package management.** Estelle installs upstream Shipshape via pi's package manager (`DefaultPackageManager.installAndPersist`, git source `https://github.com/dmytri/shipshape`), persisted to the operator's pi settings so pi auto-loads it on later launches. The external `skills` CLI is off-design; `AGENTS.md` corrected. The upstream repo layout (skills/ dir with SKILL.md folders) satisfies pi's convention-directory discovery with no pi manifest, so no adapter and no vendoring. The npm `pi-shipshape` package is stale (0.1.15, "bosun"); git source is current.
-- **Skills-as-skills is optional; injection is the contract.** The requirement is that the active seat's role instructions reach the live system prompt. Resolution order per the old `~/estelle` adapter (logic migrated, package not vendored): project-local override, then installed package.
-- **Respec, not patch.** `seat-composition` outline respecced from the orphaned `seatInstructions` accessor to the live seat system prompt vocabulary (`the seat system prompt includes ...`), same seam the Commodore scenario already exercises. The identify-as-both assertion dropped: card + role inclusion carries identity. `seatInstructions` loses all step references; Crew removes the dead seam when landing the fix.
-
-Next arcs, captured not specced:
-
-- **Slice 2, Estelle fitting out.** Global first-run onboarding: friendly Bonny greeting when unfitted, providers/models via pi-native onboarding (`/login`, `/model`), per-seat models recorded in `~/.pi/agent/estelle.json` (pi `CONFIG_DIR_NAME` idiom), presence of that file is the fitted signal. Shipped `assets/seat-models.json` defaults go away; unfitted Estelle rides pi's `defaultModel`. Estelle fitting is global and first; project fitting (Shipwright rigging) is per-repo.
-- **Generic pi open-plugin bridge, own package.** Upstream Shipshape 0.6.0 ships the vendor-neutral plugin layout (plugin.json, skills/ commands/ agents/ hooks/) that Claude Code, Cursor, and Vercel's plugin converge on. A reusable pi extension consuming that format (hooks to pi events, commands to registerCommand) would let pi run the whole ecosystem and would slim Estelle to seats + launcher. Build after Slice 1 proves the seat-role-custody seam; no published spec yet, so extract from the working boundary rather than guess.
-
-## Architecture decided
-
-- **Orchestration on pi directly, no `pi-subagents`.** Context-isolated agents are a pi primitive (a separate `pi` process per agent, or in-process SDK sessions). `pi-subagents` only adds generic orchestration polish with its own opinions. Estelle's model is specific (Bonny the sole voice, Shipshape seats with custody, the "ship it" batch loop, the live crew), so we build the orchestration on pi for full control.
-- **One architecture, incremental layers, no throwaway.** Layer 1 (foundation): the single-session extension and launcher: seat commands, composed role-plus-card instructions, custody, models, booting the pi TUI as Bonny. Layer 2 (live crew): background context-isolated seats whose output surfaces to the operator and into Bonny's context, a one-way firewall, the ship-it batch loop. Layer 2 is additive on Layer 1.
-
-## AGENTS.md boundary, decided
-
-AGENTS.md holds working agreements, setup, and release process only: the Shipshape pointer, the `npx skills` install, No vendoring (a project agreement), Outbound verification. Product behaviour belongs in verified `.feature` specs. Implementation mechanism (pi API calls such as `ModelRegistry.find`, `before_agent_start`, `registerCommand`) belongs in code, never in prose and never named in a step; steps assert observables, not a pi method name. The pi project-trust gate is not an AGENTS.md section: the harness caveat lives in RIGGING known-false-failure-modes, and the published-artifact check lives in the Outbound policy.
-
-## What is not built yet
-
-- **The runnable package: shipped as `0.1.0`.** Layer 1's `bin`, `build`, and `npm publish` landed; `npx @dk/estelle` boots pi as Bonny with the seats on `opencode-go/deepseek-v4-flash`. See the "Iteration 5, shipped" section above.
-- **The live crew (Layer 2):** background seats, output routing to Bonny, the batch loop. Built on pi directly, after Layer 1 is in the operator's hands.
-
-## Self-managing Estelle, future arc, captured this session
-
-Operator wants Estelle to manage its own capability surface, not only boot preconfigured. Scope discovered this session:
-
-- Self-configure: ensure provider auth, models, and pi settings are ready so a seat's model resolves, whatever the host preconfigured. exe.dev is the live example.
-- Unavailable model: fall back to an available model, warn naming the bad id, offer to fix. Fall-back and warn are specced in `features/seat-model-fallback.feature`. Offer-to-fix is the self-config skill below.
-- Install other pi extensions.
-- Install upstream skills, the `npx skills` path already in use.
-- Create skills, author new skills in the workspace.
-
-Shape follows the decided posture. Mechanical seams live in the Estelle extension: detect an unavailable model, fall back, surface the warning, perform an install or a write. Judgement lives in a built-in skill Bonny reads: how to configure and extend Estelle, walking the operator through the fix. Bonny is the only operator-facing voice, so warnings and offers surface through Bonny.
-
-Decided this session:
-
-- Config knowledge home: both. Mechanical fixes (fall back, warn, write) live in the extension; a shipped `update-config` skill composed into Bonny's instructions carries the judgement to walk the operator through a fix. Named by function with no redundant `estelle-` prefix, the same way Claude Code's built-in is `update-config` not `claude-config`, and the same way the seat skills are `captain` and `qm`. Specced in `features/built-in-skills.feature`. The skill body models on Claude Code's `update-config` skill: read current config before writing, merge rather than replace, clarify ambiguous scope with the operator, carry a reference for Estelle's config surface (seat models, operator config, provider setup, extension and skill install, skill authoring), and confirm each change. Body authored this session at `assets/skills/update-config/SKILL.md`. Decided: Estelle's own skills are Captain-owned assets under `assets/`, the same class as `assets/characters/`. The body carries craft and judgement only. Any behaviour that must be guaranteed is promoted to a `.feature` scenario, so the asset never becomes a shadow spec. This is distinct from operator-requested skills, which the create-skill seam writes into the operator's workspace at runtime, not into Estelle's shipped assets. Naming holds for every Estelle built-in: no redundant `estelle-` prefix. Skills are function-named (`update-config`; a skill-management skill mirrors Claude Code's `find-skills`), and feature files are behaviour-named (`built-in-skills`, `skill-authoring`, `skill-installation`, `extension-install`), matching the existing `seat-*` and `crew-naming` files.
-- Install tier: provision `@sandbox` now. Tier defined in `RIGGING.md`. Install scenarios run in a namespaced temporary workspace with idempotent teardown, network allowed, no secret credentials.
-- Create-skill: operator-requested workspace skill. Specced in `features/skill-authoring.feature` with the concrete example skill `harbour-report`. The authoring capability models on Claude Code's skill format and conventions: a `SKILL.md` with frontmatter (name, description as the trigger, when-to-use) and a concise progressively-disclosed body; the created skill loads through the same resource path as the upstream skills. Skill install (watch5) draws on the discover-and-install pattern of Claude Code's `find-skills`.
-
-Specced this session and ordered in `watchbill.json`:
-
-- `features/built-in-skills.feature`, @logic, watch3: ships the `update-config` and `find-skills` built-in skills so each appears in the pi skills listing. Presence only, not composition, because pi lists skills for on-demand reading. Bodies authored at `assets/skills/update-config/SKILL.md` and `assets/skills/find-skills/SKILL.md`.
-- `features/skill-authoring.feature`, @logic, watch4: operator asks Estelle to create the `harbour-report` skill, it loads.
-- `features/skill-installation.feature`, @sandbox, watch5: Estelle installs `dmytri/shipshape`, its `captain` skill loads. Needs the sandbox harness stood up.
-
-Extension install anchored and specced:
-
-- `features/extension-install.feature`, @sandbox, watch6: Estelle installs `npm:pi-web-access`; its `/websearch` command becomes present. Real package at pi.dev/packages/pi-web-access, installs via `pi install npm:pi-web-access`, the same packages mechanism as `npm:pi-shipshape` in pi settings.
-
-## System prompt layer and operator address, decided
-
-pi builds the system prompt from a base template plus a first-class persistent append (`appendSystemPrompt` SDK option, or a shipped `.pi/APPEND_SYSTEM.md`), plus project context files (`AGENTS.md`/`CLAUDE.md`), plus a skills listing. The persistent append holds every turn, unlike the per-turn `before_agent_start` hook the character cards use. Cards stay on the hook because they are per-seat and the active seat changes at runtime. House rules are session-wide and static, so they belong on the append.
-
-Decided: Estelle ships a house-rules preamble as the Captain-owned asset `assets/system-prompt.md`, wired into every seat through pi's persistent append. First rule: every hand, Bonny included, addresses the operator as "Commodore" and refers to them as "Commodore", honouring a different form only when the Commodore asks. The utterance is honour-system voice; the enforceable slice is delivery, specced by example in `features/system-prompt.feature` (watch7): a seat's system prompt addresses the operator as "Commodore". No bespoke word-level feature.
-
-pi surfaces skills as a listing the model reads on demand, not as injected bodies. So a built-in skill spec asserts presence in the listing, not composition into a seat. Estelle's own composition of the role skill body plus character card into a seat, `seatInstructions`, is separate and stays for seat identity.
-
-## Stale-green perturbation dagger, captured 2026-07-01
-
-Idea, operator-proposed. A manual mutation probe against stale-green, the weakness Article 10 names but arms nobody against. Plant the exact dagger as the first statement of a suspected-stale-green production seam:
-
-```js
-throw new Error("PERTURBATION: stale-green challenge; consider current Gherkin step and Rule context; remove when fixed");
-```
-
-Rebuild if the seam compiles, run the relevant scenarios. A genuine scenario goes red. A scenario that stays green never reached the seam, so it is stale-green. The message is self-explanatory, so it crosses the firewall as its own briefing; QM, Crew, and Boatswain need no separate note.
-
-- **Custody.** Planting the dagger is the sole exception to Captain production-code custody. Nothing else in production is Captain-writable.
-- **Two guards for upstream.** QM confirms every `PERTURBATION` dagger yields a scenario failure; a green-despite-dagger is a stale-green blocker back to Captain to strengthen the scenario. Boatswain treats a live dagger as a foul deck and never commits it.
-- **Caveat.** It proves the seam is reached, not that the scenario asserts anything about the seam's output. Reachability, not assertion strength.
-- **Placement discipline.** Use it post-fix on a green I distrust. A pre-fix dagger masks the real red and tangles the probe with the actual fix, as it would have this ESM cycle.
-- **Estelle enforcement home.** Natural future Estelle feature: a narrow `perturb` tool exposed through the custody gate (`evaluateWrite`), so the Captain still cannot otherwise write production code and every plant is an auditable call. Pure custody, Estelle's charter. Future iteration, specced by a scenario, not this publish cycle.
-- **Interim rule, operator 2026-07-01.** Until this is upstreamed into Shipshape, I MAY use the dagger, and I tell the operator first before planting one.
-
-## Open items for the operator
-
-- **Operator-config persistence, and merge-not-clobber, deferred.** The self-config "offer to fix" writes a corrected model into operator config. That write must preserve other seats' settings. Speccing this now presupposes a persisted operator-config-write seam that Estelle has not defined; today "operator config" is the in-memory `setSeatModel` dict, so a custody scenario would be trivial or get ahead of undefined machinery. Spec operator-config persistence first, then the merge-not-clobber custody scenario against it. Vocabulary note: align on the existing `Estelle config sets the <seat> model to` phrasing, do not introduce `operator config sets ...`.
-- **Install-skill sandbox anchor, resolved.** `features/skill-installation.feature` installs `dmytri/shipshape` and asserts the `captain` skill loads. The fresh-workspace launch takes a disposable empty agent dir (`LaunchOptions.agentDir`), so `captain` is genuinely absent until the install brings it. The non-core anchor is unnecessary; isolation proves absence.
-- **Firewall grep leak, watch.** This cycle the Quartermaster reported a broad `grep` surfaced `CAPTAIN.md` during discovery. They excluded it and worked from the specs and their own probes. The firewall held by role discipline, not tooling. If a runtime gate is built later, exclude `CAPTAIN.md` from crew-visible search by construction.
-- **Unknown seat-model id: decided, fall back and warn and offer to fix.** A configured id pi's registry does not know falls back to an available model, warns naming the unavailable id, and offers to fix. Fall-back and warn are delivered in `features/seat-model-fallback.feature`. Offer-to-fix belongs to the self-managing arc below.
-- Model defaults are the cheapest model per seat (`opencode-go/deepseek-v4-flash`). Operator wants cheap-and-easy; the pinned id stays because it is deterministic and testable, unlike "whatever the provider defaults to". Per-seat model taste is a later pass.
-- Git identity set to `Dmytri Kleiner <dev@dmytri.to>`; the seven local commits ahead of origin were amended to it. Clean for push.
-- Pass-two character detail captured. Misson is now protective-pedantic; deeper detail welcome anytime.
+- Shipped: `@dk/estelle@0.1.2` on npm (interactive TUI as Bonny, live seat commands, persistent auth/model/session storage, built-ins served from the package, createSkill with operator body, custody gates, crew naming, Commodore address). Suite green across `@logic` and `@sandbox`; repo `dmytri/estelle`.
+- In flight: Slice 1 idempotence fix, then `0.1.3`.
+- Watch items: firewall grep leak (QM excluded `CAPTAIN.md` by discipline; a runtime gate should exclude it by construction); Misson character detail welcome anytime.

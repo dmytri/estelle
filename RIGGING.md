@@ -52,3 +52,5 @@ Procedure lives in the skills. Every role reads this on open.
 ## Known false-failure modes
 
 - pi enforces a project-trust gate on first launch; a freshly cloned workspace must be trusted before its extensions and skills load; an untrusted workspace is the trust gate, not an Estelle defect; trust the project, then rerun
+- Estelle installs the upstream Shipshape package on launch when the operator's pi settings do not persist it; on a host without it, the first `@logic` run performs one real git clone; later runs skip; a first-run clone or its network failure is environment state, not an Estelle defect
+- cucumber `--format usage` truncates concrete rows per step pattern; use the `step-usage` command (`usage-json`) for plank audits; a stale-plank hit from the pretty table must be confirmed against feature files
