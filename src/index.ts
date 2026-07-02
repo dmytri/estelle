@@ -67,7 +67,6 @@ interface Seat {
 	id: string;
 	role: string;
 	name: string;
-	roleName: string;
 	skill: string;
 }
 
@@ -76,35 +75,30 @@ const SEATS: Record<string, Seat> = {
 		id: "bonny",
 		role: "captain",
 		name: "Bonny",
-		roleName: "Captain",
 		skill: "captain",
 	},
 	misson: {
 		id: "misson",
 		role: "quartermaster",
 		name: "Misson",
-		roleName: "Quartermaster",
 		skill: "qm",
 	},
 	crew: {
 		id: "crew",
 		role: "crew",
 		name: "Crew",
-		roleName: "Crew",
 		skill: "crew",
 	},
 	bellamy: {
 		id: "bellamy",
 		role: "boatswain",
 		name: "Bellamy",
-		roleName: "Boatswain",
 		skill: "boatswain",
 	},
 	johnson: {
 		id: "johnson",
 		role: "shipwright",
 		name: "Johnson",
-		roleName: "Shipwright",
 		skill: "shipwright",
 	},
 };
