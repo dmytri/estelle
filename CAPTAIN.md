@@ -143,7 +143,7 @@ Shipwright full scan at `b8cff6c` came back clean: 75 planks all mapping, zero s
 
 One `@captain` finding, resolved with the operator:
 
-- **Greeting copy is operator-owned content.** The ready greeting was a hardcoded string in `src/index.ts`. Operator 2026-07-03: keep the fixed string (not model-voiced; the per-launch turn cost is not worth it), but move the copy to an asset and fix it. Scenario promoted (asset-sourced ready greeting, test-controlled content so a hardcoded string cannot pass). Asset `assets/greeting.md` authored with the corrected line: dropped "What are we building today?" (mixes a construction metaphor into the nautical voice) for "What's on your mind today?". The unfitted steer stays in production: naming `/login` and `/model` is its spec'd behaviour, not voice. Crew wires production to read the greeting asset. Ship as 0.1.6.
+- **Greeting copy is operator-owned content.** The ready greeting was a hardcoded string in `src/index.ts`. Operator 2026-07-03: keep the fixed string (not model-voiced; the per-launch turn cost is not worth it), but move the copy to an asset and fix it. Scenario promoted (asset-sourced ready greeting, test-controlled content so a hardcoded string cannot pass). Asset `assets/greeting.md` authored with the corrected line: dropped "What are we building today?" (mixes a construction metaphor into the nautical voice) for "What's on your mind today?". The unfitted steer stays in production: naming `/login` and `/model` is its spec'd behaviour, not voice. Crew wired production to read the greeting asset. Shipped 0.1.6 (`98193a0` production + step, `a1e5efb` watchbill strike + bump); published-tarball PTY boot check confirmed the installed package boots pi as Bonny with the estelle extension and the ready greeting read from the packaged asset.
 
 ## pi command pass-through, shipping as 0.1.5
 
@@ -177,5 +177,6 @@ Plant the RIGGING `fail-fast` statement as the first statement of a suspected st
 
 ## Status
 
-- Shipped: `@dk/estelle@0.1.3` on npm (fresh-operator boot installs Shipshape, Articles reach Bonny's live prompt; operator confirmed live). `0.1.4` shipping this pass: model-gated greeting, fitting-out steer, `estelle.json` per-seat models bound on both seams, pi default wins when unrecorded.
+- Shipped: `@dk/estelle@0.1.6` on npm, `main` in sync with `origin`. Prior: 0.1.3 (Shipshape install + Articles to Bonny's prompt), 0.1.4 (model-gated greeting, fitting-out steer, `estelle.json` per-seat models on both seams, pi default wins when unrecorded), 0.1.5 (pi command pass-through), 0.1.6 (ready greeting reads operator-owned `assets/greeting.md`).
+- Next: harbour inventory (`/shipwright`). Tree quiescent and shipped, so the harbour-entry guard now passes. Boatswain flagged this file carries resolved/shipped history worth trimming to git; optional, do during a harbour lull.
 - Watch items: firewall grep leak (a runtime gate should exclude `CAPTAIN.md` by construction; see upstream proposals); Misson character detail welcome anytime.
