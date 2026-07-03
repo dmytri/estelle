@@ -18,6 +18,7 @@ interface InteractiveHandle {
 }
 
 export interface RunOptions extends LaunchOptions {
+	argv?: string[];
 	interactive?: (handle: InteractiveHandle) => void | Promise<void>;
 }
 
@@ -700,8 +701,15 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
  * @planks("Then that interactive session boots as the Captain \"Bonny\"")
  * @planks("Then that interactive session has the \"estelle\" extension loaded")
  * @planks("Then the started session is recorded under the operator's agent directory so the operator can resume it")
+ * @planks("When the operator runs estelle with the arguments \"install npm:pi-web-access\"")
+ * @planks("Then the \"npm:pi-web-access\" package is persisted in the operator's pi settings")
  */
 export async function run(options?: RunOptions): Promise<void> {
+	if (options?.argv?.length) {
+		const { main } = await import("@earendil-works/pi-coding-agent");
+		await main(options.argv);
+		return;
+	}
 	const cwd = options?.cwd ?? process.cwd();
 	const state: EstelleState = {
 		providerRequestCount: 0,
