@@ -31,3 +31,9 @@ Feature: Seat model selection
     And the active seat is the Captain "Bonny"
     When Bonny begins a turn
     Then the provider request uses the model "opencode-go/glm-5.2"
+
+  Scenario: A recorded seat model binds the started session
+    Given an operator directory that carries no Estelle assets
+    And the "estelle.json" file in the operator's agent directory records the captain model "opencode-go/glm-5.2"
+    When the operator starts Estelle in that directory
+    Then the started session runs the active seat on the model "opencode-go/glm-5.2"

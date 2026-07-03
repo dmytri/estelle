@@ -1,20 +1,7 @@
 {
   "watch1": {
     "scenarios": [
-      "features/greeting.feature:Bonny greets first when an active model is available",
-      "features/greeting.feature:An unfitted session steers the operator to log in and pick a model"
-    ]
-  },
-  "watch2": {
-    "scenarios": [
-      "features/seat-model-defaults.feature:A seat with no recorded model runs on the operator's pi default model",
-      "features/seat-model-selection.feature:Estelle config sets the Captain model",
-      "features/seat-model-selection.feature:Estelle config sets the Quartermaster model",
-      "features/seat-model-selection.feature:A recorded seat model lands in the operator's agent directory",
-      "features/seat-model-selection.feature:Recording one seat model preserves the other seat models",
-      "features/seat-model-selection.feature:A seat model recorded in the agent directory is used at launch",
-      "features/seat-model-fallback.feature:An unavailable seat model falls back to an available model",
-      "features/seat-model-fallback.feature:An unavailable seat model is reported as unavailable"
+      "features/seat-model-selection.feature:A recorded seat model binds the started session"
     ]
   }
 }
