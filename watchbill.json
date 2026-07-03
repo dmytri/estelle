@@ -1,7 +1,0 @@
-{
-  "watch1": {
-    "scenarios": [
-      "features/seat-model-selection.feature:A recorded seat model binds the started session"
-    ]
-  }
-}

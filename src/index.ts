@@ -634,7 +634,6 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		/**
 		 * @planks("When Bonny begins a turn")
 		 * @planks("When Misson begins a turn")
-		 * @planks("Then the provider request uses the model \"opencode-go/deepseek-v4-flash\"")
 		 * @planks("Then the provider request uses the model \"opencode-go/glm-5.2\"")
 		 * @planks("Then the provider request uses an available model")
 		 */
