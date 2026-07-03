@@ -1,0 +1,7 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/greeting.feature:Bonny's ready greeting is operator-owned content"
+    ]
+  }
+}

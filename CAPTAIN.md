@@ -89,6 +89,14 @@ Operator decisions, 2026-07-02:
 - Landed across `95845d0` (greeting, steer, estelle.json seat models, pi-default contract) and `2ffe0de` (the started session binds recorded models: Boatswain caught `run()` never reading `estelle.json`, the same `launch()`/`run()` divergence class as the TUI and built-ins bugs; specced, red, fixed, green). Shipping as 0.1.4 this pass. One stale plank (`beginTurn`, deepseek step text struck in the respec) survived the cycle's audit; Boatswain removes it as a hygiene edit with release prep.
 - **Skill-conflict startup noise is plain pi, not Estelle.** Reproduced with bare `pi` from `$HOME`: project scope (`$cwd/.agents/skills`) equals user scope when cwd is home, so every skill collides with itself. Courtesy report upstream to pi: identical resolved paths should not register as collisions. No Estelle machinery.
 
+## Harbour inventory, 2026-07-03
+
+Shipwright full scan at `b8cff6c` came back clean: 75 planks all mapping, zero stale, zero orphans, full coverage, no hidden-behaviour or verification-seam violations. Two refit gaps closed and now Captain-committed: `RIGGING.md` gained the `plank-inventory` command (`rg -n "@planks\(" src bin`, no native docblock tooling), and `.rgignore` created carrying `CAPTAIN.md` so the notes leave crew-visible `rg` search by construction. That is the firewall-by-construction fix from the upstream proposals, landed locally.
+
+One `@captain` finding, resolved with the operator:
+
+- **Greeting copy is operator-owned content.** The ready greeting was a hardcoded string in `src/index.ts`. Operator 2026-07-03: keep the fixed string (not model-voiced; the per-launch turn cost is not worth it), but move the copy to an asset and fix it. Scenario promoted (asset-sourced ready greeting, test-controlled content so a hardcoded string cannot pass). Asset `assets/greeting.md` authored with the corrected line: dropped "What are we building today?" (mixes a construction metaphor into the nautical voice) for "What's on your mind today?". The unfitted steer stays in production: naming `/login` and `/model` is its spec'd behaviour, not voice. Crew wires production to read the greeting asset. Ship as 0.1.6.
+
 ## pi command pass-through, shipping as 0.1.5
 
 Operator direction 2026-07-03: `estelle` passes normal pi commands through to pi; bare `estelle` boots Bonny, arguments delegate to pi (`run({argv})` hands package commands to pi's exported CLI, never reimplementing). Landed `f28ba9f`: both @sandbox scenarios red then green, verification drives the real bin as a child process with a disposable `PI_CODING_AGENT_DIR`. Bin stays the thin Captain-owned wrapper.

@@ -15,3 +15,9 @@ Feature: Bonny greets the operator
     And no provider auth is configured in the operator's agent directory
     When the operator starts Estelle in that directory
     Then the started session presents fitting-out guidance naming "/login" and "/model"
+
+  Scenario: Bonny's ready greeting is operator-owned content
+    Given an operator directory whose Bonny greeting asset reads "Ahoy again, Commodore. Bonny at the helm."
+    And provider auth and a default model are configured in the operator's agent directory
+    When the operator starts Estelle in that directory
+    Then Bonny opens the session with the greeting "Ahoy again, Commodore. Bonny at the helm."
