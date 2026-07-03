@@ -80,6 +80,54 @@ Intersection rule applies: each mechanism ships at layer 2 only if every support
 
 **Adopted immediately here: thin dispatches.** From the next cycle, my role dispatches carry role + base commit + watchbill pointer only; QM pays the honest rediscovery cost.
 
+## Upstream field report: qm-entry-guard blocks subagent QM, 2026-07-03
+
+For relay to the upstream Shipshape maintainer. Observed live at plugin **0.7.0** (auto-updated from 0.4.0 mid-voyage). Field report plus open design questions, not a settled proposal. Two of our earlier proposals (dispatch guard, entry guard) are already live upstream and enforcing on the Captain — the dispatch guard refused an over-long Boatswain dispatch this session, and the entry guard produced the block below.
+
+### What happened
+
+- This Claude Code session operates as Captain; it invoked `/captain` twice (transcript lines ~139, ~425).
+- I dispatched QM as an Agent-tool **subagent** (`shipshape:qm`), as all voyage.
+- `qm-entry-guard.sh` (0.7.0) read THIS session's transcript, detected the `/captain` markers, and refused QM. QM touched nothing, ran no verification, and correctly declined to circumvent by spawning further.
+- Earlier QM subagent cycles in this same session (under 0.4.0) **succeeded**. The guard is new or newly strict at 0.7.0.
+
+### Why the block is correct (the leak it closes)
+
+- An Agent-tool subagent gets a **fresh context window** (does not inherit the parent conversation) but **shares the parent session's transcript `.jsonl` on disk**, which is **Bash-readable**. A subagent could `cat`/`grep` the transcript and exfiltrate the entire Captain narrative.
+- So **context-window isolation is not session isolation.** Treating "any agent whose session transcript carries `/captain`" as contaminated is the conservative, correct choice for a firewall whose threat model already includes Bash side-channels (the same reason `.rgignore` excludes `CAPTAIN.md`).
+- Net invariant: **true QM isolation requires a fresh transcript (a new session), not merely a fresh context window.** A subagent of a Captain session does not qualify.
+
+### Tensions upstream must reconcile
+
+1. **Doctrine vs guard on the same-session `/clear` flow.** The QM skill says "clear context, then `/qm`." But the transcript `.jsonl` **accumulates across `/clear`** — context clears, the file does not. So:
+   - If the guard greps `/captain` anywhere in the transcript, it **blocks the documented `/captain` → `/clear` → `/qm` same-session flow** — the guard contradicts the doctrine.
+   - If it scopes detection to markers **after the most recent clear boundary**, the same-session flow passes, but a post-clear QM can still Bash-read the pre-clear transcript, so the hole only closes if `/clear` also rotates/segments the transcript file.
+   - Upstream must decide and document which invariant holds; the two readings give opposite operational guidance.
+2. **Runtime-dependent behaviour.** On a runtime with genuine fresh sessions (pi `ctx.newSession()`, which Estelle's Layer-2 live crew uses) each agent gets its own transcript and the guard passes naturally. On Claude Code a subagent shares the transcript and the guard blocks. The doctrine's "if the runtime provides automatic context clearing" must specify **fresh-transcript**, not merely fresh-context-window, or it over-promises isolation where clearing does not rotate the transcript.
+3. **Version/workflow break.** Subagent-dispatched QM worked at 0.4.0, blocked at 0.7.0. If intended, this is a **breaking change to the subagent-driven operating model** and deserves a changelog callout plus per-harness migration guidance.
+
+### Recommended resolution (my read, for the maintainer to weigh)
+
+- **Keep the guard strict.** Do NOT relax it to accept fresh-context subagents; the transcript is Bash-readable, so relaxing reopens the hole.
+- **State the invariant explicitly** in the QM skill and workflow docs: the isolation unit is the **session/transcript**, not the context window; a subagent of a Captain session is not clean context.
+- **Give a per-harness operating recipe.** Claude Code: run `/qm` in a **new session** with the thin dispatch (role, base commit, watchbill pointer); never spawn QM as a subagent of Captain. pi/Estelle: `ctx.newSession()` yields a fresh transcript and passes.
+- **Resolve the `/clear` question** by either (a) requiring a fresh SESSION for QM and dropping "clear context, then `/qm`" in favour of "new session" (simpler, closes the hole unconditionally), or (b) making `/clear` rotate the transcript AND scoping the guard to the post-clear segment (preserves the ergonomic same-session flow, needs runtime transcript-segmentation support).
+- **Add a firewall conformance test** (proposal #7 applied to itself): assert the guard blocks a QM subagent of a Captain session, and passes QM in a fresh session. Makes the behaviour falsifiable so a future version cannot silently regress it.
+
+### Interaction with the `.rgignore` firewall just landed
+
+- `.rgignore` excludes `CAPTAIN.md` from `rg` — closes the "crew greps the notes file" leak.
+- The transcript guard closes a **different** surface: the session `.jsonl` holds the Captain narrative **regardless of `CAPTAIN.md`**, so hiding the notes file does not protect it. Both defenses are needed.
+- Open question: should the session transcript path also be added to search-exclusion artifacts by construction? The guard is stronger (prevents crew execution entirely), so likely sufficient, but the transcript remains a distinct, knowable, Bash-readable leak surface worth naming in the threat model.
+
+### Estelle-side consequence (already aligned)
+
+Validates the decided Layer-2 design: the live crew MUST run in genuine fresh pi sessions via `ctx.newSession()`, never subagents sharing a transcript. What blocked the Captain here is exactly the invariant Estelle-on-pi already commits to; the guard is what makes Estelle's isolation claim mechanical rather than honour-system.
+
+### Immediate operational impact here
+
+The greeting-asset cycle (base `fcacef3`, watchbill `watch1`) is pending a **fresh-session QM**. Deck is clean and idle; nothing broken. Until QM runs in a clean session, no cycle can advance in this Captain session.
+
 ## Slice 2: fitting out and seat models, in flight
 
 Operator decisions, 2026-07-02:
