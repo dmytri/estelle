@@ -1,0 +1,8 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/pi-command-passthrough.feature:estelle passes the install command through to pi",
+      "features/pi-command-passthrough.feature:estelle passes the remove command through to pi"
+    ]
+  }
+}

@@ -89,6 +89,10 @@ Operator decisions, 2026-07-02:
 - Landed across `95845d0` (greeting, steer, estelle.json seat models, pi-default contract) and `2ffe0de` (the started session binds recorded models: Boatswain caught `run()` never reading `estelle.json`, the same `launch()`/`run()` divergence class as the TUI and built-ins bugs; specced, red, fixed, green). Shipping as 0.1.4 this pass. One stale plank (`beginTurn`, deepseek step text struck in the respec) survived the cycle's audit; Boatswain removes it as a hygiene edit with release prep.
 - **Skill-conflict startup noise is plain pi, not Estelle.** Reproduced with bare `pi` from `$HOME`: project scope (`$cwd/.agents/skills`) equals user scope when cwd is home, so every skill collides with itself. Courtesy report upstream to pi: identical resolved paths should not register as collisions. No Estelle machinery.
 
+## pi command pass-through, in flight
+
+Operator direction 2026-07-03: `estelle` passes normal pi commands through to pi, `estelle install ...` behaves as `pi install ...`. Bare `estelle` boots Bonny; arguments delegate to pi. Specced in `features/pi-command-passthrough.feature` (@sandbox: install persists to pi settings, remove strikes the entry); watchbill focuses both. Custody note per the 2026-07-01 operator rule: the argument-dispatch seam is now spec-covered, so it is Crew production in `src/`; `bin/estelle.js` stays the thin Captain-owned wrapper. pi exports its CLI `main(argv)`, so pass-through is delegation, never reimplementation. Ship as 0.1.5 when green.
+
 ## Workspace model: the harbour, operator direction 2026-07-02
 
 Estelle's launch directory is a harbour, not a project. Captured for the next arc, not yet specced:
