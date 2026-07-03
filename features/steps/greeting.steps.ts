@@ -175,20 +175,3 @@ Then(
 		);
 	},
 );
-
-Then(
-	"the started session presents fitting-out guidance naming {string} and {string}",
-	function (this: EstelleWorld, first: string, second: string) {
-		const opening = openingMessages(this);
-		const guidance = opening.find((m) => {
-			const text = messageText(m);
-			return text.includes(first) && text.includes(second);
-		});
-		assert.ok(
-			guidance,
-			`started session presents no opening message naming ${first} and ${second}; opening messages: ${JSON.stringify(
-				opening.map(messageText),
-			)}`,
-		);
-	},
-);

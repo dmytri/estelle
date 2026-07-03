@@ -332,7 +332,6 @@ async function ensureShipshapePackage(options: {
 /**
  * @planks("Then Bonny opens the session with a greeting before the operator speaks")
  * @planks("Then Bonny opens the session with the greeting \"Ahoy again, Commodore. Bonny at the helm.\"")
- * @planks("Then the started session presents fitting-out guidance naming \"/login\" and \"/model\"")
  * @planks("Then Bonny opens the session with the guidance \"Commodore, no model is rigged yet. Use /login, then /model.\"")
  */
 async function openWithBonnyVoice(
