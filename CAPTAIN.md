@@ -48,9 +48,13 @@ Estelle enforces custody and context, not craft. Hard-gate the deterministic bou
 
 ## The loop, decided
 
-Bonny is always-on and the only seat the operator speaks with. The operator seals a batch to set the crew running; Estelle freezes the batch, clears context, and runs the crew (QM, Crew, Boatswain) as a live show the operator watches while Bonny stays alongside. New intent queues as the next batch. Visibility is asymmetric: crew output is operator-visible read-only; the operator's words reach only Bonny; the crew work from durable artifacts. Layer built on pi directly, no `pi-subagents`: context-isolated pi sessions via `ctx.newSession()`, one-way firewall, output routed to Bonny.
+Bonny is always-on and the only seat the operator speaks with. The operator seals a batch to set the crew running; the crew (QM, Crew, Boatswain) run in a context-isolated session that does not carry the operator's conversation with Bonny. The crew work from durable artifacts only.
+
+**Crew UX, decided operator 2026-07-03: mode-switch, not alongside.** pi's `newSession()` replaces the active session rather than running one beside it. So `/ship` switches the TUI into a fresh, context-isolated crew session; the operator watches the crew work, then switches back to Bonny when done. The earlier "Bonny stays alongside as a live show" vision is dropped: it would need a second runtime streaming crew output into Bonny's session, fighting pi's single-session model. Mode-switch is the model, not a stepping stone.
 
 **Ship trigger, decided operator 2026-07-03: both.** The real seal is the deterministic `/ship` command, which a hook can fire on reliably. Bonny also recognizes natural phrasing ("ship it", "send the crew") as a convenience and resolves it to `/ship`. Phrase inference is a shortcut, never the sole trigger; fuzzy detection alone is unreliable.
+
+**First slice:** `/ship` opens a context-isolated Quartermaster session via `newSession()`. Fresh context carries none of the operator's messages to Bonny; the crew session seats the Quartermaster to begin the run. Later slices: crew progression QM to Crew to Boatswain, switch back to Bonny, batch freeze and queueing.
 
 ## Workspace model: the harbour, operator direction 2026-07-02
 
