@@ -1,7 +1,7 @@
 import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { After, setWorldConstructor, World } from "@cucumber/cucumber";
+import { After, Before, setWorldConstructor, World } from "@cucumber/cucumber";
 import type { EstelleSession, LaunchOptions } from "../../src/index.js";
 
 /**
@@ -21,6 +21,7 @@ export class EstelleWorld extends World {
 	packedFiles?: string[];
 	workspaceDir?: string;
 	agentDir?: string;
+	piDefaultModel?: string;
 	roster?: string[];
 	seat?: { role: string; name: string };
 	requestedSeatModel?: string;
@@ -59,9 +60,28 @@ export class EstelleWorld extends World {
 				writeFileSync(join(this.workspaceDir, relPath), contents, "utf8");
 			}
 			const { launch } = await import("../../src/index.js");
-			this.launched = await launch({ cwd: this.workspaceDir });
+			this.launched = await launch({
+				cwd: this.workspaceDir,
+				agentDir: this.agentDir,
+			});
 		}
 		return this.launched;
+	}
+
+	/**
+	 * Create a disposable operator agent directory seeded with the given files,
+	 * so scenarios that observe or configure the operator's agent directory
+	 * never touch the host's real pi agent directory. Idempotent within a
+	 * scenario; teardown removes the directory.
+	 */
+	prepareAgentDir(files: Record<string, string> = {}): string {
+		if (!this.agentDir) {
+			this.agentDir = mkdtempSync(join(tmpdir(), "estelle-agent-"));
+		}
+		for (const [relPath, contents] of Object.entries(files)) {
+			writeFileSync(join(this.agentDir, relPath), contents, "utf8");
+		}
+		return this.agentDir;
 	}
 
 	/**
@@ -102,6 +122,22 @@ export class EstelleWorld extends World {
 }
 
 setWorldConstructor(EstelleWorld);
+
+// Seat-model scenarios observe the operator's agent directory (recorded seat
+// models, the pi default model), so they run against a disposable agent dir
+// seeded with a known pi default model instead of the host's real ~/.pi.
+Before(function (this: EstelleWorld, { pickle }) {
+	if (!pickle.uri.includes("seat-model")) {
+		return;
+	}
+	this.piDefaultModel = "opencode-go/deepseek-v4-flash";
+	this.prepareAgentDir({
+		"settings.json": JSON.stringify({
+			defaultProvider: "opencode-go",
+			defaultModel: "deepseek-v4-flash",
+		}),
+	});
+});
 
 After(function (this: EstelleWorld) {
 	this.launched?.dispose();

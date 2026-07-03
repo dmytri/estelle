@@ -57,7 +57,8 @@ When(
 	async function (this: EstelleWorld) {
 		// A disposable agent dir keeps runtime construction hermetic and harmless:
 		// Estelle resolves its skills and extension without touching the host ~/.pi.
-		this.agentDir = mkdtempSync(join(tmpdir(), "estelle-agent-"));
+		// A preceding step may have seeded the operator's agent dir already.
+		this.agentDir ??= mkdtempSync(join(tmpdir(), "estelle-agent-"));
 		const { run } = await import("../../src/index.js");
 		await run({
 			cwd: this.workspaceDir,

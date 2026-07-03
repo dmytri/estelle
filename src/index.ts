@@ -165,11 +165,15 @@ function seatSystemPrompt(
 	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${card}`;
 }
 
-function defaultSeatModel(cwd: string, role: string): string {
-	const models = JSON.parse(
-		readFileSync(join(assetsDir(cwd), "seat-models.json"), "utf8"),
-	) as { seats: Record<string, string> };
-	return models.seats[role];
+/**
+ * @planks("Then the provider request uses the operator's pi default model")
+ * @planks("Then the provider request uses an available model")
+ */
+function piDefaultModel(agentDir: string): string {
+	const settings = JSON.parse(
+		readFileSync(join(agentDir, "settings.json"), "utf8"),
+	) as { defaultProvider: string; defaultModel: string };
+	return `${settings.defaultProvider}/${settings.defaultModel}`;
 }
 
 function relativeToCwd(cwd: string, path: string): string {
@@ -324,6 +328,25 @@ async function ensureShipshapePackage(options: {
 	await packageManager.installAndPersist(SHIPSHAPE_PACKAGE_SOURCE);
 }
 
+/**
+ * @planks("Then Bonny opens the session with a greeting before the operator speaks")
+ * @planks("Then the started session presents fitting-out guidance naming \"/login\" and \"/model\"")
+ */
+async function openWithBonnyVoice(
+	session: AgentSession,
+	modelRegistry: { getAvailable(): unknown[] },
+): Promise<void> {
+	const content =
+		modelRegistry.getAvailable().length > 0
+			? "Ahoy, Commodore. Bonny at the helm. What are we building today?"
+			: "Ahoy, Commodore. Bonny here, but the ship is not yet fitted out: no provider model is available. Use /login to log into a provider, then use /model to select a model.";
+	await session.sendCustomMessage({
+		customType: "estelle-greeting",
+		content,
+		display: true,
+	});
+}
+
 function extensionName(path: string, resolvedPath: string): string {
 	if (path.startsWith("<inline:")) {
 		return "estelle";
@@ -337,6 +360,7 @@ function extensionName(path: string, resolvedPath: string): string {
  * @planks("Then the upstream Shipshape role instructions resolve from outside the Estelle repository")
  * @planks("Then the \"update-config\" skill is present")
  * @planks("Then the \"find-skills\" skill is present")
+ * @planks("Given the \"estelle.json\" file in the operator's agent directory records the captain model \"opencode-go/glm-5.2\"")
  */
 export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	const cwd = options?.cwd ?? process.cwd();
@@ -366,6 +390,13 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	} = await import("@earendil-works/pi-coding-agent");
 
 	const agentDir = options?.agentDir ?? getAgentDir();
+	const estelleConfigPath = join(agentDir, "estelle.json");
+	if (existsSync(estelleConfigPath)) {
+		const recorded = JSON.parse(readFileSync(estelleConfigPath, "utf8")) as {
+			seats?: Record<string, string>;
+		};
+		state.seatModels = { ...recorded.seats };
+	}
 	const settingsManager = SettingsManager.create(cwd, agentDir, {
 		projectTrusted: true,
 	});
@@ -589,9 +620,16 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		/**
 		 * @planks("Given Estelle config sets the Captain model to \"opencode-go/glm-5.2\"")
 		 * @planks("Given Estelle config sets the Quartermaster model to \"opencode-go/glm-5.2\"")
+		 * @planks("Then the \"estelle.json\" file in the operator's agent directory records the captain model \"opencode-go/glm-5.2\"")
+		 * @planks("Then the \"estelle.json\" file in the operator's agent directory records the quartermaster model \"opencode-go/deepseek-v4-flash\"")
 		 */
 		setSeatModel: (role, id) => {
 			state.seatModels[role] = id;
+			writeFileSync(
+				estelleConfigPath,
+				JSON.stringify({ seats: state.seatModels }),
+				"utf8",
+			);
 		},
 		/**
 		 * @planks("When Bonny begins a turn")
@@ -602,7 +640,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		 */
 		beginTurn: async () => {
 			const role = state.activeSeat.role;
-			const configured = state.seatModels[role] ?? defaultSeatModel(cwd, role);
+			const configured = state.seatModels[role] ?? piDefaultModel(agentDir);
 			const resolveModel = (qualified: string) => {
 				const slash = qualified.indexOf("/");
 				return modelRegistry.find(
@@ -613,7 +651,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			let model = resolveModel(configured);
 			if (!model) {
 				state.unavailableModels.push(configured);
-				model = resolveModel(defaultSeatModel(cwd, role));
+				model = resolveModel(piDefaultModel(agentDir));
 			}
 			session.dispose();
 			session = (
@@ -738,6 +776,8 @@ export async function run(options?: RunOptions): Promise<void> {
 	const extensions = runtime.services.resourceLoader
 		.getExtensions()
 		.extensions.map((e) => extensionName(e.path, e.resolvedPath));
+
+	await openWithBonnyVoice(runtime.session, runtime.services.modelRegistry);
 
 	const interactive =
 		options?.interactive ??
