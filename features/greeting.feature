@@ -10,14 +10,14 @@ Feature: Bonny greets the operator
     When the operator starts Estelle in that directory
     Then Bonny opens the session with a greeting before the operator speaks
 
-  Scenario: An unfitted session steers the operator to log in and pick a model
-    Given an operator directory that carries no Estelle assets
-    And no provider auth is configured in the operator's agent directory
-    When the operator starts Estelle in that directory
-    Then the started session presents fitting-out guidance naming "/login" and "/model"
-
   Scenario: Bonny's ready greeting is operator-owned content
     Given an operator directory whose Bonny greeting asset reads "Ahoy again, Commodore. Bonny at the helm."
     And provider auth and a default model are configured in the operator's agent directory
     When the operator starts Estelle in that directory
     Then Bonny opens the session with the greeting "Ahoy again, Commodore. Bonny at the helm."
+
+  Scenario: Bonny's fitting-out steer is operator-owned content
+    Given an operator directory whose Bonny fitting-out steer asset reads "Commodore, no model is rigged yet. Use /login, then /model."
+    And no provider auth is configured in the operator's agent directory
+    When the operator starts Estelle in that directory
+    Then Bonny opens the session with the guidance "Commodore, no model is rigged yet. Use /login, then /model."

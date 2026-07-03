@@ -1,0 +1,7 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/greeting.feature:Bonny's fitting-out steer is operator-owned content"
+    ]
+  }
+}
