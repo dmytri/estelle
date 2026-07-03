@@ -331,15 +331,17 @@ async function ensureShipshapePackage(options: {
 
 /**
  * @planks("Then Bonny opens the session with a greeting before the operator speaks")
+ * @planks("Then Bonny opens the session with the greeting \"Ahoy again, Commodore. Bonny at the helm.\"")
  * @planks("Then the started session presents fitting-out guidance naming \"/login\" and \"/model\"")
  */
 async function openWithBonnyVoice(
 	session: AgentSession,
 	modelRegistry: { getAvailable(): unknown[] },
+	cwd: string,
 ): Promise<void> {
 	const content =
 		modelRegistry.getAvailable().length > 0
-			? "Ahoy, Commodore. Bonny at the helm. What are we building today?"
+			? readFileSync(join(assetsDir(cwd), "greeting.md"), "utf8").trim()
 			: "Ahoy, Commodore. Bonny here, but the ship is not yet fitted out: no provider model is available. Use /login to log into a provider, then use /model to select a model.";
 	await session.sendCustomMessage({
 		customType: "estelle-greeting",
@@ -802,7 +804,11 @@ export async function run(options?: RunOptions): Promise<void> {
 		.getExtensions()
 		.extensions.map((e) => extensionName(e.path, e.resolvedPath));
 
-	await openWithBonnyVoice(runtime.session, runtime.services.modelRegistry);
+	await openWithBonnyVoice(
+		runtime.session,
+		runtime.services.modelRegistry,
+		cwd,
+	);
 
 	const interactive =
 		options?.interactive ??

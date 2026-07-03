@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Given, Then } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
 
@@ -87,6 +90,25 @@ Given(
 );
 
 Given(
+	"an operator directory whose Bonny greeting asset reads {string}",
+	function (this: EstelleWorld, greeting: string) {
+		// A disposable operator workspace carrying the full Estelle assets so launch
+		// resolves its roster, characters, and skills, with the Bonny greeting asset
+		// overwritten to the operator-owned text this scenario pins. The started
+		// session must open with this asset content, not a built-in string.
+		this.workspaceDir ??= mkdtempSync(join(tmpdir(), "estelle-operator-"));
+		cpSync(join(process.cwd(), "assets"), join(this.workspaceDir, "assets"), {
+			recursive: true,
+		});
+		writeFileSync(
+			join(this.workspaceDir, "assets", "greeting.md"),
+			greeting,
+			"utf8",
+		);
+	},
+);
+
+Given(
 	"no provider auth is configured in the operator's agent directory",
 	function (this: EstelleWorld) {
 		// A bare agent directory: no auth.json, no models.json, no default model.
@@ -102,6 +124,22 @@ Then(
 		assert.ok(
 			greeting,
 			"started session carries no operator-visible message before the operator speaks",
+		);
+	},
+);
+
+Then(
+	"Bonny opens the session with the greeting {string}",
+	function (this: EstelleWorld, greeting: string) {
+		const opening = openingMessages(this);
+		const match = opening.find(
+			(m) => messageText(m).trim() === greeting.trim(),
+		);
+		assert.ok(
+			match,
+			`started session did not open with the greeting ${JSON.stringify(
+				greeting,
+			)}; opening messages: ${JSON.stringify(opening.map(messageText))}`,
 		);
 	},
 );
