@@ -695,6 +695,8 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 
 /**
  * @planks("When the operator starts Estelle in that directory")
+ * @planks("Given the \"estelle.json\" file in the operator's agent directory records the captain model \"opencode-go/glm-5.2\"")
+ * @planks("Then the started session runs the active seat on the model \"opencode-go/glm-5.2\"")
  * @planks("Then Estelle runs pi's interactive session")
  * @planks("Then that interactive session boots as the Captain \"Bonny\"")
  * @planks("Then that interactive session has the \"estelle\" extension loaded")
@@ -724,6 +726,13 @@ export async function run(options?: RunOptions): Promise<void> {
 	} = await import("@earendil-works/pi-coding-agent");
 
 	const agentDir = options?.agentDir ?? getAgentDir();
+	const estelleConfigPath = join(agentDir, "estelle.json");
+	if (existsSync(estelleConfigPath)) {
+		const recorded = JSON.parse(readFileSync(estelleConfigPath, "utf8")) as {
+			seats?: Record<string, string>;
+		};
+		state.seatModels = { ...recorded.seats };
+	}
 	const settingsManager = SettingsManager.create(cwd, agentDir, {
 		projectTrusted: true,
 	});
@@ -756,11 +765,20 @@ export async function run(options?: RunOptions): Promise<void> {
 					.getSkills()
 					.skills.map((s) => [s.name, s.filePath]),
 			);
+			const recorded = state.seatModels[state.activeSeat.role];
+			const slash = recorded?.indexOf("/") ?? -1;
+			const seatModel = recorded
+				? services.modelRegistry.find(
+						recorded.slice(0, slash),
+						recorded.slice(slash + 1),
+					)
+				: undefined;
 			return {
 				...(await createAgentSessionFromServices({
 					services,
 					sessionManager,
 					sessionStartEvent,
+					model: seatModel,
 				})),
 				services,
 				diagnostics: services.diagnostics,

@@ -92,6 +92,24 @@ Then(
 );
 
 Then(
+	"the started session runs the active seat on the model {string}",
+	function (this: EstelleWorld, id: string) {
+		// The interactive handle carries the real Estelle-configured runtime; the
+		// started session's bound model is observable as provider/id on it.
+		const runtime = this.interactiveSession!.runtime as {
+			session: { model?: { provider: string; id: string } };
+		};
+		const model = runtime.session.model;
+		const actual = model ? `${model.provider}/${model.id}` : undefined;
+		assert.equal(
+			actual,
+			id,
+			`started session runs the active seat on model "${actual}", expected "${id}"`,
+		);
+	},
+);
+
+Then(
 	"the provider request uses the model {string}",
 	function (this: EstelleWorld, id: string) {
 		// A pi model carries a bare id and a separate provider, so the operator's
