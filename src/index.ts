@@ -333,6 +333,7 @@ async function ensureShipshapePackage(options: {
  * @planks("Then Bonny opens the session with a greeting before the operator speaks")
  * @planks("Then Bonny opens the session with the greeting \"Ahoy again, Commodore. Bonny at the helm.\"")
  * @planks("Then the started session presents fitting-out guidance naming \"/login\" and \"/model\"")
+ * @planks("Then Bonny opens the session with the guidance \"Commodore, no model is rigged yet. Use /login, then /model.\"")
  */
 async function openWithBonnyVoice(
 	session: AgentSession,
@@ -342,7 +343,7 @@ async function openWithBonnyVoice(
 	const content =
 		modelRegistry.getAvailable().length > 0
 			? readFileSync(join(assetsDir(cwd), "greeting.md"), "utf8").trim()
-			: "Ahoy, Commodore. Bonny here, but the ship is not yet fitted out: no provider model is available. Use /login to log into a provider, then use /model to select a model.";
+			: readFileSync(join(assetsDir(cwd), "steer.md"), "utf8").trim();
 	await session.sendCustomMessage({
 		customType: "estelle-greeting",
 		content,
