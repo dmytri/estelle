@@ -231,6 +231,25 @@ When("the crew session runs a turn", async function (this: EstelleWorld) {
 });
 
 Then(
+	"the crew session received a live reply from the Quartermaster's model",
+	function (this: EstelleWorld) {
+		// A live reply is an assistant-role message the model produced during the
+		// turn, carrying real text. Read the crew session's live history and require
+		// at least one assistant message with non-empty content. A vacuous turn that
+		// never reached the model leaves no such message, so this fails rather than
+		// passing green without a live model round trip.
+		const replies = crewSession(this)
+			.runtime.session.messages.filter((m) => m.role === "assistant")
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			replies.length > 0,
+			"crew session received no live assistant reply from the Quartermaster's model",
+		);
+	},
+);
+
+Then(
 	"the crew session's heartbeat reflected live activity during the run",
 	function (this: EstelleWorld) {
 		const beat = crewSession(this).heartbeat();

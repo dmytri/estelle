@@ -198,6 +198,26 @@ function relativeToCwd(cwd: string, path: string): string {
 }
 
 /**
+ * @planks("Then the crew session received a live reply from the Quartermaster's model")
+ */
+function assistantText(message: { content?: unknown }): string {
+	const content = message.content;
+	if (typeof content === "string") {
+		return content;
+	}
+	if (Array.isArray(content)) {
+		return content
+			.filter(
+				(part): part is { type: string; text: string } =>
+					typeof part === "object" && part !== null && part.type === "text",
+			)
+			.map((part) => part.text)
+			.join("\n");
+	}
+	return "";
+}
+
+/**
  * @planks("Then Estelle reports that the Crew may write only \"src/**\"")
  * @planks("Then Estelle reports that the Captain writes specs, assets, \"CAPTAIN.md\", and \"watchbill.json\"")
  * @planks("Then Estelle reports that only the Captain may write \"watchbill.json\"")
@@ -739,6 +759,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
  * @planks("Then the crew session reports a heartbeat naming the Quartermaster \"Misson\"")
  * @planks("Then the crew session's heartbeat shows the crew at rest before it runs")
  * @planks("When the crew session runs a turn")
+ * @planks("Then the crew session received a live reply from the Quartermaster's model")
  * @planks("Then the crew session's heartbeat reflected live activity during the run")
  */
 export async function run(options?: RunOptions): Promise<void> {
@@ -895,10 +916,19 @@ export async function run(options?: RunOptions): Promise<void> {
 						await new Promise<void>((resolve) => {
 							const unsubscribe = crewSession.subscribe(() => {
 								crewSawActivity = true;
-								unsubscribe();
-								resolve();
+								const gotReply = crewSession.messages.some(
+									(message) =>
+										message.role === "assistant" &&
+										assistantText(message).trim().length > 0,
+								);
+								if (gotReply) {
+									unsubscribe();
+									resolve();
+								}
 							});
-							void crewSession.sendUserMessage("Report ready, Quartermaster.");
+							void crewSession.sendUserMessage(
+								"Reply with a single short line of plain text confirming you are ready. Do not read files. Do not call any tools.",
+							);
 						});
 						await crewSession.abort();
 					},
