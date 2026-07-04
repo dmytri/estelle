@@ -335,6 +335,10 @@ When(
 
 When(
 	"Estelle hands the crew off from the Quartermaster to the Crew",
+	// Under @eval this seam runs a live provider turn on Bonny's Captain seat to
+	// voice the handoff line, so it needs the live-step budget the sibling live
+	// steps carry, not cucumber's 5000ms default. Under @logic it stays fast.
+	{ timeout: 120000 },
 	async function (this: EstelleWorld) {
 		const handle = this.interactiveSession as unknown as InteractiveHandleView;
 		await handle.handOffToCrew();
