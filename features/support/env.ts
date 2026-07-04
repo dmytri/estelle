@@ -3,8 +3,9 @@ import { join } from "node:path";
 
 // Load the project's .env into process.env so the @eval tier can read the live
 // crew credentials the hermetic tier never needs. Only fills keys that are not
-// already set in the environment, so a real shell export always wins. Absent
-// .env or absent keys leave the eval tier to skip, never fail, per RIGGING.md.
+// already set in the environment, so a real shell export always wins. The @eval
+// tier requires those credentials as fitting-out; an absent credential fails the
+// eval run as a Captain blocker, never a silent skip, per RIGGING.md.
 const envPath = join(process.cwd(), ".env");
 if (existsSync(envPath)) {
 	for (const line of readFileSync(envPath, "utf8").split("\n")) {

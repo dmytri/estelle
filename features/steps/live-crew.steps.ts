@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Before, Given, Then, When } from "@cucumber/cucumber";
+import { Given, Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
 
 // Structural view of the real pi session the interactive handle carries. The
@@ -189,17 +189,6 @@ Then(
 		);
 	},
 );
-
-// The @eval tier drives a real model. It skips, never fails, when the live crew
-// credentials are absent, per RIGGING.md. Present credentials run the real turn.
-Before({ tags: "@eval" }, () => {
-	if (
-		!process.env.HARNESS_OPENROUTER_API_KEY ||
-		!process.env.HARNESS_EVAL_MODEL
-	) {
-		return "skipped";
-	}
-});
 
 Given(
 	"a live eval model is configured for the crew",
