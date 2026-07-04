@@ -65,6 +65,7 @@ interface EstelleState {
 	pendingDeliveries: Promise<void>[];
 	deliveryFailures: number;
 	pi?: ExtensionAPI;
+	runtime?: AgentSessionRuntime;
 }
 
 const CHARACTER_CARDS: Record<string, string> = {
@@ -239,6 +240,9 @@ function evaluateRead(
  * @planks("Then Estelle blocks the read")
  * @planks("Then the started session registers the commands \"/bonny\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\"")
  * @planks("When the operator runs the \"/misson\" command in the started session")
+ * @planks("When the operator runs the \"/ship\" command in the started session")
+ * @planks("Then the started session's active seat is the Quartermaster \"Misson\"")
+ * @planks("Then the crew session's message history excludes the operator's message \"make the greeting warmer\"")
  */
 function createEstelleExtension(state: EstelleState, cwd: string) {
 	return (pi: ExtensionAPI) => {
@@ -252,6 +256,14 @@ function createEstelleExtension(state: EstelleState, cwd: string) {
 				},
 			});
 		}
+		pi.registerCommand("ship", {
+			description:
+				"Seal the batch and seat the Quartermaster Misson in a fresh crew session",
+			handler: async () => {
+				state.activeSeat = SEATS.misson;
+				await state.runtime?.newSession();
+			},
+		});
 		pi.on("before_provider_request", () => {
 			state.providerRequestCount += 1;
 		});
@@ -799,6 +811,8 @@ export async function run(options?: RunOptions): Promise<void> {
 			sessionManager: SessionManager.create(cwd, join(agentDir, "sessions")),
 		},
 	);
+
+	state.runtime = runtime;
 
 	const extensions = runtime.services.resourceLoader
 		.getExtensions()
