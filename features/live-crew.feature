@@ -41,7 +41,8 @@ Feature: Embarking runs the crew alongside Bonny
     And a live eval model is configured for the crew
     When the operator runs the "/embark" command in the started session
     And the crew session runs a turn
-    Then the crew session's heartbeat reflected live activity during the run
+    Then the crew session received a live reply from the Quartermaster's model
+    And the crew session's heartbeat reflected live activity during the run
 
   # Slice 3: the Quartermaster -> Crew handoff. Estelle drives the progression:
   # after the Quartermaster's turn it opens a fresh, context-isolated Crew
@@ -71,6 +72,7 @@ Feature: Embarking runs the crew alongside Bonny
     And a live eval model is configured for the crew
     When the operator runs the "/embark" command in the started session
     And the crew session runs a turn
-    And Estelle hands the crew off from the Quartermaster to the Crew
+    Then the crew session received a live reply from the Quartermaster's model
+    When Estelle hands the crew off from the Quartermaster to the Crew
     Then the crew session is seated as a Crew hand
     And the crew session's message history excludes the Quartermaster's turn
