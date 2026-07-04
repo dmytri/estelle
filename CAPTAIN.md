@@ -89,6 +89,12 @@ Three arcs, all in scope; sequencing is Captain's.
 
 Plant the RIGGING `fail-fast` statement as the first statement of a suspected stale-green production seam; run the relevant scenarios. Red proves the seam is reached; green-despite-dagger is stale-green evidence. Reachability, not assertion strength. Custody: the dagger is the sole Captain production-write exception; QM confirms every dagger reddens discovery; Boatswain never commits a live one. Use post-fix on a distrusted green, never pre-fix. Interim rule, operator 2026-07-01: I MAY use the dagger and I tell the operator before planting one.
 
+## Session commands
+
+pi's `InteractiveMode` ships built-in slash commands that reach the Bonny TUI unchanged: `/new` (fresh session), `/compact` (shrink context in place), `/fork`, `/clone`, `/tree`, `/resume`, `/session`, `/export`, `/model`, `/login`, `/reload`, `/quit`, and more. Estelle layers seat commands and `/embark` on top; it does not strip these.
+
+**`/clear` alias, decided operator 2026-07-04.** Estelle adds a `/clear` command aliasing a fresh Captain session (`runtime.newSession()`), because pi names it `/new` and operators reach for `/clear`. A cleared session stays seated as Bonny and MUST NOT re-greet: the greeting fires only at launch (`openWithBonnyVoice` in `run()`), and a cleared session comes up bare until the operator speaks. Spec: `features/clear-session.feature`, `@logic` (no model needed). Estelle-side, pi-specific.
+
 ## Status
 
 - Shipped: `@dk/estelle@0.1.7` on npm, `main` in sync with `origin`. Through 0.1.7: Shipshape install with Articles reaching Bonny's live prompt, model-gated greeting and fitting-out steer both operator-owned assets (`assets/greeting.md`, `assets/steer.md`), `estelle.json` per-seat models bound on both launch seams with pi default winning when unrecorded, and pi command pass-through. Harbour clean at last scan: 76 planks, zero stale, both tiers green.
