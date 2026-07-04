@@ -48,13 +48,15 @@ Estelle enforces custody and context, not craft. Hard-gate the deterministic bou
 
 ## The loop, decided
 
-Bonny is always-on and the only seat the operator speaks with. The operator seals a batch to set the crew running; the crew (QM, Crew, Boatswain) run in a context-isolated session that does not carry the operator's conversation with Bonny. The crew work from durable artifacts only.
+Bonny is always-on and the only seat the operator speaks with. The operator embarks a batch to set the crew running; the crew (QM, Crew, Boatswain) run in a session beside Bonny that does not carry the operator's conversation with her. The crew work from durable artifacts only.
 
-**Crew UX, decided operator 2026-07-03: mode-switch, not alongside.** pi's `newSession()` replaces the active session rather than running one beside it. So `/ship` switches the TUI into a fresh, context-isolated crew session; the operator watches the crew work, then switches back to Bonny when done. The earlier "Bonny stays alongside as a live show" vision is dropped: it would need a second runtime streaming crew output into Bonny's session, fighting pi's single-session model. Mode-switch is the model, not a stepping stone.
+**Crew UX, decided operator 2026-07-04: alongside sub-session, not mode-switch.** pi carries a first-class non-replacing sub-session primitive, `createAgentSession({ sessionManager: SessionManager.inMemory(), tools, modelRegistry })`, that runs beside the live session and exposes a subscribable event feed through `session.subscribe`. Two shipping pi extensions prove it: `@juicesharp/rpiv-btw` runs a tool-less side call in a bottom overlay, and `pi-btw` runs a real tool-using sub-session with read/bash/edit/write, focus-toggled with `Alt+/`, and summarizes or injects the result back into the main agent. So `/embark` opens the crew as an in-memory sub-session alongside Bonny; her session stays live and unpolluted. The earlier mode-switch-via-`newSession()` decision is dropped, and the prior claim that alongside "fights pi's single-session model" was wrong: pi supports it natively.
 
-**Ship trigger, decided operator 2026-07-03: both.** The real seal is the deterministic `/ship` command, which a hook can fire on reliably. Bonny also recognizes natural phrasing ("ship it", "send the crew") as a convenience and resolves it to `/ship`. Phrase inference is a shortcut, never the sole trigger; fuzzy detection alone is unreliable.
+**Narration, decided operator 2026-07-04: free heartbeat plus one small call per handoff.** Liveness is free from the event stream: a status line showing the current seat and tool tells the operator nothing hangs, at zero extra tokens. Colour is paid but bounded: one small Bonny model call at each seat handoff (QM to Crew to Boatswain to done), voiced off that seat's summary, roughly four calls a batch. Raw crew work stays peekable behind the panel through the focus toggle. Per-handoff, never per-beat.
 
-**First slice:** `/ship` opens a context-isolated Quartermaster session via `newSession()`. Fresh context carries none of the operator's messages to Bonny; the crew session seats the Quartermaster to begin the run. Later slices: crew progression QM to Crew to Boatswain, switch back to Bonny, batch freeze and queueing.
+**Embark trigger, decided operator 2026-07-04: both.** The real trigger is the deterministic `/embark` command, which a hook fires on reliably. Bonny also resolves natural phrasing ("ship it", "send the crew") to `/embark` as a convenience. Phrase inference is a shortcut, never the sole trigger; fuzzy detection alone is unreliable.
+
+**Slices.** 1: `/embark` opens the seated-Quartermaster crew sub-session alongside Bonny, seeded contextless so none of the operator's messages travel, while Bonny's session stays live. 2: overlay panel plus heartbeat, `Alt+/` focus toggle, raw transcript peekable. 3: seat progression QM to Crew to Boatswain as seated sub-sessions, each custody-scoped. 4: one small Bonny call per handoff. 5: crew result summarized back into Bonny's context. Slice 1 is the next unit and re-homes the committed `/ship`-via-`newSession()` foundation onto the alongside sub-session.
 
 ## Workspace model: the harbour, operator direction 2026-07-02
 
@@ -69,7 +71,7 @@ Estelle's launch directory is a harbour, not a project. Not yet specced:
 
 Three arcs, all in scope; sequencing is Captain's.
 
-1. **Live-crew Layer 2.** Build the always-on Bonny + `/ship` loop into the extension: crew seats in fresh pi sessions, one-way firewall, output routed to Bonny. pi-specific and beyond open-plugin scope, so Estelle-side. Gates the pi-adapter arc (proves pi-run crew isolation).
+1. **Live-crew Layer 2.** Build the always-on Bonny + `/embark` loop into the extension: crew seats in alongside in-memory sub-sessions, one-way firewall, heartbeat plus per-handoff narration routed to Bonny. pi-specific and beyond open-plugin scope, so Estelle-side. Gates the pi-adapter arc (proves pi-run crew isolation).
 2. **pi adapter + Shipshape-on-pi.** A pi runtime layer that runs the vendor-neutral open-plugin on pi, so plain-pi users get Shipshape and Estelle can consume upstream custody. Apply the portability rule: portable, open-plugin-shaped custody migrates upstream and must work in all supported clients; pi-specific glue stays in the adapter; beyond-scope custody stays in Estelle.
 3. **Perturb as product.** A narrow `perturb` tool through the custody gate so every Captain dagger is an auditable call. Specced by scenario, future iteration.
 
@@ -77,7 +79,7 @@ Three arcs, all in scope; sequencing is Captain's.
 
 - Custody gates: `tool_call` returns `{ block: true, reason }`; seat commands: `pi.registerCommand`; per-seat model: `before_provider_request` + `model_select`; per-seat toolset: `setActiveTools`.
 - Interactive: `createAgentSessionRuntime` + `InteractiveMode.run()` per pi sdk.md; persistent storage comes from `createAgentSessionServices` (`auth.json`, `models.json`, sessions under agentDir).
-- Context firewall (live crew): `ctx.newSession()` for a genuine fresh context.
+- Context firewall (live crew): the crew is an alongside sub-session via `createAgentSession({ sessionManager: SessionManager.inMemory(), tools, modelRegistry, resourceLoader })`, seeded contextless so Bonny's history never travels; `session.subscribe(event => ...)` streams `tool_execution_start`/`message_update`/`turn_end` for the heartbeat. Not `newSession()`, which replaces the live session. Reference extensions: `pi-btw`, `@juicesharp/rpiv-btw`.
 - Packages: `DefaultPackageManager.installAndPersist`; convention dirs (skills/ with SKILL.md folders) need no pi manifest.
 - Extension config idiom: `CONFIG_DIR_NAME` for project-local, `~/.pi/agent/<name>.json` for global.
 
@@ -89,5 +91,6 @@ Plant the RIGGING `fail-fast` statement as the first statement of a suspected st
 
 - Shipped: `@dk/estelle@0.1.7` on npm, `main` in sync with `origin`. Through 0.1.7: Shipshape install with Articles reaching Bonny's live prompt, model-gated greeting and fitting-out steer both operator-owned assets (`assets/greeting.md`, `assets/steer.md`), `estelle.json` per-seat models bound on both launch seams with pi default winning when unrecorded, and pi command pass-through. Harbour clean at last scan: 76 planks, zero stale, both tiers green.
 - Upstream `dmytri/shipshape` is at plugin 0.8.x, vendor-neutral open-plugin; the old qm-entry-guard block on window-isolated subagents is lifted, so the crew run as isolated subagents cleanly this runtime.
+- In flight: live-crew slice 1 re-home. Spec `features/live-crew.feature` rewritten to the alongside model and the trigger renamed `/ship` to `/embark`; three scenarios pin it, including one that fails under the old `newSession()` replace model (Bonny's session must stay live and keep the operator's message). Production still carries the old `/ship`-via-`newSession()` handler, so the crew has red to close: register `/embark`, open the crew as an in-memory alongside sub-session seated as Misson, expose the crew sub-session for observation, keep Bonny's session live. Old `/ship` scenario `@planks` in `src/index.ts` go stale on rename; crew reconciles.
 - Next: the three arcs above. Start point is Captain's call.
 - Watch items: Misson character detail welcome anytime.
