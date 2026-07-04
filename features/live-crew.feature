@@ -21,3 +21,22 @@ Feature: Embarking runs the crew alongside Bonny
     When the operator runs the "/embark" command in the started session
     Then the crew session opens alongside the started session
     And the crew session's message history excludes the operator's message "make the greeting warmer"
+
+  # Slice 2: the crew's heartbeat — the operator-visible sign the crew is alive
+  # and moving. The hermetic tier pins the heartbeat surface and its resting
+  # state; the @eval tier pins that it tracks a real run off the live event
+  # stream, and skips (never fails) when no model credential is present.
+
+  Scenario: Embarking exposes the crew's heartbeat at rest
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    Then the crew session reports a heartbeat naming the Quartermaster "Misson"
+    And the crew session's heartbeat shows the crew at rest before it runs
+
+  @eval
+  Scenario: A live crew run drives the heartbeat off the real event stream
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew
+    When the operator runs the "/embark" command in the started session
+    And the crew session runs a turn
+    Then the crew session's heartbeat reflected live activity during the run

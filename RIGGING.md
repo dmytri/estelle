@@ -18,11 +18,12 @@ Procedure lives in the skills. Every role reads this on open.
 
 ## Commands
 
-- discover: `pnpm exec cucumber-js --dry-run --tags "not @captain"`
+- discover: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval"`
 - focused: `pnpm exec cucumber-js --tags "not @captain" --name "{scenario}"`
-- broad: `pnpm exec cucumber-js --tags "not @captain"`
-- coverage: `pnpm exec cucumber-js --tags "not @captain" --format usage`
-- step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain" --format usage-json`
+- broad: `pnpm exec cucumber-js --tags "not @captain and not @eval"`
+- coverage: `pnpm exec cucumber-js --tags "not @captain and not @eval" --format usage`
+- step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval" --format usage-json`
+- eval: `pnpm exec cucumber-js --tags "@eval and not @captain"`
 - plank-inventory: `rg -n "@planks\(" src bin`
 - typecheck: `pnpm exec tsc --noEmit`
 - lint: `pnpm exec biome check .`
@@ -36,6 +37,7 @@ Procedure lives in the skills. Every role reads this on open.
 
 - default: @logic; pure local tests, no external accounts; fast, deterministic, safe; needs no credentials
 - sandbox: @sandbox; tests that install real pi extensions or upstream skills from public npm and the skills CLI; each scenario runs in a namespaced temporary workspace with idempotent best-effort teardown; needs network access, no secret credentials
+- eval: @eval; opt-in live-crew model evaluation; drives a real model over a genuinely-running crew session to verify live behaviour the hermetic tier cannot; needs `HARNESS_OPENROUTER_API_KEY` and `HARNESS_EVAL_MODEL` from `.env`; excluded from the default and broad runs; skips (never fails) when the credential is absent; never a green/red gate
 
 ## Dependencies
 
