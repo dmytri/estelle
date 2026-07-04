@@ -37,7 +37,7 @@ Procedure lives in the skills. Every role reads this on open.
 
 - default: @logic; pure local tests, no external accounts; fast, deterministic, safe; needs no credentials
 - sandbox: @sandbox; tests that install real pi extensions or upstream skills from public npm and the skills CLI; each scenario runs in a namespaced temporary workspace with idempotent best-effort teardown; needs network access, no secret credentials
-- eval: @eval; opt-in live-crew model evaluation; drives a real model over a genuinely-running crew session to verify live behaviour the hermetic tier cannot; needs `HARNESS_OPENROUTER_API_KEY` and `HARNESS_EVAL_MODEL` from `.env`; excluded from the default and broad runs; skips (never fails) when the credential is absent; never a green/red gate
+- eval: @eval; opt-in live-crew model evaluation; drives a real model over a genuinely-running crew session to verify live behaviour the hermetic tier cannot; requires `HARNESS_OPENROUTER_API_KEY` and `HARNESS_EVAL_MODEL` from `.env` as fitting-out, assumed present; excluded from the default and broad runs so it is not in the default worklist; a missing credential is not a skip but a Captain blocker for incomplete fitting-out
 
 ## Dependencies
 

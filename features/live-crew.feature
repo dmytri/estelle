@@ -25,7 +25,9 @@ Feature: Embarking runs the crew alongside Bonny
   # Slice 2: the crew's heartbeat — the operator-visible sign the crew is alive
   # and moving. The hermetic tier pins the heartbeat surface and its resting
   # state; the @eval tier pins that it tracks a real run off the live event
-  # stream, and skips (never fails) when no model credential is present.
+  # stream. The @eval tier requires the model credential as fitting-out and
+  # assumes it present; a missing credential is incomplete fitting-out, a
+  # Captain blocker, never a silent skip.
 
   Scenario: Embarking exposes the crew's heartbeat at rest
     Given a started Estelle session seated as the Captain "Bonny"
