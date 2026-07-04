@@ -1,0 +1,12 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/live-crew.feature:Embarking exposes the crew's heartbeat at rest"
+    ]
+  },
+  "watch2": {
+    "scenarios": [
+      "features/live-crew.feature:A live crew run drives the heartbeat off the real event stream"
+    ]
+  }
+}
