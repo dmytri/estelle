@@ -25,12 +25,27 @@ interface InteractiveHandle {
 					path: string,
 					contents: string,
 				): { allowed: boolean; reason?: string };
+				commit(): { allowed: boolean; reason?: string };
 		  }
 		| undefined;
 	handOffToCrew(): Promise<void>;
 	narrationLog(): { from: string; to: string; line: string }[];
 	reportCrewRun(): Promise<void>;
 	crewRunReports(): { summary: string }[];
+	reportFailingTarget(target: string): void;
+	reportAllGreen(): void;
+	advanceCrewLoop(): Promise<void>;
+	advanceCrewLoopThroughToBoatswain(): Promise<void>;
+	crewDispatches(): { target: string }[];
+	crewRunEnded(): boolean;
+	configureRedTarget(): void;
+	runCrewLoopToCompletion(): Promise<void>;
+	crewLoopSeatsRanLive(): {
+		quartermaster: boolean;
+		crew: boolean;
+		boatswain: boolean;
+	};
+	crewLoopTargetsAllGreen(): boolean;
 }
 
 export interface RunOptions extends LaunchOptions {
@@ -869,6 +884,12 @@ export async function run(options?: RunOptions): Promise<void> {
 	let crewSeat: Seat = SEATS.misson;
 	const narrationLog: { from: string; to: string; line: string }[] = [];
 	const crewRunReports: { summary: string }[] = [];
+	let currentVerdict: { failingTarget?: string; allGreen?: boolean } = {};
+	const crewDispatches: { target: string }[] = [];
+	let crewRunEnded = false;
+	const crewLoopSeats = { quartermaster: false, crew: false, boatswain: false };
+	let crewLoopAllGreen = false;
+	let redTargetPath: string | undefined;
 	state.openCrewSession = async () => {
 		const crewState: EstelleState = {
 			providerRequestCount: 0,
@@ -950,6 +971,16 @@ export async function run(options?: RunOptions): Promise<void> {
 						writeFileSync(absolute, contents, "utf8");
 						return { allowed: true };
 					},
+					// @planks("Then the crew session lets only the Boatswain commit")
+					commit: () => {
+						if (crewSeat.role !== "boatswain") {
+							return {
+								allowed: false,
+								reason: "only the Boatswain may commit",
+							};
+						}
+						return { allowed: true };
+					},
 				}
 			);
 		},
@@ -1027,6 +1058,130 @@ export async function run(options?: RunOptions): Promise<void> {
 			crewRunReports.push({ summary });
 		},
 		crewRunReports: () => crewRunReports,
+		// @planks("When the Quartermaster reports the failing target \"greeting.md\"")
+		reportFailingTarget: (target: string) => {
+			currentVerdict = { failingTarget: target };
+		},
+		// @planks("When the Quartermaster reports all targets green")
+		reportAllGreen: () => {
+			currentVerdict = { allGreen: true };
+		},
+		// @planks("When Estelle advances the crew loop")
+		// @planks("Then Estelle sends the Crew to the target \"greeting.md\"")
+		// @planks("Then the crew run ends without sending the Crew")
+		// @planks("Then Estelle sent the Crew exactly once")
+		// @planks("Then the crew run ends")
+		advanceCrewLoop: async () => {
+			if (currentVerdict.allGreen) {
+				crewRunEnded = true;
+				return;
+			}
+			crewDispatches.push({ target: currentVerdict.failingTarget! });
+		},
+		// @planks("When Estelle advances the crew loop through the Crew to the Boatswain")
+		// @planks("Then the crew session is seated as the Boatswain \"Bellamy\"")
+		// @planks("Then the crew session's message history excludes the Crew's context")
+		advanceCrewLoopThroughToBoatswain: async () => {
+			crewDispatches.push({ target: currentVerdict.failingTarget! });
+			const boatswainState: EstelleState = {
+				providerRequestCount: 0,
+				activeSeat: SEATS.bellamy,
+				skillPaths: {},
+				seatModels: state.seatModels,
+				unavailableModels: [],
+				pendingDeliveries: [],
+				deliveryFailures: 0,
+			};
+			crewSawActivity = false;
+			crewSeat = SEATS.bellamy;
+			state.crewRuntime = await buildRuntime(boatswainState);
+		},
+		crewDispatches: () => crewDispatches,
+		crewRunEnded: () => crewRunEnded,
+		// @planks("Given a target that is red until the Crew fixes it")
+		configureRedTarget: () => {
+			redTargetPath = resolve(cwd, join("src", "estelle-live-target.md"));
+			mkdirSync(dirname(redTargetPath), { recursive: true });
+			writeFileSync(redTargetPath, "", "utf8");
+		},
+		// @planks("When Estelle runs the crew loop to completion")
+		// @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
+		// @planks("Then the crew loop ended with every target green")
+		// @planks("Then Bonny's crew-run report carries a live summary of the run")
+		runCrewLoopToCompletion: async () => {
+			const targetPath = redTargetPath!;
+			const targetGreen = () =>
+				existsSync(targetPath) &&
+				readFileSync(targetPath, "utf8").trim().length > 0;
+			const liveModelId =
+				state.seatModels[SEATS.misson.role] ??
+				state.seatModels[SEATS.bonny.role];
+			const runSeatTurn = async (seat: Seat, prompt: string) => {
+				const seatModels: Record<string, string> = { ...state.seatModels };
+				if (liveModelId) {
+					seatModels[seat.role] = liveModelId;
+				}
+				crewSeat = seat;
+				state.crewRuntime = await buildRuntime({
+					providerRequestCount: 0,
+					activeSeat: seat,
+					skillPaths: {},
+					seatModels,
+					unavailableModels: [],
+					pendingDeliveries: [],
+					deliveryFailures: 0,
+				});
+				const seatSession = state.crewRuntime.session;
+				await seatSession.sendUserMessage(prompt);
+				return seatSession.messages
+					.filter((message) => message.role === "assistant")
+					.map(assistantText)
+					.filter((text) => text.trim().length > 0)
+					.pop();
+			};
+			while (!targetGreen()) {
+				const qmReply = await runSeatTurn(
+					SEATS.misson,
+					"You are the Quartermaster. Reply with a single short line of plain text naming the failing target. Do not read files. Do not call any tools.",
+				);
+				if (qmReply) {
+					crewLoopSeats.quartermaster = true;
+				}
+				const crewReply = await runSeatTurn(
+					SEATS.crew,
+					"You are the Crew. Reply with a single short line of plain text recording your fix for the target. Do not read files. Do not call any tools.",
+				);
+				if (crewReply) {
+					crewLoopSeats.crew = true;
+					const relPath = relativeToCwd(cwd, targetPath);
+					const decision = evaluateWrite(SEATS.crew.role, relPath);
+					if (decision.allowed) {
+						writeFileSync(targetPath, `${crewReply}\n`, "utf8");
+					}
+				}
+				const boatswainReply = await runSeatTurn(
+					SEATS.bellamy,
+					"You are the Boatswain. Reply with a single short line of plain text confirming you commit the fix. Do not read files. Do not call any tools.",
+				);
+				if (boatswainReply) {
+					crewLoopSeats.boatswain = true;
+				}
+			}
+			crewLoopAllGreen = targetGreen();
+			const bonnySession = runtime.session;
+			await bonnySession.sendUserMessage(
+				"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
+			);
+			const voiced = bonnySession.messages
+				.filter((message) => message.role === "assistant")
+				.map(assistantText)
+				.filter((text) => text.trim().length > 0);
+			crewRunReports.push({ summary: voiced[voiced.length - 1] });
+		},
+		// @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
+		crewLoopSeatsRanLive: () => crewLoopSeats,
+		// @planks("Then the crew loop ended with every target green")
+		crewLoopTargetsAllGreen: () => crewLoopAllGreen,
 	});
 
 	runtime.session.dispose();

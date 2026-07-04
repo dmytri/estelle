@@ -48,6 +48,7 @@ interface CrewSessionView {
 	heartbeat(): HeartbeatView;
 	runTurn(): Promise<void>;
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
+	commit(): { allowed: boolean; reason?: string };
 }
 
 // Bonny's narration log: the recorded seat transitions Bonny voices. Each entry
@@ -77,6 +78,33 @@ interface InteractiveHandleView {
 	narrationLog(): NarrationEntryView[];
 	reportCrewRun(): Promise<void>;
 	crewRunReports(): CrewRunReportView[];
+	// Slice 6: the full loop. Estelle drives the run off the Quartermaster's
+	// verdict. reportFailingTarget and reportAllGreen seed the current verdict.
+	// advanceCrewLoop reads that verdict and either dispatches the Crew to the
+	// failing target or ends the run. advanceCrewLoopThroughToBoatswain drives
+	// the loop far enough to seat the Boatswain for the commit. crewDispatches
+	// records each target the Crew was sent to; crewRunEnded latches when the
+	// verdict turned all green and the run closed without a further dispatch.
+	reportFailingTarget(target: string): void;
+	reportAllGreen(): void;
+	advanceCrewLoop(): Promise<void>;
+	advanceCrewLoopThroughToBoatswain(): Promise<void>;
+	crewDispatches(): { target: string }[];
+	crewRunEnded(): boolean;
+	// Slice 6 @eval: the live capstone. configureRedTarget arms a real target
+	// that starts red and turns green only once the Crew fixes it.
+	// runCrewLoopToCompletion drives the whole loop live: the Quartermaster
+	// verdict, the Crew fix, and the Boatswain commit, looping until green.
+	// crewLoopSeatsRanLive reports which seats produced a live model turn during
+	// the run; crewLoopTargetsAllGreen reports the loop's final verdict.
+	configureRedTarget(): void;
+	runCrewLoopToCompletion(): Promise<void>;
+	crewLoopSeatsRanLive(): {
+		quartermaster: boolean;
+		crew: boolean;
+		boatswain: boolean;
+	};
+	crewLoopTargetsAllGreen(): boolean;
 }
 
 function messageText(message: MessageView): string {
@@ -587,6 +615,221 @@ Then(
 			`crew session allowed the write to ${JSON.stringify(
 				path,
 			)} but Crew custody should block it`,
+		);
+	},
+);
+
+function handle(world: EstelleWorld): InteractiveHandleView {
+	return world.interactiveSession as unknown as InteractiveHandleView;
+}
+
+When(
+	"the Quartermaster reports the failing target {string}",
+	function (this: EstelleWorld, target: string) {
+		(this as unknown as { reportedTarget?: string }).reportedTarget = target;
+		handle(this).reportFailingTarget(target);
+	},
+);
+
+When(
+	"the Quartermaster reports all targets green",
+	function (this: EstelleWorld) {
+		handle(this).reportAllGreen();
+	},
+);
+
+When(
+	"the Quartermaster then reports all targets green",
+	function (this: EstelleWorld) {
+		handle(this).reportAllGreen();
+	},
+);
+
+When("Estelle advances the crew loop", async function (this: EstelleWorld) {
+	await handle(this).advanceCrewLoop();
+});
+
+When(
+	"Estelle advances the crew loop through the Crew to the Boatswain",
+	async function (this: EstelleWorld) {
+		await handle(this).advanceCrewLoopThroughToBoatswain();
+	},
+);
+
+Then(
+	"Estelle sends the Crew to the target {string}",
+	function (this: EstelleWorld, target: string) {
+		const dispatches = handle(this).crewDispatches();
+		assert.ok(
+			dispatches.some((d) => d.target === target),
+			`Estelle did not send the Crew to the target ${JSON.stringify(
+				target,
+			)}; dispatches: ${JSON.stringify(dispatches)}`,
+		);
+	},
+);
+
+Then(
+	"the crew run ends without sending the Crew",
+	function (this: EstelleWorld) {
+		assert.equal(
+			handle(this).crewRunEnded(),
+			true,
+			"crew run did not end when the Quartermaster reported all green",
+		);
+		const dispatches = handle(this).crewDispatches();
+		assert.equal(
+			dispatches.length,
+			0,
+			`crew run sent the Crew despite an all-green verdict; dispatches: ${JSON.stringify(
+				dispatches,
+			)}`,
+		);
+	},
+);
+
+Then("Estelle sent the Crew exactly once", function (this: EstelleWorld) {
+	const dispatches = handle(this).crewDispatches();
+	assert.equal(
+		dispatches.length,
+		1,
+		`Estelle sent the Crew ${dispatches.length} times, not exactly once; dispatches: ${JSON.stringify(
+			dispatches,
+		)}`,
+	);
+});
+
+Then("the crew run ends", function (this: EstelleWorld) {
+	assert.equal(
+		handle(this).crewRunEnded(),
+		true,
+		"crew run did not end after the verdict turned all green",
+	);
+});
+
+Then(
+	"the crew session is seated as the Boatswain {string}",
+	function (this: EstelleWorld, name: string) {
+		const seat = crewSession(this).seat();
+		assert.equal(seat.role, "boatswain");
+		assert.equal(seat.name, name);
+	},
+);
+
+Then(
+	"the crew session lets only the Boatswain commit",
+	function (this: EstelleWorld) {
+		const result = crewSession(this).commit();
+		assert.equal(
+			result.allowed,
+			true,
+			`crew session blocked the seated Boatswain's commit: ${
+				result.reason ?? ""
+			}`,
+		);
+	},
+);
+
+Then(
+	"the crew session's message history excludes the Crew's context",
+	function (this: EstelleWorld) {
+		const target =
+			(this as unknown as { reportedTarget?: string }).reportedTarget ?? "";
+		assert.ok(
+			target.length > 0,
+			"no Crew target was reported before seating the Boatswain",
+		);
+		const leaked = crewSession(this).runtime.session.messages.filter((m) =>
+			messageText(m).includes(target),
+		);
+		assert.equal(
+			leaked.length,
+			0,
+			`Boatswain crew session carries the Crew's context ${JSON.stringify(
+				target,
+			)}; leaked messages: ${JSON.stringify(leaked.map(messageText))}`,
+		);
+	},
+);
+
+Given(
+	"a target that is red until the Crew fixes it",
+	function (this: EstelleWorld) {
+		handle(this).configureRedTarget();
+	},
+);
+
+When(
+	"Estelle runs the crew loop to completion",
+	// The live loop drives real provider turns through the Quartermaster, the
+	// Crew, and the Boatswain seats, looping until the target turns green. It
+	// needs a live-run budget well beyond cucumber's 5000ms default and beyond a
+	// single-turn live step.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		await handle(this).runCrewLoopToCompletion();
+	},
+);
+
+Then(
+	"the crew loop ran the Quartermaster, the Crew, and the Boatswain live",
+	function (this: EstelleWorld) {
+		const seats = handle(this).crewLoopSeatsRanLive();
+		assert.equal(
+			seats.quartermaster,
+			true,
+			`the Quartermaster did not run live during the loop: ${JSON.stringify(
+				seats,
+			)}`,
+		);
+		assert.equal(
+			seats.crew,
+			true,
+			`the Crew did not run live during the loop: ${JSON.stringify(seats)}`,
+		);
+		assert.equal(
+			seats.boatswain,
+			true,
+			`the Boatswain did not run live during the loop: ${JSON.stringify(seats)}`,
+		);
+	},
+);
+
+Then(
+	"the crew loop ended with every target green",
+	function (this: EstelleWorld) {
+		assert.equal(
+			handle(this).crewLoopTargetsAllGreen(),
+			true,
+			"the crew loop ended with a target still red",
+		);
+	},
+);
+
+Then(
+	"Bonny's crew-run report carries a live summary of the run",
+	function (this: EstelleWorld) {
+		// A live summary is real text Bonny's model voiced for the completed run,
+		// not a static template. Require the recorded summary to appear as a
+		// non-empty assistant message in Bonny's own live session, the same seam
+		// the sibling live-summary and live-reply scenarios read.
+		const report = crewRunReport(this);
+		assert.ok(
+			report.summary.trim().length > 0,
+			`Bonny's crew-run report carries no live summary: ${JSON.stringify(
+				report,
+			)}`,
+		);
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const bonnyReplies = handle.runtime.session.messages
+			.filter((m) => m.role === "assistant")
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			bonnyReplies.includes(report.summary),
+			`Bonny's crew-run summary was not voiced by her live model; summary: ${JSON.stringify(
+				report.summary,
+			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
 		);
 	},
 );
