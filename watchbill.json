@@ -1,0 +1,12 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/live-crew.feature:The crew's run is reported back into Bonny's session without leaking raw context"
+    ]
+  },
+  "watch2": {
+    "scenarios": [
+      "features/live-crew.feature:Bonny's crew-run report carries a live summary"
+    ]
+  }
+}

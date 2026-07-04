@@ -96,3 +96,26 @@ Feature: Embarking runs the crew alongside Bonny
     And the crew session runs a turn
     When Estelle hands the crew off from the Quartermaster to the Crew
     Then Bonny's narration for the handoff carries a live line in her voice
+
+  # Slice 5: report-back. When the crew's run ends, Estelle summarizes the
+  # result back into Bonny's session so she can speak to what shipped, while the
+  # firewall holds: Bonny receives the distilled summary, never the crew's raw
+  # context. @logic pins the report seam and the firewall; @eval pins a real
+  # model summary of the crew's work.
+
+  Scenario: The crew's run is reported back into Bonny's session without leaking raw context
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    And the Quartermaster's crew session carries the message "greeting.md warmer; three planks green"
+    And Estelle reports the crew's run back to Bonny
+    Then the started session records a crew-run report
+    And the started session's history excludes the crew's raw message "greeting.md warmer; three planks green"
+
+  @eval
+  Scenario: Bonny's crew-run report carries a live summary
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew and Bonny
+    When the operator runs the "/embark" command in the started session
+    And the crew session runs a turn
+    When Estelle reports the crew's run back to Bonny
+    Then Bonny's crew-run report carries a live summary of the crew's work
