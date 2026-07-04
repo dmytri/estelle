@@ -1,7 +1,0 @@
-{
-  "watch1": {
-    "scenarios": [
-      "features/live-crew.feature:A live crew run drives the heartbeat off the real event stream"
-    ]
-  }
-}
