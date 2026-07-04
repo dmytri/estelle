@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@earendil-works/pi-coding-agent':
         specifier: ^0.80.2
-        version: 0.80.2(ws@8.21.0)(zod@4.4.3)
+        version: 0.80.2(supports-color@10.2.2)(ws@8.21.0)(zod@4.4.3)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.1
@@ -27,6 +27,21 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+
+  packages/pi-open-plugin-shim:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '>=0.74.0 <1'
+        version: 0.80.2(supports-color@10.2.2)(ws@8.21.0)(zod@4.4.3)
+
+  packages/pi-shipshape:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '>=0.74.0 <1'
+        version: 0.80.2(supports-color@10.2.2)(ws@8.21.0)(zod@4.4.3)
+      pi-open-plugin-shim:
+        specifier: workspace:*
+        version: link:../pi-open-plugin-shim
 
 packages:
 
@@ -1543,7 +1558,7 @@ snapshots:
 
   '@earendil-works/pi-agent-core@0.80.2(ws@8.21.0)(zod@4.4.3)':
     dependencies:
-      '@earendil-works/pi-ai': 0.80.2(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-ai': 0.80.2(supports-color@10.2.2)(ws@8.21.0)(zod@4.4.3)
       ignore: 7.0.5
       typebox: 1.1.38
       yaml: 2.9.0
@@ -1555,7 +1570,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@0.80.2(ws@8.21.0)(zod@4.4.3)':
+  '@earendil-works/pi-ai@0.80.2(supports-color@10.2.2)(ws@8.21.0)(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.4.3)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
@@ -1563,7 +1578,7 @@ snapshots:
       '@mistralai/mistralai': 2.2.6(@opentelemetry/api@1.9.0)
       '@opentelemetry/api': 1.9.0
       '@smithy/node-http-handler': 4.7.3
-      http-proxy-agent: 7.0.2
+      http-proxy-agent: 7.0.2(supports-color@10.2.2)
       https-proxy-agent: 7.0.6
       openai: 6.26.0(ws@8.21.0)(zod@4.4.3)
       partial-json: 0.1.7
@@ -1576,10 +1591,10 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-coding-agent@0.80.2(ws@8.21.0)(zod@4.4.3)':
+  '@earendil-works/pi-coding-agent@0.80.2(supports-color@10.2.2)(ws@8.21.0)(zod@4.4.3)':
     dependencies:
       '@earendil-works/pi-agent-core': 0.80.2(ws@8.21.0)(zod@4.4.3)
-      '@earendil-works/pi-ai': 0.80.2(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-ai': 0.80.2(supports-color@10.2.2)(ws@8.21.0)(zod@4.4.3)
       '@earendil-works/pi-tui': 0.80.2
       '@silvia-odwyer/photon-node': 0.3.4
       chalk: 5.6.2
@@ -2020,7 +2035,7 @@ snapshots:
     dependencies:
       lru-cache: 11.5.1
 
-  http-proxy-agent@7.0.2:
+  http-proxy-agent@7.0.2(supports-color@10.2.2):
     dependencies:
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@10.2.2)

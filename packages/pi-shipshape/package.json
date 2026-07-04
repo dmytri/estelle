@@ -1,0 +1,47 @@
+{
+  "name": "pi-shipshape",
+  "version": "0.0.0",
+  "description": "Run the Shipshape spec-driven workflow (https://github.com/dmytri/shipshape) on the Pi coding agent: installs the Shipshape skills and open-plugin and runs its custody and context isolation through pi-open-plugin-shim.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Dmytri Kleiner <dev@dmytri.to>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dmytri/estelle.git",
+    "directory": "packages/pi-shipshape"
+  },
+  "homepage": "https://github.com/dmytri/shipshape",
+  "bugs": {
+    "url": "https://github.com/dmytri/estelle/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi-coding-agent",
+    "shipshape",
+    "open-plugin",
+    "spec-driven-development",
+    "custody",
+    "context-isolation"
+  ],
+  "files": [
+    "index.ts",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.74.0 <1"
+  },
+  "dependencies": {
+    "pi-open-plugin-shim": "workspace:*"
+  }
+}

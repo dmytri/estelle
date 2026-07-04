@@ -1,0 +1,49 @@
+{
+  "name": "pi-open-plugin-shim",
+  "version": "0.0.0",
+  "description": "Run open-plugin-format plugins (https://open-plugins.com) on the Pi coding agent: a shim that maps open-plugin custody hooks, role agents, and commands onto Pi's extension API.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Dmytri Kleiner <dev@dmytri.to>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dmytri/estelle.git",
+    "directory": "packages/pi-open-plugin-shim"
+  },
+  "homepage": "https://open-plugins.com",
+  "bugs": {
+    "url": "https://github.com/dmytri/estelle/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi-coding-agent",
+    "open-plugin",
+    "open-plugins",
+    "open-plugin-spec",
+    "shim",
+    "custody",
+    "context-isolation"
+  ],
+  "files": [
+    "index.ts",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "cucumber-js --tags \"not @captain\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.74.0 <1"
+  }
+}
