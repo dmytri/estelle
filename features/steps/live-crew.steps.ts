@@ -47,12 +47,14 @@ interface CrewSessionView {
 	seat(): { id: string; role: string; name: string };
 	heartbeat(): HeartbeatView;
 	runTurn(): Promise<void>;
+	write(path: string, contents: string): { allowed: boolean; reason?: string };
 }
 
 interface InteractiveHandleView {
 	runtime: SessionRuntimeView;
 	seat(): { id: string; role: string; name: string };
 	crewSession(): CrewSessionView | undefined;
+	handOffToCrew(): Promise<void>;
 }
 
 function messageText(message: MessageView): string {
@@ -216,7 +218,16 @@ Given(
 );
 
 When("the crew session runs a turn", async function (this: EstelleWorld) {
-	await crewSession(this).runTurn();
+	const crew = crewSession(this);
+	await crew.runTurn();
+	// Capture what the Quartermaster's turn left in the crew session's live
+	// history, so a later hand-off scenario can assert the fresh Crew session
+	// carries none of it. Empty and whitespace-only entries are dropped so the
+	// exclusion check has real content to match against.
+	(this as unknown as { qmTurnTexts?: string[] }).qmTurnTexts =
+		crew.runtime.session.messages
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
 });
 
 Then(
@@ -265,6 +276,113 @@ Then(
 			`crew session's message history carries the operator's message ${JSON.stringify(
 				message,
 			)}; leaked messages: ${JSON.stringify(leaked.map(messageText))}`,
+		);
+	},
+);
+
+When(
+	"the Quartermaster's crew session carries the message {string}",
+	async function (this: EstelleWorld, message: string) {
+		const runtime = crewSession(this).runtime as SessionRuntimeView;
+		// Seed the Quartermaster's working note into the crew session's live
+		// history through pi's own custom-message seam, the same way the operator's
+		// message is seeded into the started session. The crew session now carries
+		// the Quartermaster's context, ready for the hand-off to isolate the Crew
+		// from.
+		await runtime.session.sendCustomMessage({
+			customType: "quartermaster-message",
+			content: message,
+			display: true,
+		});
+		assert.ok(
+			runtime.session.messages.some((m) => messageText(m).includes(message)),
+			`crew session did not carry the Quartermaster's message ${JSON.stringify(
+				message,
+			)}`,
+		);
+	},
+);
+
+When(
+	"Estelle hands the crew off from the Quartermaster to the Crew",
+	async function (this: EstelleWorld) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		await handle.handOffToCrew();
+	},
+);
+
+Then(
+	"the crew session is seated as a Crew hand",
+	function (this: EstelleWorld) {
+		const seat = crewSession(this).seat();
+		assert.equal(seat.role, "crew");
+	},
+);
+
+Then(
+	"the crew session's message history excludes the Quartermaster's message {string}",
+	function (this: EstelleWorld, message: string) {
+		const leaked = crewSession(this).runtime.session.messages.filter((m) =>
+			messageText(m).includes(message),
+		);
+		assert.equal(
+			leaked.length,
+			0,
+			`crew session's message history carries the Quartermaster's message ${JSON.stringify(
+				message,
+			)}; leaked messages: ${JSON.stringify(leaked.map(messageText))}`,
+		);
+	},
+);
+
+Then(
+	"the crew session's message history excludes the Quartermaster's turn",
+	function (this: EstelleWorld) {
+		const captured =
+			(this as unknown as { qmTurnTexts?: string[] }).qmTurnTexts ?? [];
+		assert.ok(
+			captured.length > 0,
+			"no Quartermaster turn was captured before the hand-off",
+		);
+		const freshHistory =
+			crewSession(this).runtime.session.messages.map(messageText);
+		const leaked = captured.filter((text) =>
+			freshHistory.some((message) => message.includes(text)),
+		);
+		assert.equal(
+			leaked.length,
+			0,
+			`fresh Crew session carries the Quartermaster's turn end; leaked: ${JSON.stringify(
+				leaked,
+			)}`,
+		);
+	},
+);
+
+Then(
+	"the crew session allows a Crew hand to write {string}",
+	function (this: EstelleWorld, path: string) {
+		const result = crewSession(this).write(path, "estelle verification\n");
+		assert.equal(
+			result.allowed,
+			true,
+			`crew session blocked the write to ${JSON.stringify(path)}: ${
+				result.reason ?? ""
+			}`,
+		);
+	},
+);
+
+Then(
+	"the crew session blocks a Crew hand from writing {string}",
+	function (this: EstelleWorld, path: string) {
+		const result = crewSession(this).write(path, "estelle verification\n");
+		assert.equal(
+			result.allowed,
+			false,
+			`crew session allowed the write to ${JSON.stringify(
+				path,
+			)} but Crew custody should block it`,
 		);
 	},
 );

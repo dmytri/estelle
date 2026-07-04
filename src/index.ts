@@ -21,8 +21,13 @@ interface InteractiveHandle {
 				seat(): { id: string; role: string; name: string };
 				heartbeat(): { name: string; atRest: boolean; sawActivity: boolean };
 				runTurn(): Promise<void>;
+				write(
+					path: string,
+					contents: string,
+				): { allowed: boolean; reason?: string };
 		  }
 		| undefined;
+	handOffToCrew(): Promise<void>;
 }
 
 export interface RunOptions extends LaunchOptions {
@@ -837,6 +842,7 @@ export async function run(options?: RunOptions): Promise<void> {
 
 	state.runtime = runtime;
 	let crewSawActivity = false;
+	let crewSeat: Seat = SEATS.misson;
 	state.openCrewSession = async () => {
 		const crewState: EstelleState = {
 			providerRequestCount: 0,
@@ -848,6 +854,7 @@ export async function run(options?: RunOptions): Promise<void> {
 			deliveryFailures: 0,
 		};
 		crewSawActivity = false;
+		crewSeat = SEATS.misson;
 		state.crewRuntime = await buildRuntime(crewState);
 	};
 
@@ -877,7 +884,7 @@ export async function run(options?: RunOptions): Promise<void> {
 			return (
 				crewRuntime && {
 					runtime: crewRuntime,
-					seat: () => SEATS.misson,
+					seat: () => crewSeat,
 					heartbeat: () => ({
 						name: SEATS.misson.name,
 						atRest: true,
@@ -895,8 +902,38 @@ export async function run(options?: RunOptions): Promise<void> {
 						});
 						await crewSession.abort();
 					},
+					// @planks("Then the crew session allows a Crew hand to write \"src/handoff.ts\"")
+					// @planks("Then the crew session blocks a Crew hand from writing \"features/new.feature\"")
+					write: (path: string, contents: string) => {
+						const relPath = relativeToCwd(cwd, path);
+						const decision = evaluateWrite(crewSeat.role, relPath);
+						if (!decision.allowed) {
+							return decision;
+						}
+						const absolute = resolve(cwd, path);
+						mkdirSync(dirname(absolute), { recursive: true });
+						writeFileSync(absolute, contents, "utf8");
+						return { allowed: true };
+					},
 				}
 			);
+		},
+		// @planks("When Estelle hands the crew off from the Quartermaster to the Crew")
+		// @planks("Then the crew session is seated as a Crew hand")
+		// @planks("Then the crew session's message history excludes the Quartermaster's message \"target greeting.md is red\"")
+		handOffToCrew: async () => {
+			const crewState: EstelleState = {
+				providerRequestCount: 0,
+				activeSeat: SEATS.crew,
+				skillPaths: {},
+				seatModels: state.seatModels,
+				unavailableModels: [],
+				pendingDeliveries: [],
+				deliveryFailures: 0,
+			};
+			crewSawActivity = false;
+			crewSeat = SEATS.crew;
+			state.crewRuntime = await buildRuntime(crewState);
 		},
 	});
 
