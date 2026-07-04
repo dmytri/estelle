@@ -42,3 +42,35 @@ Feature: Embarking runs the crew alongside Bonny
     When the operator runs the "/embark" command in the started session
     And the crew session runs a turn
     Then the crew session's heartbeat reflected live activity during the run
+
+  # Slice 3: the Quartermaster -> Crew handoff. Estelle drives the progression:
+  # after the Quartermaster's turn it opens a fresh, context-isolated Crew
+  # session, so the QM -> Crew firewall holds by fresh context, and custody
+  # follows the new seat. The full loop-until-green is a later slice; this pins
+  # one handoff. @logic pins fresh context and custody; @eval pins a real
+  # Quartermaster turn handing off to a fresh Crew session.
+
+  Scenario: Handing off to the Crew opens a session isolated from the Quartermaster's context
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    And the Quartermaster's crew session carries the message "target greeting.md is red"
+    And Estelle hands the crew off from the Quartermaster to the Crew
+    Then the crew session is seated as a Crew hand
+    And the crew session's message history excludes the Quartermaster's message "target greeting.md is red"
+
+  Scenario: The handed-off Crew session carries Crew custody
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    And Estelle hands the crew off from the Quartermaster to the Crew
+    Then the crew session allows a Crew hand to write "src/handoff.ts"
+    And the crew session blocks a Crew hand from writing "features/new.feature"
+
+  @eval
+  Scenario: A live Quartermaster turn hands off to a fresh Crew session
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew
+    When the operator runs the "/embark" command in the started session
+    And the crew session runs a turn
+    And Estelle hands the crew off from the Quartermaster to the Crew
+    Then the crew session is seated as a Crew hand
+    And the crew session's message history excludes the Quartermaster's turn

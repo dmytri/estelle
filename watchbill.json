@@ -1,0 +1,13 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/live-crew.feature:Handing off to the Crew opens a session isolated from the Quartermaster's context",
+      "features/live-crew.feature:The handed-off Crew session carries Crew custody"
+    ]
+  },
+  "watch2": {
+    "scenarios": [
+      "features/live-crew.feature:A live Quartermaster turn hands off to a fresh Crew session"
+    ]
+  }
+}
