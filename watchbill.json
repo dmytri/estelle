@@ -1,0 +1,15 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/live-crew.feature:Estelle sends the Crew to the target the Quartermaster names",
+      "features/live-crew.feature:Estelle ends the run when the Quartermaster reports all green",
+      "features/live-crew.feature:Estelle loops the Crew until the Quartermaster's verdict turns green",
+      "features/live-crew.feature:The loop seats the Boatswain to commit, isolated from the Crew"
+    ]
+  },
+  "watch2": {
+    "scenarios": [
+      "features/live-crew.feature:A live embark runs the crew loop through every seat to green"
+    ]
+  }
+}

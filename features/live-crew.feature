@@ -119,3 +119,54 @@ Feature: Embarking runs the crew alongside Bonny
     And the crew session runs a turn
     When Estelle reports the crew's run back to Bonny
     Then Bonny's crew-run report carries a live summary of the crew's work
+
+  # Slice 6: the full loop. Estelle drives the whole run, not one handoff: it
+  # reads the Quartermaster's verdict and decides the next seat, sends the Crew
+  # to each failing target, seats the Boatswain to commit, and loops the
+  # Quartermaster until every target is green. The decision logic is a pure
+  # function of the verdict, pinned deterministically at @logic; @eval pins a
+  # genuine live run of the whole loop to green.
+
+  Scenario: Estelle sends the Crew to the target the Quartermaster names
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    And the Quartermaster reports the failing target "greeting.md"
+    And Estelle advances the crew loop
+    Then Estelle sends the Crew to the target "greeting.md"
+
+  Scenario: Estelle ends the run when the Quartermaster reports all green
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    And the Quartermaster reports all targets green
+    And Estelle advances the crew loop
+    Then the crew run ends without sending the Crew
+
+  Scenario: Estelle loops the Crew until the Quartermaster's verdict turns green
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    And the Quartermaster reports the failing target "greeting.md"
+    And Estelle advances the crew loop
+    And the Quartermaster then reports all targets green
+    And Estelle advances the crew loop
+    Then Estelle sent the Crew exactly once
+    And the crew run ends
+
+  Scenario: The loop seats the Boatswain to commit, isolated from the Crew
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    And the Quartermaster reports the failing target "greeting.md"
+    And Estelle advances the crew loop through the Crew to the Boatswain
+    Then the crew session is seated as the Boatswain "Bellamy"
+    And the crew session lets only the Boatswain commit
+    And the crew session's message history excludes the Crew's context
+
+  @eval
+  Scenario: A live embark runs the crew loop through every seat to green
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew and Bonny
+    And a target that is red until the Crew fixes it
+    When the operator runs the "/embark" command in the started session
+    And Estelle runs the crew loop to completion
+    Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live
+    And the crew loop ended with every target green
+    And Bonny's crew-run report carries a live summary of the run
