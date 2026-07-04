@@ -60,12 +60,23 @@ interface NarrationEntryView {
 	line: string;
 }
 
+// Bonny's crew-run report: the distilled summary Estelle reports back into
+// Bonny's started session when the crew's run ends. Each entry carries the
+// summary line Bonny can speak to. The firewall holds: the report carries the
+// distilled summary, never the crew's raw context. The hermetic tier reads the
+// recorded summary; the @eval tier reads the live summary Bonny's model voiced.
+interface CrewRunReportView {
+	summary: string;
+}
+
 interface InteractiveHandleView {
 	runtime: SessionRuntimeView;
 	seat(): { id: string; role: string; name: string };
 	crewSession(): CrewSessionView | undefined;
 	handOffToCrew(): Promise<void>;
 	narrationLog(): NarrationEntryView[];
+	reportCrewRun(): Promise<void>;
+	crewRunReports(): CrewRunReportView[];
 }
 
 function messageText(message: MessageView): string {
@@ -469,6 +480,84 @@ Then(
 			bonnyReplies.includes(entry.line),
 			`Bonny's narration line was not voiced by her live model; line: ${JSON.stringify(
 				entry.line,
+			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
+		);
+	},
+);
+
+When(
+	"Estelle reports the crew's run back to Bonny",
+	// Under @eval this seam runs a live provider turn on Bonny's Captain seat to
+	// summarize the crew's work, so it needs the live-step budget the sibling live
+	// steps carry, not cucumber's 5000ms default. Under @logic it stays fast.
+	{ timeout: 120000 },
+	async function (this: EstelleWorld) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		await handle.reportCrewRun();
+	},
+);
+
+function crewRunReport(world: EstelleWorld): CrewRunReportView {
+	const handle = world.interactiveSession as unknown as InteractiveHandleView;
+	const reports = handle.crewRunReports();
+	assert.ok(reports.length > 0, "started session records no crew-run report");
+	return reports[reports.length - 1];
+}
+
+Then(
+	"the started session records a crew-run report",
+	function (this: EstelleWorld) {
+		const report = crewRunReport(this);
+		assert.ok(
+			report.summary.trim().length > 0,
+			`crew-run report carries no summary: ${JSON.stringify(report)}`,
+		);
+	},
+);
+
+Then(
+	"the started session's history excludes the crew's raw message {string}",
+	function (this: EstelleWorld, message: string) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const leaked = handle.runtime.session.messages.filter((m) =>
+			messageText(m).includes(message),
+		);
+		assert.equal(
+			leaked.length,
+			0,
+			`started session's history carries the crew's raw message ${JSON.stringify(
+				message,
+			)}; leaked messages: ${JSON.stringify(leaked.map(messageText))}`,
+		);
+	},
+);
+
+Then(
+	"Bonny's crew-run report carries a live summary of the crew's work",
+	function (this: EstelleWorld) {
+		// A live summary is real text Bonny's model voiced for the crew-run report,
+		// not a static template. Require the recorded summary to be the output of a
+		// real provider turn on Bonny's Captain seat: it MUST appear as a non-empty
+		// assistant message in Bonny's own live session, the same seam the live
+		// narration and live-reply scenarios read. A hardcoded template pushed
+		// straight into the log never reaches Bonny's session, so this fails rather
+		// than passing green without a live Bonny round trip.
+		const report = crewRunReport(this);
+		assert.ok(
+			report.summary.trim().length > 0,
+			`Bonny's crew-run report carries no live summary: ${JSON.stringify(
+				report,
+			)}`,
+		);
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const bonnyReplies = handle.runtime.session.messages
+			.filter((m) => m.role === "assistant")
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			bonnyReplies.includes(report.summary),
+			`Bonny's crew-run summary was not voiced by her live model; summary: ${JSON.stringify(
+				report.summary,
 			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
 		);
 	},
