@@ -295,6 +295,10 @@ function evaluateRead(
  * @planks("When the operator runs the \"/misson\" command in the started session")
  * @planks("Then the started session's active seat is the Quartermaster \"Misson\"")
  * @planks("When the operator runs the \"/embark\" command in the started session")
+ * @planks("When the operator runs the \"/clear\" command in the started session")
+ * @planks("Then the started session's message history excludes the operator's message \"make the greeting warmer\"")
+ * @planks("Then the started session stays seated as the Captain \"Bonny\"")
+ * @planks("Then the started session carries no greeting before the operator speaks")
  */
 function createEstelleExtension(state: EstelleState, cwd: string) {
 	return (pi: ExtensionAPI) => {
@@ -313,6 +317,13 @@ function createEstelleExtension(state: EstelleState, cwd: string) {
 				"Embark the batch: open a crew session alongside seated as the Quartermaster Misson",
 			handler: async () => {
 				await state.openCrewSession?.();
+			},
+		});
+		pi.registerCommand("clear", {
+			description:
+				"Start a fresh Bonny session, dropping the conversation without re-greeting",
+			handler: async () => {
+				await state.runtime?.newSession();
 			},
 		});
 		pi.on("before_provider_request", () => {
