@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Given, Then } from "@cucumber/cucumber";
+import { Before, Given, Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
 
 // Structural view of the real pi session the interactive handle carries. The
@@ -32,9 +32,21 @@ interface SessionRuntimeView {
 // interactive handle exposes it as a distinct session with its own seat and
 // live message list, so verification observes the started session and the crew
 // session as two separate real sessions.
+// The crew's heartbeat: the operator-visible sign the crew is alive. At rest it
+// names the seated Quartermaster and reports no live activity yet. A live run
+// drives the beat off the crew session's real event stream, latching
+// sawActivity once the stream emits during the run.
+interface HeartbeatView {
+	name: string;
+	atRest: boolean;
+	sawActivity: boolean;
+}
+
 interface CrewSessionView {
 	runtime: SessionRuntimeView;
 	seat(): { id: string; role: string; name: string };
+	heartbeat(): HeartbeatView;
+	runTurn(): Promise<void>;
 }
 
 interface InteractiveHandleView {
@@ -174,6 +186,80 @@ Then(
 			`started session no longer carries the operator's message ${JSON.stringify(
 				message,
 			)}`,
+		);
+	},
+);
+
+// The @eval tier drives a real model. It skips, never fails, when the live crew
+// credentials are absent, per RIGGING.md. Present credentials run the real turn.
+Before({ tags: "@eval" }, () => {
+	if (
+		!process.env.HARNESS_OPENROUTER_API_KEY ||
+		!process.env.HARNESS_EVAL_MODEL
+	) {
+		return "skipped";
+	}
+});
+
+Given(
+	"a live eval model is configured for the crew",
+	async function (this: EstelleWorld) {
+		const model = process.env.HARNESS_EVAL_MODEL!;
+		const key = process.env.HARNESS_OPENROUTER_API_KEY!;
+		// Record the eval model as the crew's seat model and seed the OpenRouter
+		// provider key into the operator's agent dir, then relaunch so the crew
+		// session the /embark seal opens inherits the live model. The started
+		// session captured by the prior Given was seat-only; the eval run needs a
+		// real model configured before the crew session opens.
+		writeFileSync(
+			join(this.agentDir!, "estelle.json"),
+			JSON.stringify({ seats: { quartermaster: `openrouter/${model}` } }),
+			"utf8",
+		);
+		writeFileSync(
+			join(this.agentDir!, "auth.json"),
+			JSON.stringify({ openrouter: { type: "api_key", key } }),
+			"utf8",
+		);
+		this.interactiveSession = undefined;
+		await startSession(this);
+	},
+);
+
+When("the crew session runs a turn", async function (this: EstelleWorld) {
+	await crewSession(this).runTurn();
+});
+
+Then(
+	"the crew session's heartbeat reflected live activity during the run",
+	function (this: EstelleWorld) {
+		const beat = crewSession(this).heartbeat();
+		assert.equal(
+			beat.sawActivity,
+			true,
+			`crew heartbeat recorded no live activity during the run: ${JSON.stringify(
+				beat,
+			)}`,
+		);
+	},
+);
+
+Then(
+	"the crew session reports a heartbeat naming the Quartermaster {string}",
+	function (this: EstelleWorld, name: string) {
+		const beat = crewSession(this).heartbeat();
+		assert.equal(beat.name, name);
+	},
+);
+
+Then(
+	"the crew session's heartbeat shows the crew at rest before it runs",
+	function (this: EstelleWorld) {
+		const beat = crewSession(this).heartbeat();
+		assert.equal(
+			beat.atRest,
+			true,
+			`crew heartbeat is not at rest: ${JSON.stringify(beat)}`,
 		);
 	},
 );

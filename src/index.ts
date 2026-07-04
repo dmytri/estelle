@@ -19,6 +19,8 @@ interface InteractiveHandle {
 		| {
 				runtime: AgentSessionRuntime;
 				seat(): { id: string; role: string; name: string };
+				heartbeat(): { name: string; atRest: boolean; sawActivity: boolean };
+				runTurn(): Promise<void>;
 		  }
 		| undefined;
 }
@@ -729,6 +731,10 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
  * @planks("Then the started session stays seated as the Captain \"Bonny\"")
  * @planks("Then the started session still carries the operator's message \"make the greeting warmer\"")
  * @planks("Then the crew session's message history excludes the operator's message \"make the greeting warmer\"")
+ * @planks("Then the crew session reports a heartbeat naming the Quartermaster \"Misson\"")
+ * @planks("Then the crew session's heartbeat shows the crew at rest before it runs")
+ * @planks("When the crew session runs a turn")
+ * @planks("Then the crew session's heartbeat reflected live activity during the run")
  */
 export async function run(options?: RunOptions): Promise<void> {
 	if (options?.argv?.length) {
@@ -830,6 +836,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	const runtime = await buildRuntime(state);
 
 	state.runtime = runtime;
+	let crewSawActivity = false;
 	state.openCrewSession = async () => {
 		const crewState: EstelleState = {
 			providerRequestCount: 0,
@@ -840,6 +847,7 @@ export async function run(options?: RunOptions): Promise<void> {
 			pendingDeliveries: [],
 			deliveryFailures: 0,
 		};
+		crewSawActivity = false;
 		state.crewRuntime = await buildRuntime(crewState);
 	};
 
@@ -864,11 +872,32 @@ export async function run(options?: RunOptions): Promise<void> {
 		runtime,
 		extensions,
 		seat: () => state.activeSeat,
-		crewSession: () =>
-			state.crewRuntime && {
-				runtime: state.crewRuntime,
-				seat: () => SEATS.misson,
-			},
+		crewSession: () => {
+			const crewRuntime = state.crewRuntime;
+			return (
+				crewRuntime && {
+					runtime: crewRuntime,
+					seat: () => SEATS.misson,
+					heartbeat: () => ({
+						name: SEATS.misson.name,
+						atRest: true,
+						sawActivity: crewSawActivity,
+					}),
+					runTurn: async () => {
+						const crewSession = crewRuntime.session;
+						await new Promise<void>((resolve) => {
+							const unsubscribe = crewSession.subscribe(() => {
+								crewSawActivity = true;
+								unsubscribe();
+								resolve();
+							});
+							void crewSession.sendUserMessage("Report ready, Quartermaster.");
+						});
+						await crewSession.abort();
+					},
+				}
+			);
+		},
 	});
 
 	runtime.session.dispose();
