@@ -1,0 +1,12 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/live-crew.feature:A handoff records a narration for the seat transition"
+    ]
+  },
+  "watch2": {
+    "scenarios": [
+      "features/live-crew.feature:Bonny voices a live line at the seat handoff"
+    ]
+  }
+}

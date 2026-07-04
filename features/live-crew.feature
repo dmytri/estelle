@@ -76,3 +76,23 @@ Feature: Embarking runs the crew alongside Bonny
     When Estelle hands the crew off from the Quartermaster to the Crew
     Then the crew session is seated as a Crew hand
     And the crew session's message history excludes the Quartermaster's turn
+
+  # Slice 4: handoff narration. One small Bonny call per seat handoff, voiced
+  # off the completed seat's work, is the paid colour over the free heartbeat.
+  # @logic pins that a handoff records a narration for the transition; @eval
+  # pins that Bonny voices a real line in her own voice at the handoff.
+
+  Scenario: A handoff records a narration for the seat transition
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    And Estelle hands the crew off from the Quartermaster to the Crew
+    Then Bonny's narration log records a handoff from the Quartermaster to the Crew
+
+  @eval
+  Scenario: Bonny voices a live line at the seat handoff
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew and Bonny
+    When the operator runs the "/embark" command in the started session
+    And the crew session runs a turn
+    When Estelle hands the crew off from the Quartermaster to the Crew
+    Then Bonny's narration for the handoff carries a live line in her voice
