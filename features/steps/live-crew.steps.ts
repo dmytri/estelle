@@ -28,6 +28,21 @@ interface SessionRuntimeView {
 	session: SessionView;
 }
 
+// The crew session the batch seal opens alongside the started session. The
+// interactive handle exposes it as a distinct session with its own seat and
+// live message list, so verification observes the started session and the crew
+// session as two separate real sessions.
+interface CrewSessionView {
+	runtime: SessionRuntimeView;
+	seat(): { id: string; role: string; name: string };
+}
+
+interface InteractiveHandleView {
+	runtime: SessionRuntimeView;
+	seat(): { id: string; role: string; name: string };
+	crewSession(): CrewSessionView | undefined;
+}
+
 function messageText(message: MessageView): string {
 	const content = message.content;
 	if (typeof content === "string") {
@@ -97,11 +112,76 @@ Given(
 	},
 );
 
+function crewSession(world: EstelleWorld): CrewSessionView {
+	const handle = world.interactiveSession as unknown as InteractiveHandleView;
+	const crew = handle.crewSession();
+	assert.ok(crew, "no crew session opened alongside the started session");
+	return crew;
+}
+
+Then(
+	"a crew session opens alongside the started session",
+	function (this: EstelleWorld) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const crew = handle.crewSession();
+		assert.ok(crew, "no crew session opened alongside the started session");
+		assert.notEqual(
+			crew.runtime,
+			handle.runtime,
+			"crew session is the started session itself, not a session alongside it",
+		);
+	},
+);
+
+Then(
+	"the crew session opens alongside the started session",
+	function (this: EstelleWorld) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const crew = handle.crewSession();
+		assert.ok(crew, "no crew session opened alongside the started session");
+		assert.notEqual(
+			crew.runtime,
+			handle.runtime,
+			"crew session is the started session itself, not a session alongside it",
+		);
+	},
+);
+
+Then(
+	"the crew session is seated as the Quartermaster {string}",
+	function (this: EstelleWorld, name: string) {
+		const seat = crewSession(this).seat();
+		assert.equal(seat.role, "quartermaster");
+		assert.equal(seat.name, name);
+	},
+);
+
+Then(
+	"the started session stays seated as the Captain {string}",
+	function (this: EstelleWorld, name: string) {
+		const seat = this.interactiveSession!.seat();
+		assert.equal(seat.role, "captain");
+		assert.equal(seat.name, name);
+	},
+);
+
+Then(
+	"the started session still carries the operator's message {string}",
+	function (this: EstelleWorld, message: string) {
+		const runtime = this.interactiveSession!.runtime as SessionRuntimeView;
+		assert.ok(
+			runtime.session.messages.some((m) => messageText(m).includes(message)),
+			`started session no longer carries the operator's message ${JSON.stringify(
+				message,
+			)}`,
+		);
+	},
+);
+
 Then(
 	"the crew session's message history excludes the operator's message {string}",
 	function (this: EstelleWorld, message: string) {
-		const runtime = this.interactiveSession!.runtime as SessionRuntimeView;
-		const leaked = runtime.session.messages.filter((m) =>
+		const leaked = crewSession(this).runtime.session.messages.filter((m) =>
 			messageText(m).includes(message),
 		);
 		assert.equal(

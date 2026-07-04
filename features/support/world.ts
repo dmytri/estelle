@@ -32,6 +32,12 @@ export class EstelleWorld extends World {
 		runtime: unknown;
 		extensions: string[];
 		seat(): { id: string; role: string; name: string };
+		crewSession():
+			| {
+					runtime: unknown;
+					seat(): { id: string; role: string; name: string };
+			  }
+			| undefined;
 	};
 
 	async ensureLaunched(options?: LaunchOptions): Promise<EstelleSession> {

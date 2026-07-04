@@ -15,6 +15,12 @@ interface InteractiveHandle {
 	runtime: AgentSessionRuntime;
 	extensions: string[];
 	seat(): { id: string; role: string; name: string };
+	crewSession():
+		| {
+				runtime: AgentSessionRuntime;
+				seat(): { id: string; role: string; name: string };
+		  }
+		| undefined;
 }
 
 export interface RunOptions extends LaunchOptions {
@@ -66,6 +72,8 @@ interface EstelleState {
 	deliveryFailures: number;
 	pi?: ExtensionAPI;
 	runtime?: AgentSessionRuntime;
+	crewRuntime?: AgentSessionRuntime;
+	openCrewSession?: () => Promise<void>;
 }
 
 const CHARACTER_CARDS: Record<string, string> = {
@@ -240,9 +248,8 @@ function evaluateRead(
  * @planks("Then Estelle blocks the read")
  * @planks("Then the started session registers the commands \"/bonny\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\"")
  * @planks("When the operator runs the \"/misson\" command in the started session")
- * @planks("When the operator runs the \"/ship\" command in the started session")
  * @planks("Then the started session's active seat is the Quartermaster \"Misson\"")
- * @planks("Then the crew session's message history excludes the operator's message \"make the greeting warmer\"")
+ * @planks("When the operator runs the \"/embark\" command in the started session")
  */
 function createEstelleExtension(state: EstelleState, cwd: string) {
 	return (pi: ExtensionAPI) => {
@@ -256,12 +263,11 @@ function createEstelleExtension(state: EstelleState, cwd: string) {
 				},
 			});
 		}
-		pi.registerCommand("ship", {
+		pi.registerCommand("embark", {
 			description:
-				"Seal the batch and seat the Quartermaster Misson in a fresh crew session",
+				"Embark the batch: open a crew session alongside seated as the Quartermaster Misson",
 			handler: async () => {
-				state.activeSeat = SEATS.misson;
-				await state.runtime?.newSession();
+				await state.openCrewSession?.();
 			},
 		});
 		pi.on("before_provider_request", () => {
@@ -717,6 +723,12 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
  * @planks("Then the started session is recorded under the operator's agent directory so the operator can resume it")
  * @planks("When the operator runs estelle with the arguments \"install npm:pi-web-access\"")
  * @planks("Then the \"npm:pi-web-access\" package is persisted in the operator's pi settings")
+ * @planks("Then a crew session opens alongside the started session")
+ * @planks("Then the crew session opens alongside the started session")
+ * @planks("Then the crew session is seated as the Quartermaster \"Misson\"")
+ * @planks("Then the started session stays seated as the Captain \"Bonny\"")
+ * @planks("Then the started session still carries the operator's message \"make the greeting warmer\"")
+ * @planks("Then the crew session's message history excludes the operator's message \"make the greeting warmer\"")
  */
 export async function run(options?: RunOptions): Promise<void> {
 	if (options?.argv?.length) {
@@ -769,50 +781,67 @@ export async function run(options?: RunOptions): Promise<void> {
 		join(skillsRoot, "find-skills", "SKILL.md"),
 	];
 
-	const runtime = await createAgentSessionRuntime(
-		async ({ cwd: runtimeCwd, sessionManager, sessionStartEvent }) => {
-			const services = await createAgentSessionServices({
-				cwd: runtimeCwd,
-				agentDir,
-				settingsManager,
-				resourceLoaderOptions: {
-					extensionFactories: [createEstelleExtension(state, runtimeCwd)],
-					additionalSkillPaths,
-					noExtensions: false,
-				},
-			});
-			state.skillPaths = Object.fromEntries(
-				services.resourceLoader
-					.getSkills()
-					.skills.map((s) => [s.name, s.filePath]),
-			);
-			const recorded = state.seatModels[state.activeSeat.role];
-			const slash = recorded?.indexOf("/") ?? -1;
-			const seatModel = recorded
-				? services.modelRegistry.find(
-						recorded.slice(0, slash),
-						recorded.slice(slash + 1),
-					)
-				: undefined;
-			return {
-				...(await createAgentSessionFromServices({
+	const buildRuntime = (runtimeState: EstelleState) =>
+		createAgentSessionRuntime(
+			async ({ cwd: runtimeCwd, sessionManager, sessionStartEvent }) => {
+				const services = await createAgentSessionServices({
+					cwd: runtimeCwd,
+					agentDir,
+					settingsManager,
+					resourceLoaderOptions: {
+						extensionFactories: [
+							createEstelleExtension(runtimeState, runtimeCwd),
+						],
+						additionalSkillPaths,
+						noExtensions: false,
+					},
+				});
+				runtimeState.skillPaths = Object.fromEntries(
+					services.resourceLoader
+						.getSkills()
+						.skills.map((s) => [s.name, s.filePath]),
+				);
+				const recorded = runtimeState.seatModels[runtimeState.activeSeat.role];
+				const slash = recorded?.indexOf("/") ?? -1;
+				const seatModel = recorded
+					? services.modelRegistry.find(
+							recorded.slice(0, slash),
+							recorded.slice(slash + 1),
+						)
+					: undefined;
+				return {
+					...(await createAgentSessionFromServices({
+						services,
+						sessionManager,
+						sessionStartEvent,
+						model: seatModel,
+					})),
 					services,
-					sessionManager,
-					sessionStartEvent,
-					model: seatModel,
-				})),
-				services,
-				diagnostics: services.diagnostics,
-			};
-		},
-		{
-			cwd,
-			agentDir,
-			sessionManager: SessionManager.create(cwd, join(agentDir, "sessions")),
-		},
-	);
+					diagnostics: services.diagnostics,
+				};
+			},
+			{
+				cwd,
+				agentDir,
+				sessionManager: SessionManager.create(cwd, join(agentDir, "sessions")),
+			},
+		);
+
+	const runtime = await buildRuntime(state);
 
 	state.runtime = runtime;
+	state.openCrewSession = async () => {
+		const crewState: EstelleState = {
+			providerRequestCount: 0,
+			activeSeat: SEATS.misson,
+			skillPaths: {},
+			seatModels: state.seatModels,
+			unavailableModels: [],
+			pendingDeliveries: [],
+			deliveryFailures: 0,
+		};
+		state.crewRuntime = await buildRuntime(crewState);
+	};
 
 	const extensions = runtime.services.resourceLoader
 		.getExtensions()
@@ -835,6 +864,11 @@ export async function run(options?: RunOptions): Promise<void> {
 		runtime,
 		extensions,
 		seat: () => state.activeSeat,
+		crewSession: () =>
+			state.crewRuntime && {
+				runtime: state.crewRuntime,
+				seat: () => SEATS.misson,
+			},
 	});
 
 	runtime.session.dispose();
