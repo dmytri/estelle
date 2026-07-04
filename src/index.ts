@@ -28,6 +28,7 @@ interface InteractiveHandle {
 		  }
 		| undefined;
 	handOffToCrew(): Promise<void>;
+	narrationLog(): { from: string; to: string; line: string }[];
 }
 
 export interface RunOptions extends LaunchOptions {
@@ -864,6 +865,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	state.runtime = runtime;
 	let crewSawActivity = false;
 	let crewSeat: Seat = SEATS.misson;
+	const narrationLog: { from: string; to: string; line: string }[] = [];
 	state.openCrewSession = async () => {
 		const crewState: EstelleState = {
 			providerRequestCount: 0,
@@ -951,7 +953,10 @@ export async function run(options?: RunOptions): Promise<void> {
 		// @planks("When Estelle hands the crew off from the Quartermaster to the Crew")
 		// @planks("Then the crew session is seated as a Crew hand")
 		// @planks("Then the crew session's message history excludes the Quartermaster's message \"target greeting.md is red\"")
+		// @planks("Then Bonny's narration log records a handoff from the Quartermaster to the Crew")
+		// @planks("Then Bonny's narration for the handoff carries a live line in her voice")
 		handOffToCrew: async () => {
+			const fromSeat = crewSeat;
 			const crewState: EstelleState = {
 				providerRequestCount: 0,
 				activeSeat: SEATS.crew,
@@ -963,8 +968,34 @@ export async function run(options?: RunOptions): Promise<void> {
 			};
 			crewSawActivity = false;
 			crewSeat = SEATS.crew;
+			const captainModelId = state.seatModels[SEATS.bonny.role];
+			const captainSlash = captainModelId?.indexOf("/") ?? -1;
+			const captainModel = captainModelId
+				? runtime.services.modelRegistry.find(
+						captainModelId.slice(0, captainSlash),
+						captainModelId.slice(captainSlash + 1),
+					)
+				: undefined;
+			let line = `${fromSeat.name} hands off to ${SEATS.crew.name}`;
+			if (captainModel) {
+				const bonnySession = runtime.session;
+				await bonnySession.sendUserMessage(
+					`Voice a single short line in your own voice narrating the handoff from the ${fromSeat.name} to the ${SEATS.crew.name}. Reply with plain text only. Do not read files. Do not call any tools.`,
+				);
+				const voiced = bonnySession.messages
+					.filter((message) => message.role === "assistant")
+					.map(assistantText)
+					.filter((text) => text.trim().length > 0);
+				line = voiced[voiced.length - 1];
+			}
 			state.crewRuntime = await buildRuntime(crewState);
+			narrationLog.push({
+				from: fromSeat.role,
+				to: SEATS.crew.role,
+				line,
+			});
 		},
+		narrationLog: () => narrationLog,
 	});
 
 	runtime.session.dispose();

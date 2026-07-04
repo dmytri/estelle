@@ -50,11 +50,22 @@ interface CrewSessionView {
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
 }
 
+// Bonny's narration log: the recorded seat transitions Bonny voices. Each entry
+// names the seat handed off from and the seat handed off to, and carries the
+// line Bonny voiced for the transition. The hermetic tier reads the recorded
+// from/to; the @eval tier reads the live line Bonny's model voiced.
+interface NarrationEntryView {
+	from: string;
+	to: string;
+	line: string;
+}
+
 interface InteractiveHandleView {
 	runtime: SessionRuntimeView;
 	seat(): { id: string; role: string; name: string };
 	crewSession(): CrewSessionView | undefined;
 	handOffToCrew(): Promise<void>;
+	narrationLog(): NarrationEntryView[];
 }
 
 function messageText(message: MessageView): string {
@@ -374,6 +385,87 @@ Then(
 			`fresh Crew session carries the Quartermaster's turn end; leaked: ${JSON.stringify(
 				leaked,
 			)}`,
+		);
+	},
+);
+
+function handoffNarration(world: EstelleWorld): NarrationEntryView {
+	const handle = world.interactiveSession as unknown as InteractiveHandleView;
+	const entry = handle
+		.narrationLog()
+		.find((e) => e.from === "quartermaster" && e.to === "crew");
+	assert.ok(
+		entry,
+		`Bonny's narration log records no handoff from the Quartermaster to the Crew: ${JSON.stringify(
+			handle.narrationLog(),
+		)}`,
+	);
+	return entry;
+}
+
+Then(
+	"Bonny's narration log records a handoff from the Quartermaster to the Crew",
+	function (this: EstelleWorld) {
+		handoffNarration(this);
+	},
+);
+
+Given(
+	"a live eval model is configured for the crew and Bonny",
+	async function (this: EstelleWorld) {
+		const model = process.env.HARNESS_EVAL_MODEL!;
+		const key = process.env.HARNESS_OPENROUTER_API_KEY!;
+		// Record the eval model as both the crew's Quartermaster seat model and
+		// Bonny's Captain seat model, then relaunch so the crew session and Bonny's
+		// narration both run against the live model. Bonny voices the handoff line,
+		// so her Captain seat needs the model too, not the Quartermaster seat alone.
+		writeFileSync(
+			join(this.agentDir!, "estelle.json"),
+			JSON.stringify({
+				seats: {
+					quartermaster: `openrouter/${model}`,
+					captain: `openrouter/${model}`,
+				},
+			}),
+			"utf8",
+		);
+		writeFileSync(
+			join(this.agentDir!, "auth.json"),
+			JSON.stringify({ openrouter: { type: "api_key", key } }),
+			"utf8",
+		);
+		this.interactiveSession = undefined;
+		await startSession(this);
+	},
+);
+
+Then(
+	"Bonny's narration for the handoff carries a live line in her voice",
+	function (this: EstelleWorld) {
+		// A live line is real text Bonny's model voiced for the handoff, not a
+		// static template. Require the recorded QM -> Crew narration line to be the
+		// output of a real provider turn on Bonny's Captain seat: it MUST appear as
+		// a non-empty assistant message in Bonny's own live session, the same seam
+		// the Quartermaster's live-reply scenario reads. A hardcoded template pushed
+		// straight into the log never reaches Bonny's session, so this fails rather
+		// than passing green without a live Bonny round trip.
+		const entry = handoffNarration(this);
+		assert.ok(
+			entry.line.trim().length > 0,
+			`Bonny's narration for the handoff carries no live line: ${JSON.stringify(
+				entry,
+			)}`,
+		);
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const bonnyReplies = handle.runtime.session.messages
+			.filter((m) => m.role === "assistant")
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			bonnyReplies.includes(entry.line),
+			`Bonny's narration line was not voiced by her live model; line: ${JSON.stringify(
+				entry.line,
+			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
 		);
 	},
 );
