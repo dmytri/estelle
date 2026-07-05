@@ -5,6 +5,7 @@ import type {
 	AgentSessionRuntime,
 	ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
+import { loadOpenPlugin } from "pi-open-plugin-shim";
 
 export interface LaunchOptions {
 	cwd?: string;
@@ -483,6 +484,14 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		settingsManager,
 		DefaultPackageManager,
 	});
+	const shipshapeUrl = new URL(SHIPSHAPE_PACKAGE_SOURCE);
+	const shipshapePluginDir = join(
+		agentDir,
+		"git",
+		shipshapeUrl.host,
+		...shipshapeUrl.pathname.split("/").filter(Boolean),
+	);
+	const shipshapeCustody = loadOpenPlugin(shipshapePluginDir);
 	const extensionFactories = [createEstelleExtension(state, cwd)];
 	const skillsRoot = join(assetsDir(cwd), "skills");
 	const additionalSkillPaths = [
@@ -642,11 +651,21 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		},
 		/**
 		 * @planks("Then Estelle allows the write")
-		 * @planks("Then the file \"src/write-scope.ts\" exists")
+		 * @planks("Then Estelle blocks the write")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain writes specs\"")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Production code belongs to Crew\"")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain-custodied or configuration artifact\"")
 		 */
 		write: (path, contents) => {
 			const relPath = relativeToCwd(cwd, path);
-			const decision = evaluateWrite(state.activeSeat.role, relPath);
+			const decision =
+				state.activeSeat.role === "captain"
+					? evaluateWrite(state.activeSeat.role, relPath)
+					: shipshapeCustody.checkWriteSync(
+							`shipshape:${state.activeSeat.skill}`,
+							relPath,
+							process.cwd(),
+						);
 			if (!decision.allowed) {
 				return decision;
 			}

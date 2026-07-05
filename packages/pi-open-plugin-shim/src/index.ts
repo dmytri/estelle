@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { cpSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
@@ -13,6 +13,11 @@ export interface OpenPluginShim {
 		path: string,
 		projectDir?: string,
 	): Promise<WriteCustodyDecision>;
+	checkWriteSync(
+		role: string | undefined,
+		path: string,
+		projectDir?: string,
+	): WriteCustodyDecision;
 	checkCommand(
 		role: string | undefined,
 		command: string,
@@ -97,12 +102,22 @@ export function discoverInstalledPlugins(
 }
 
 class WriteCustodyShim implements OpenPluginShim {
+	private readonly pluginDir: string;
+	private readonly preToolUse: HookEntry[];
+	private readonly postToolUse: HookEntry[];
+	private readonly sessionStart: SessionStartEntry[];
+
 	constructor(
-		private readonly pluginDir: string,
-		private readonly preToolUse: HookEntry[],
-		private readonly postToolUse: HookEntry[],
-		private readonly sessionStart: SessionStartEntry[],
-	) {}
+		pluginDir: string,
+		preToolUse: HookEntry[],
+		postToolUse: HookEntry[],
+		sessionStart: SessionStartEntry[],
+	) {
+		this.pluginDir = pluginDir;
+		this.preToolUse = preToolUse;
+		this.postToolUse = postToolUse;
+		this.sessionStart = sessionStart;
+	}
 
 	/**
 	 * @planks("Given the shim runs an open-plugin whose SessionStart entry stacks a hook that emits \"orient\" and a hook that emits \"validate\"")
@@ -175,6 +190,54 @@ class WriteCustodyShim implements OpenPluginShim {
 		projectDir?: string,
 	): Promise<WriteCustodyDecision> {
 		return this.dispatch(role, "write", { file_path: path }, projectDir);
+	}
+
+	/**
+	 * @planks("Then Estelle blocks the write")
+	 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain writes specs\"")
+	 * @planks("Then the block reason carries the Shipshape plugin's denial \"Production code belongs to Crew\"")
+	 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain-custodied or configuration artifact\"")
+	 */
+	checkWriteSync(
+		role: string | undefined,
+		path: string,
+		projectDir?: string,
+	): WriteCustodyDecision {
+		if (role === undefined) {
+			return { allowed: true };
+		}
+		const payload = JSON.stringify({
+			agent_type: role,
+			tool_name: "write",
+			tool_input: { file_path: path },
+		});
+		const cwd = projectDir ?? this.pluginDir;
+		for (const entry of this.preToolUse) {
+			if (!matcherMatchesTool(entry.matcher, "write")) {
+				continue;
+			}
+			for (const hook of entry.hooks) {
+				const resolved = hook.command
+					// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
+					.replace("${PLUGIN_ROOT}", this.pluginDir)
+					// biome-ignore lint/suspicious/noTemplateCurlyInString: the Claude-format plugin root token the installed plugin uses
+					.replace("${CLAUDE_PLUGIN_ROOT}", this.pluginDir);
+				const unquoted = resolved.replace(/^"(.*)"$/, "$1");
+				const hookPath =
+					unquoted === hook.command
+						? join(this.pluginDir, hook.command)
+						: unquoted;
+				const result = spawnSync(hookPath, {
+					cwd,
+					input: payload,
+					encoding: "utf8",
+				});
+				if ((result.status ?? 0) !== 0) {
+					return { allowed: false, reason: result.stderr };
+				}
+			}
+		}
+		return { allowed: true };
 	}
 
 	/**
