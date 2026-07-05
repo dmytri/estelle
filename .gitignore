@@ -1,7 +1,8 @@
 node_modules/
 dist/
 *.log
-.claude/
+.claude/*
+!.claude/agents/
 .env
 .env.*
 !.env.example
