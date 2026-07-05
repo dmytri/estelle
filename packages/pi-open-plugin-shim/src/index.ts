@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 export interface WriteCustodyDecision {
@@ -51,6 +51,39 @@ export function loadOpenPlugin(pluginDir: string): OpenPluginShim {
 		hooks.PostToolUse,
 		hooks.SessionStart,
 	);
+}
+
+/**
+ * @planks("When the plugin is installed into a pi plugin directory")
+ * @planks("Given an installed open-plugin whose write hook denies the role \"crew\" writing under \"features\"")
+ * @planks("Given an installed open-plugin whose write hook command uses \"${PLUGIN_ROOT}\"")
+ */
+export function installOpenPlugin(
+	sourceDir: string,
+	piPluginDir: string,
+): void {
+	const plugin = JSON.parse(
+		readFileSync(join(sourceDir, ".plugin", "plugin.json"), "utf8"),
+	);
+	cpSync(sourceDir, join(piPluginDir, plugin.name), { recursive: true });
+}
+
+/**
+ * @planks("Then the installed plugin is registered for discovery")
+ * @planks("Given an installed open-plugin whose write hook denies the role \"crew\" writing under \"features\"")
+ * @planks("Given an installed open-plugin whose write hook command uses \"${PLUGIN_ROOT}\"")
+ */
+export function discoverInstalledPlugins(
+	piPluginDir: string,
+): OpenPluginShim[] {
+	const shims: OpenPluginShim[] = [];
+	for (const entry of readdirSync(piPluginDir)) {
+		const pluginDir = join(piPluginDir, entry);
+		if (existsSync(join(pluginDir, ".plugin", "plugin.json"))) {
+			shims.push(loadOpenPlugin(pluginDir));
+		}
+	}
+	return shims;
 }
 
 class WriteCustodyShim implements OpenPluginShim {
