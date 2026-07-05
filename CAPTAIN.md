@@ -1,115 +1,66 @@
-<!-- ============================================================= -->
-<!-- STOP. CAPTAIN ROLE ONLY.                                      -->
-<!-- If you are NOT running as the Captain, i.e. you are the      -->
-<!-- Quartermaster, Crew Mate, Boatswain, or any other role, do NOT   -->
-<!-- read past this line. Close this file now. Its contents are    -->
-<!-- Captain-only working context and must never enter another     -->
-<!-- role's context. You were not given this file by your role.    -->
-<!-- ============================================================= -->
+> **STOP. Captain's notes: non-binding.** Captain writes, Boatswain reads. Anyone else: close this file now. Binding behaviour lives in `.feature` specs and referenced `assets/**`, never here.
 
-> **STOP, CAPTAIN ROLE ONLY.** If you are not the Captain, close this file now. Binding behaviour lives in `.feature` specs and referenced `assets/**`, never here.
+# Captain Notes
 
-# Captain Notes, Captain only, non-binding
+Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
-Captain-only working memory. Binding behaviour lives in `.feature` specs and referenced `assets/**`; history lives in git. These notes carry only what the next cycle needs.
+## What Estelle is (reoriented 2026-07-04)
 
-## Access rule
+Estelle is three things at once, all resting on faithfully consuming the real Shipshape plugin, never a fork of it:
 
-Only Captain MAY edit this file. Boatswain MAY read it to evaluate spec quality and watchbill completeness. Quartermaster, Crew Mate, and Shipwright MUST NOT read it.
+1. **Reference runtime** for running Shipshape (skills + open-plugin) on pi.
+2. **Live-fire pilot** that produces the evidence the maintainer's note asks for: what enforces on pi, what fumbles, every false red and vacuous green.
+3. **A great coding agent** in its own right: Bonny and the crew personas, `/embark`, `/clear`, alongside-crew UX, per-seat models, fitting-out.
 
-## What Estelle is
+Estelle's earlier hand-rolled custody (`evaluateWrite`/`evaluateRead`) is wrong and is being replaced by the plugin's real custody, run through the shim.
 
-Estelle is the vessel: an npm package `@dk/estelle` launched with `npx`. Estelle boots pi (pi.dev) into its interactive TUI as the Captain Bonny, installs the upstream Shipshape package through pi's native package manager, injects each seat's role instructions and character card into the live system prompt, and mechanically enforces custody through the Estelle pi extension. Estelle vendors nothing it can pull upstream. After SV Estelle.
+## Monorepo
 
-## The crew
+`@dk/estelle` (scoped flagship) at root; unscoped extension packages under `packages/`, consumed via `workspace:*`. One root Shipshape harness: root `cucumber.cjs`, `RIGGING.md`, `tsconfig.json` cover `packages/*`.
 
-| Seat | Name | After | Note |
-|---|---|---|---|
-| Captain | Bonny | Anne Bonny | Jester mask, deadly serious; respects Misson; crush on Bellamy |
-| Quartermaster | Misson | James Misson | True believer in the Articles; protects the crew |
-| Crew | (roster) | Soviet space-dog survivors | Ragged, work-shy; names code-picked, not dogs |
-| Boatswain | Bellamy | "Black Sam" Bellamy | Grumpy heart of gold; best hand; hygiene stickler |
-| Shipwright | Johnson | Captain Charles Johnson | Tireless inspector; honorary crew; harbour only |
+- `packages/pi-open-plugin-shim` — pi's open-plugin engine.
+- A bespoke `pi-shipshape` is dropped: the generic install path replaces per-plugin wrappers.
 
-All seats are they/them, gender-neutral abstractions of their inspirations. Character cards live in `assets/characters/`. Personality is voice, honour-system. Names are where code bites.
+## pi as an open-plugin vendor, decided operator 2026-07-05
 
-## Enforcement posture, decided
+Claude, Cursor, and codex are hook-native: the installer relocates `.plugin/` per vendor, rewrites `${...\_PLUGIN_ROOT}`, and registers it; the runtime executes. pi is not hook-native, so pi support is two pieces:
 
-Estelle enforces custody and context, not craft. Hard-gate the deterministic boundaries: who may write or read which files, which tools a seat holds, which model a seat runs, the Captain-to-Quartermaster context firewall. Leave judgement to the agent: simplicity, premature abstraction, whether code matches its steps, real-vs-mock. The skill prompts carry the fuzzy half.
+1. **Our own pi installer**, not upstream: vercel would likely ignore a contribution, so make it work for us now and consider upstreaming later. Relocate, register, rewrite the plugin-root variable.
+2. **`pi-open-plugin-shim`**, the runtime engine pi lacks: read the plugin, execute hooks on pi events, run `agents/` as pi sessions, register `commands/`.
 
-## The layered stack
+Event map: `PreToolUse` to `tool_call` (blocking); `PostToolUse` to `tool_execution_end`; `SessionStart` to `session_start`; `SessionEnd` to `session_shutdown`; `${PLUGIN_ROOT}` to the plugin directory. `SubagentStop` and the `Task` matcher (planks-check, dispatch-guard) have no pi equivalent: pi is session-isolated, not subagent-isolated. Pilot finding.
 
-1. **Skills** (upstream `dmytri/shipshape`): canonical doctrine, portable and complete alone.
-2. **Open plugin** (upstream `dmytri/shipshape`): vendor-neutral mechanical enforcement in the open-plugin format (vercel-labs/open-plugin-spec). Context isolation and custody hooks; live-fire verified on Claude Code.
-3. **pi adapter** (this repo's world): pi-specific glue that runs an open-plugin on pi. pi is not an upstream-supported runtime, so this vendor layer is ours.
-4. **`@dk/estelle`** (this repo, flagship): seats and personas, Bonny as sole voice, fitting out, per-seat models, and enforcement beyond open-plugin scope: fresh-pi-session context isolation, seat-scoped and per-repo custody, opinionated config and UX.
+pi support is additive: the shim interprets the SAME neutral `.plugin/`; nothing changes for the other vendors.
 
-**Portability governs layer placement, operator 2026-07-03.** If a mechanism can be expressed in the vendor-neutral open-plugin format and work identically across ALL supported clients, not pi alone, it goes upstream into the Shipshape plugin. Pi-specific mechanisms and anything beyond open-plugin scope stay in Estelle's extension. Estelle's hand-rolled custody (`evaluateWrite`/`evaluateRead`) migrates upstream only where it is portable and open-plugin-shaped; the rest stays flagship. When in doubt, the test is: does it work in every supported client through the open-plugin spec?
+## Standing rules
 
-## The loop, decided
+- **Pre-1.0: no backward compatibility, no compat cruft.** Current design only. Old forms are Shipwright's to refit, never a parser's to tolerate.
+- A change to a SHARED plugin hook affects EVERY vendor. Regression-test the current form; do not add legacy fallbacks.
+- Extension packages unscoped (`pi-open-plugin-shim`); flagship scoped (`@dk/estelle`).
+- `shipshape:*` subagent types are unavailable this environment. Roles run as fresh-context general-purpose agents that load the role skill and follow it by discipline. Context bulkhead and discipline hold; the Claude-Code custody hard-gate does not fire for these.
 
-Bonny is always-on and the only seat the operator speaks with. The operator embarks a batch to set the crew running; the crew (QM, Crew, Boatswain) run in a session beside Bonny that does not carry the operator's conversation with her. The crew work from durable artifacts only.
+## The crew, flagship personas to salvage
 
-**Crew UX, decided operator 2026-07-04: alongside sub-session, not mode-switch.** pi carries a first-class non-replacing sub-session primitive, `createAgentSession({ sessionManager: SessionManager.inMemory(), tools, modelRegistry })`, that runs beside the live session and exposes a subscribable event feed through `session.subscribe`. Two shipping pi extensions prove it: `@juicesharp/rpiv-btw` runs a tool-less side call in a bottom overlay, and `pi-btw` runs a real tool-using sub-session with read/bash/edit/write, focus-toggled with `Alt+/`, and summarizes or injects the result back into the main agent. So `/embark` opens the crew as an in-memory sub-session alongside Bonny; her session stays live and unpolluted. The earlier mode-switch-via-`newSession()` decision is dropped, and the prior claim that alongside "fights pi's single-session model" was wrong: pi supports it natively.
+| Seat | Name | After |
+|---|---|---|
+| Captain | Bonny | Anne Bonny, jester mask and deadly serious, crush on Bellamy |
+| Quartermaster | Misson | James Misson, true believer in the Articles |
+| Crew | (roster) | Soviet space-dog survivors, names code-picked |
+| Boatswain | Bellamy | "Black Sam" Bellamy, grumpy heart of gold |
+| Shipwright | Johnson | Captain Charles Johnson, harbour only |
 
-**Narration, decided operator 2026-07-04: free heartbeat plus one small call per handoff.** Liveness is free from the event stream: a status line showing the current seat and tool tells the operator nothing hangs, at zero extra tokens. Colour is paid but bounded: one small Bonny model call at each seat handoff (QM to Crew to Boatswain to done), voiced off that seat's summary, roughly four calls a batch. Raw crew work stays peekable behind the panel through the focus toggle. Per-handoff, never per-beat.
+They/them, gender-neutral. Voice is honour-system; names are where code bites. Character cards in `assets/characters/`.
 
-**Embark trigger, decided operator 2026-07-04: both.** The real trigger is the deterministic `/embark` command, which a hook fires on reliably. Bonny also resolves natural phrasing ("ship it", "send the crew") to `/embark` as a convenience. Phrase inference is a shortcut, never the sole trigger; fuzzy detection alone is unreliable.
+## Phase plan and status
 
-**Slices.** 1: `/embark` opens the seated-Quartermaster crew sub-session alongside Bonny, seeded contextless so none of the operator's messages travel, while Bonny's session stays live. 2: overlay panel plus heartbeat, `Alt+/` focus toggle, raw transcript peekable. 3: seat progression QM to Crew to Boatswain as seated sub-sessions, each custody-scoped. 4: one small Bonny call per handoff. 5: crew result summarized back into Bonny's context.
+1. **Shim engine and pi installer, in progress.** Done: PreToolUse write, bash, and read custody plus generic dispatch (case-insensitive matcher matching, stacked hooks), against real hook subprocesses. Next: `${PLUGIN_ROOT}` resolution, PostToolUse, SessionStart and SessionEnd, `commands/`, then `agents/` to pi sessions, then the pi installer.
+2. **Methodology-check pilot, not started, the note's charter.** `/shipwright` refit to derive executable checks (watchbill shape, perturbation liveness, stale-plank join, forbidden-doubles scan, feature lint, tier auth probe), negative-test each (plant a violation, confirm red, remove), report the evidence.
+3. **Flagship on the real foundation, not started.** Re-base Estelle onto the shim (rip out `evaluateWrite`/`evaluateRead`), salvage the flagship UX from the parked live-crew work, and fix the live-crew gaps: a visible panel, `/embark` actually running the loop, and real verification instead of the toy target.
 
-**Progression driver, decided operator 2026-07-04: Estelle drives it, not the agent.** Estelle's extension orchestrates the seat sequence in code: run the Quartermaster turn, then open a fresh context-isolated sub-session per seat (Crew, then Boatswain), each custody-scoped. A fresh session per seat, not a re-seat, so the QM to Crew firewall holds by fresh context rather than a prompt switch. This keeps the live-crew arc self-contained and out of the pi-adapter arc (the alternative, the crew agent dispatching its own sub-roles, would need a pi role-dispatch primitive and fuse the two arcs). Mirrors how the Captain orchestrates window-isolated subagents in Claude Code.
+## Upstream, ~/shipshape, human-owned
 
-## Workspace model: the harbour, operator direction 2026-07-02
+Refine only when piloting surfaces a need, under its own workflow. Committed and unpushed: `0.8.6`, one-path-per-line `## Directories` with glob custody and the Shipwright refit. The pilot's first contribution.
 
-Estelle's launch directory is a harbour, not a project. Not yet specced:
+## Parked
 
-- Starting Estelle in `$HOME` or any non-project parent MUST fit out Estelle (global), never assume the directory is a project.
-- Several repos berth under the workspace at once. Bonny infers from operator intent which repo the conversation is about, whether an existing repo under the harbour or a new one to create, and whether that repo needs project fitting (Shipwright rigging). Project fitting happens during discovery, when intent starts flowing, not at launch.
-- Mechanical successors: repo discovery under the workspace (git dirs), per-repo fitting-state derivation (RIGGING.md presence), and per-repo custody scoping (today `evaluateWrite` computes paths relative to one cwd; with berthed repos, custody paths like `src/**` bind per target repo). The inference itself is judgement and lives in Bonny's skill layer, not the extension.
-- Per-repo custody scoping is the first mechanical slice, specced alongside the live-crew machinery.
-
-## Next arcs, all wanted by operator 2026-07-03
-
-Three arcs, all in scope; sequencing is Captain's.
-
-1. **Live-crew Layer 2.** Build the always-on Bonny + `/embark` loop into the extension: crew seats in alongside in-memory sub-sessions, one-way firewall, heartbeat plus per-handoff narration routed to Bonny. pi-specific and beyond open-plugin scope, so Estelle-side. Gates the pi-adapter arc (proves pi-run crew isolation).
-2. **pi adapter + Shipshape-on-pi.** A pi runtime layer that runs the vendor-neutral open-plugin on pi, so plain-pi users get Shipshape and Estelle can consume upstream custody. Apply the portability rule: portable, open-plugin-shaped custody migrates upstream and must work in all supported clients; pi-specific glue stays in the adapter; beyond-scope custody stays in Estelle.
-3. **Perturb as product.** A narrow `perturb` tool through the custody gate so every Captain dagger is an auditable call. Specced by scenario, future iteration.
-
-## Design pointers (pi)
-
-- Custody gates: `tool_call` returns `{ block: true, reason }`; seat commands: `pi.registerCommand`; per-seat model: `before_provider_request` + `model_select`; per-seat toolset: `setActiveTools`.
-- Interactive: `createAgentSessionRuntime` + `InteractiveMode.run()` per pi sdk.md; persistent storage comes from `createAgentSessionServices` (`auth.json`, `models.json`, sessions under agentDir).
-- Context firewall (live crew): the crew is an alongside sub-session via `createAgentSession({ sessionManager: SessionManager.inMemory(), tools, modelRegistry, resourceLoader })`, seeded contextless so Bonny's history never travels; `session.subscribe(event => ...)` streams `tool_execution_start`/`message_update`/`turn_end` for the heartbeat. Not `newSession()`, which replaces the live session. Reference extensions: `pi-btw`, `@juicesharp/rpiv-btw`.
-- Packages: `DefaultPackageManager.installAndPersist`; convention dirs (skills/ with SKILL.md folders) need no pi manifest.
-- Extension config idiom: `CONFIG_DIR_NAME` for project-local, `~/.pi/agent/<name>.json` for global.
-
-## Stale-green perturbation dagger, operative rule
-
-Plant the RIGGING `fail-fast` statement as the first statement of a suspected stale-green production seam; run the relevant scenarios. Red proves the seam is reached; green-despite-dagger is stale-green evidence. Reachability, not assertion strength. Custody: the dagger is the sole Captain production-write exception; QM confirms every dagger reddens discovery; Boatswain never commits a live one. Use post-fix on a distrusted green, never pre-fix. Interim rule, operator 2026-07-01: I MAY use the dagger and I tell the operator before planting one.
-
-## Session commands
-
-pi's `InteractiveMode` ships built-in slash commands that reach the Bonny TUI unchanged: `/new` (fresh session), `/compact` (shrink context in place), `/fork`, `/clone`, `/tree`, `/resume`, `/session`, `/export`, `/model`, `/login`, `/reload`, `/quit`, and more. Estelle layers seat commands and `/embark` on top; it does not strip these.
-
-**`/clear` alias, decided operator 2026-07-04.** Estelle adds a `/clear` command aliasing a fresh Captain session (`runtime.newSession()`), because pi names it `/new` and operators reach for `/clear`. A cleared session stays seated as Bonny and MUST NOT re-greet: the greeting fires only at launch (`openWithBonnyVoice` in `run()`), and a cleared session comes up bare until the operator speaks. Spec: `features/clear-session.feature`, `@logic` (no model needed). Estelle-side, pi-specific.
-
-## Status
-
-- Shipped: `@dk/estelle@0.1.7` on npm, `main` in sync with `origin`. Through 0.1.7: Shipshape install with Articles reaching Bonny's live prompt, model-gated greeting and fitting-out steer both operator-owned assets (`assets/greeting.md`, `assets/steer.md`), `estelle.json` per-seat models bound on both launch seams with pi default winning when unrecorded, and pi command pass-through. Harbour clean at last scan: 76 planks, zero stale, both tiers green.
-- Upstream `dmytri/shipshape` is at plugin 0.8.x, vendor-neutral open-plugin; the old qm-entry-guard block on window-isolated subagents is lifted, so the crew run as isolated subagents cleanly this runtime.
-- In flight: live-crew slice 1 re-home. Spec `features/live-crew.feature` pins the alongside model with the trigger renamed `/ship` to `/embark`; three scenarios, one that fails under the old `newSession()` replace model (the started session must stay Captain Bonny and keep the operator's message). Production still carries the old `/ship`-via-`newSession()` handler, so the crew has red to close: register `/embark`, open the crew as an in-memory alongside sub-session seated as Misson, expose the crew session for observation apart from the started session, keep the started session live. Old `/ship` scenario `@planks` in `src/index.ts` go stale on rename; crew reconciles.
-- QM blocker resolved 2026-07-04: the first spec left the crew session and the started session as one observable seam (the reused firewall step read `runtime.session`, which scenario 2 requires stay Bonny's). Fix is behaviour-only: every scenario now anchors on "a crew session opens alongside the started session" as a distinct object, so "the crew session" and "the started session" are two seams. Topology is stated as behaviour; the mechanism (a distinct alongside session, how it is reached) stays crew craft.
-- Slice 1 shipped (unpublished) `1f72058`: `/embark` builds `crewRuntime` (a full alongside runtime seated as Misson), started session untouched, exposed via `crewSession()` on the handle. All 65 `@logic` green.
-- `@eval` tier established 2026-07-04, live-agent shape modelled on `~/jolly`. Opt-in, excluded from default/broad so it is not in the default worklist. Knobs in gitignored `.env` (`HARNESS_OPENROUTER_API_KEY` reused from jolly, `HARNESS_EVAL_MODEL=deepseek/deepseek-v4-flash`); template in `.env.example`; `eval` command + tier in `RIGGING.md`. The live-crew heartbeat/narration slices verify here; `@logic` keeps the deterministic plumbing. `.env` gitignored per operator instruction.
-- No skip-not-fail, operator directive 2026-07-04. Credentials for every tier are required fitting-out and assumed present. A test that fails on a missing credential is a Captain blocker for incomplete fitting-out, never a silent skip and never a false-failure. Skip-not-fail came from `~/jolly` (AGENTS.md and feature 025), not from canonical Shipshape, and rode in when the `@eval` tier was modelled on jolly; purged from Estelle. Do not reintroduce it.
-- Slice 2 shipped (unpublished) `3aedc90`: the crew's heartbeat, fed off the real event stream, `crewSession().heartbeat()` plus `runTurn()`. `@logic` at-rest green, `@eval` live-run green. The literal panel rendering and `Alt+/` focus toggle are terminal keybindings, not cucumber-testable; they ride the published-artifact boot check, not this spec.
-- Slice 3 shipped (unpublished) `292745e`: the QM to Crew handoff, Estelle-driven. `@logic` proves handing off opens a fresh Crew-seated session isolated from the Quartermaster's context and carrying Crew custody (`src/**` only). Crew added `handOffToCrew()` (fresh crew runtime seated as `SEATS.crew`) and a crew-session `write()` custody seam.
-- @eval integrity fix in flight 2026-07-04. Both `@eval` scenarios were theatre: `runTurn()` (`src/index.ts:893`) subscribed, sent a user message, resolved on the FIRST event (the user-message echo, not a model reply), then aborted before the model replied, so no live call ever happened. Wall-time proved it: 1.5s, no completion. The step also seeded only `auth.json`, not a resolvable openrouter provider block. OpenRouter connectivity, key, and `deepseek/deepseek-v4-flash` are all confirmed live from this box, so the fix is viable. Fix: spec now asserts "the crew session received a live reply from the Quartermaster's model" in both `@eval` scenarios, an observable only a real completion produces, so green means live and an unresolved model or absent credential is hard red (a fitting-out failure, not a vacuous pass). Crew fixes `runTurn` to await the real assistant reply; QM seeds a resolvable openrouter provider (models.json, mirror greeting.steps) and lets absent-cred red surface as the fitting-out blocker. Lesson: never report `@eval` green as "live" without wall-time evidence; a fast pass is a false-green.
-- Slice 4 handed off: handoff narration. `@logic` pins that a handoff records a narration entry for the QM to Crew transition (structure, no model); `@eval` pins Bonny voicing a real line at the handoff (a small live captain-model call, non-empty text in her voice). Crew adds a narration log fed on `handOffToCrew`, and on handoff makes one small Bonny model call voiced off the completed seat when a captain model is available. The `@eval` step configures the live model for both the crew seat and Bonny. Verify `@eval` wall-time by hand each slice: a fast pass is a false-green.
-- Slice 4 shipped (unpublished) `7df5a71`/`8712e19`: handoff narration; `narrationLog()` seam, one small live Bonny call at the handoff. `@eval` verified live by hand (17.4s exec vs 2.9s CPU across three `@eval` scenarios). QM caught its own stale-green (a static narration line) and hardened the assertion to require a real Bonny reply.
-- Slice 5 shipped (unpublished) `af28bd8`: report-back. `reportCrewRun()`/`crewRunReports()` seams inject a distilled summary into the started session, firewall held (excludes the crew's raw context); `@eval` live summary verified by hand.
-- No more deferring, operator 2026-07-04. Slices 3 to 5 proved the handoff mechanism; over-slicing past that bought only smaller diffs, not de-risking. Slice 6 is the whole loop in one spec.
-- Slice 6 handed off: the full loop, Estelle-driven. `@logic` pins the decision logic as a pure function of the Quartermaster's verdict (a failing target sends the Crew to it; all green ends the run; loop the Quartermaster until green) plus the Boatswain seat, its commit custody, and Crew-to-Boatswain fresh-context isolation. `@eval` pins a genuine live run of the whole loop, all three seats live, to green on a controlled red-until-fixed target. Crew builds the orchestration: read the verdict, decide the next seat, drive fresh custody-scoped seat sessions, loop until green. Risk to watch: the `@eval` full-run depends on a real model actually fixing a controlled target; if it proves flaky or the harness intractable, narrow the `@eval` to "the loop ran all three seats live and terminated" rather than betting on model task-success, and raise it. Commit custody for the Boatswain is new (gating the commit action, not just file writes); may need its own care. Completing slice 6 finishes arc 1.
-- Watch items: Misson character detail welcome anytime.
+The pre-reorientation live-crew stack (`/embark` alongside crew loop, heartbeat, narration, report-back) sits on `main` under the reorientation commits. Its custody guts are wrong and get replaced; its product surface (personas, `/embark`, `/clear`, per-seat models, fitting-out) is the Phase 3 salvage.
