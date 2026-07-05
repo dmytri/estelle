@@ -1,0 +1,6 @@
+{
+  "name": "dispatch-multi-matcher",
+  "version": "0.0.0",
+  "description": "Real open-plugin fixture: a single PreToolUse entry whose multi-name matcher pattern must match a write tool call the shim dispatches",
+  "hooks": "hooks/hooks.json"
+}

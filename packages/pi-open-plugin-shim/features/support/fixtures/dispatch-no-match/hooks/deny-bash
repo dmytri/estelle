@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+// Real open-plugin hook (verification fixture).
+//
+// Reads the PreToolUse payload as JSON on stdin and denies with a non-zero
+// exit. It sits behind a "Bash" matcher only. A write tool call matches no
+// matcher here, so the shim must never invoke this hook and must allow the
+// write. If the shim ran this hook against a write, the write would be denied.
+"use strict";
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+});
+process.stdin.on("end", () => {
+	process.stderr.write("open-plugin custody denies the command");
+	process.exit(2);
+});

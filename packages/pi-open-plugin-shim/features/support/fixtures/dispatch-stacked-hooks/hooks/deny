@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+// Real open-plugin hook (verification fixture).
+//
+// Reads the PreToolUse payload as JSON on stdin and denies the write with a
+// non-zero exit. Stacked behind the permitting hook, it proves the shim blocks
+// when any stacked hook denies and carries this hook's message as the reason.
+"use strict";
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+});
+process.stdin.on("end", () => {
+	process.stderr.write("stacked custody hook denies the write");
+	process.exit(2);
+});

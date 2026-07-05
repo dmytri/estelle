@@ -1,0 +1,11 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "Write",
+      "hooks": [
+        { "type": "command", "command": "hooks/permit" },
+        { "type": "command", "command": "hooks/deny" }
+      ]
+    }
+  ]
+}
