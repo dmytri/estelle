@@ -1,0 +1,10 @@
+{
+  "SessionStart": [
+    {
+      "hooks": [
+        { "type": "command", "command": "hooks/orient" },
+        { "type": "command", "command": "hooks/validate" }
+      ]
+    }
+  ]
+}

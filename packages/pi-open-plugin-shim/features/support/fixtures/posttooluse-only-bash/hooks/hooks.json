@@ -1,0 +1,8 @@
+{
+  "PostToolUse": [
+    {
+      "matcher": "Bash",
+      "hooks": [{ "type": "command", "command": "hooks/mark" }]
+    }
+  ]
+}

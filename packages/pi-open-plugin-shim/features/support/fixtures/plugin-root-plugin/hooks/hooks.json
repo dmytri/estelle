@@ -1,0 +1,13 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "write|edit",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${PLUGIN_ROOT}/hooks/scripts/write-custody"
+        }
+      ]
+    }
+  ]
+}

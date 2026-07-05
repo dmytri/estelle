@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+// Real open-plugin SessionStart hook (verification fixture).
+//
+// Runs when a pi session starts and emits "validate" on stdout. Stacked behind
+// the orient hook, it proves the shim runs every SessionStart hook the entry
+// stacks and carries each hook's stdout.
+"use strict";
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+});
+process.stdin.on("end", () => {
+	process.stdout.write("validate");
+	process.exit(0);
+});

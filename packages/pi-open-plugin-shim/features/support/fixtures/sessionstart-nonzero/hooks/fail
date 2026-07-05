@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+// Real open-plugin SessionStart hook (verification fixture).
+//
+// Runs when a pi session starts and exits non-zero. SessionStart is not a gate,
+// so the shim must run this hook and leave the session unblocked.
+"use strict";
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+});
+process.stdin.on("end", () => {
+	process.stderr.write("session-start hook failed but does not block");
+	process.exit(2);
+});

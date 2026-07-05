@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { basename, join } from "node:path";
 
 export interface WriteCustodyDecision {
 	allowed: boolean;
@@ -20,10 +20,15 @@ export interface OpenPluginShim {
 		role: string | undefined,
 		path: string,
 	): Promise<WriteCustodyDecision>;
+	reportCommands(): string[];
 }
 
 interface HookEntry {
 	matcher: string;
+	hooks: { command: string }[];
+}
+
+interface SessionStartEntry {
 	hooks: { command: string }[];
 }
 
@@ -40,14 +45,80 @@ export function loadOpenPlugin(pluginDir: string): OpenPluginShim {
 		readFileSync(join(pluginDir, ".plugin", "plugin.json"), "utf8"),
 	);
 	const hooks = JSON.parse(readFileSync(join(pluginDir, plugin.hooks), "utf8"));
-	return new WriteCustodyShim(pluginDir, hooks.PreToolUse);
+	return new WriteCustodyShim(
+		pluginDir,
+		hooks.PreToolUse,
+		hooks.PostToolUse,
+		hooks.SessionStart,
+	);
 }
 
 class WriteCustodyShim implements OpenPluginShim {
 	constructor(
 		private readonly pluginDir: string,
 		private readonly preToolUse: HookEntry[],
+		private readonly postToolUse: HookEntry[],
+		private readonly sessionStart: SessionStartEntry[],
 	) {}
+
+	/**
+	 * @planks("Given the shim runs an open-plugin whose SessionStart entry stacks a hook that emits \"orient\" and a hook that emits \"validate\"")
+	 * @planks("Given the shim runs an open-plugin whose SessionStart hook exits non-zero")
+	 * @planks("When a pi session starts")
+	 * @planks("Then the SessionStart hook output carries \"orient\"")
+	 * @planks("Then the SessionStart hook output carries \"validate\"")
+	 * @planks("Then the session is not blocked")
+	 */
+	async runSessionStart(): Promise<{ output: string }> {
+		let output = "";
+		for (const entry of this.sessionStart) {
+			for (const hook of entry.hooks) {
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
+				const resolved = hook.command.replace("${PLUGIN_ROOT}", this.pluginDir);
+				const hookPath =
+					resolved === hook.command
+						? join(this.pluginDir, hook.command)
+						: resolved;
+				const { stdout } = await runHook(hookPath, this.pluginDir, "");
+				output += stdout;
+			}
+		}
+		return { output };
+	}
+
+	/**
+	 * @planks("When a Bash tool call \"git push origin main\" completes")
+	 * @planks("When a write tool call to \"src/x.ts\" completes")
+	 * @planks("Then the plugin's PostToolUse hook output carries \"batch shipped\"")
+	 * @planks("Then the tool call is not blocked")
+	 * @planks("Then no PostToolUse hook runs")
+	 */
+	async runPostToolUse(
+		toolName: string,
+		toolInput: Record<string, string>,
+	): Promise<{ output: string }> {
+		const payload = JSON.stringify({
+			tool_name: toolName,
+			tool_input: toolInput,
+		});
+		let output = "";
+		for (const entry of this.postToolUse) {
+			if (!matcherMatchesTool(entry.matcher, toolName)) {
+				continue;
+			}
+			for (const hook of entry.hooks) {
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
+				const resolved = hook.command.replace("${PLUGIN_ROOT}", this.pluginDir);
+				const hookPath =
+					resolved === hook.command
+						? join(this.pluginDir, hook.command)
+						: resolved;
+				const { stdout } = await runHook(hookPath, this.pluginDir, payload);
+				output += stdout;
+			}
+		}
+		return { output };
+	}
 
 	/**
 	 * @planks("When a write to \"features/login.feature\" is attempted")
@@ -82,7 +153,21 @@ class WriteCustodyShim implements OpenPluginShim {
 	}
 
 	/**
+	 * @planks("When the shim reports the plugin's commands")
+	 */
+	reportCommands(): string[] {
+		const commandsDir = join(this.pluginDir, "commands");
+		if (!existsSync(commandsDir)) {
+			return [];
+		}
+		return readdirSync(commandsDir)
+			.filter((entry) => entry.endsWith(".md"))
+			.map((entry) => basename(entry, ".md"));
+	}
+
+	/**
 	 * @planks("Given the host acts with no plugin role")
+	 * @planks("Given the shim runs an open-plugin whose write hook command is \"${PLUGIN_ROOT}/hooks/scripts/write-custody\" and denies the role \"crew\" writing under \"features\"")
 	 * @planks("Then the shim blocks the write")
 	 * @planks("Then the shim allows the write")
 	 * @planks("Then the shim blocks the command")
@@ -110,8 +195,14 @@ class WriteCustodyShim implements OpenPluginShim {
 				continue;
 			}
 			for (const hook of entry.hooks) {
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
+				const resolved = hook.command.replace("${PLUGIN_ROOT}", this.pluginDir);
+				const hookPath =
+					resolved === hook.command
+						? join(this.pluginDir, hook.command)
+						: resolved;
 				const { code, stderr } = await runHook(
-					join(this.pluginDir, hook.command),
+					hookPath,
 					this.pluginDir,
 					payload,
 				);
@@ -135,16 +226,21 @@ function runHook(
 	hookPath: string,
 	cwd: string,
 	payload: string,
-): Promise<{ code: number; stderr: string }> {
+): Promise<{ code: number; stdout: string; stderr: string }> {
 	return new Promise((resolve) => {
 		const child = spawn(hookPath, { cwd });
+		let stdout = "";
 		let stderr = "";
+		child.stdout.setEncoding("utf8");
+		child.stdout.on("data", (chunk) => {
+			stdout += chunk;
+		});
 		child.stderr.setEncoding("utf8");
 		child.stderr.on("data", (chunk) => {
 			stderr += chunk;
 		});
 		child.on("close", (code) => {
-			resolve({ code: code ?? 0, stderr });
+			resolve({ code: code ?? 0, stdout, stderr });
 		});
 		child.stdin.end(payload);
 	});

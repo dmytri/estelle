@@ -1,0 +1,6 @@
+{
+  "name": "posttooluse-nonzero-fixture",
+  "version": "0.0.0",
+  "description": "Real open-plugin fixture: a PostToolUse Bash hook that exits non-zero after the tool call",
+  "hooks": "hooks/hooks.json"
+}

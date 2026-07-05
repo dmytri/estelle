@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+// Real open-plugin PostToolUse hook (verification fixture).
+//
+// Reads the PostToolUse payload as JSON on stdin and always emits "post-tool
+// ran" on stdout. It matches only the Bash tool. When the completed tool call
+// is a write, the shim must not run this hook, so its marker must be absent
+// from the output.
+"use strict";
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+});
+process.stdin.on("end", () => {
+	process.stdout.write("post-tool ran");
+	process.exit(0);
+});

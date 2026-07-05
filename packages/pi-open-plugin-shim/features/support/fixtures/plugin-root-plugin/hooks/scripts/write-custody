@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+// Real open-plugin write-custody hook (verification fixture).
+//
+// Lives under hooks/scripts/ and is referenced with the neutral ${PLUGIN_ROOT}
+// variable in hooks.json. The shim must resolve ${PLUGIN_ROOT} to the plugin
+// directory to spawn this real script. Keyed off `agent_type`, it denies the
+// role "crew" writing under "features" and permits every other write. Exit 0
+// permits. A non-zero exit denies and the stderr message is the denial reason.
+"use strict";
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+});
+process.stdin.on("end", () => {
+	let payload = {};
+	try {
+		payload = JSON.parse(input || "{}");
+	} catch {
+		payload = {};
+	}
+	const role = payload.agent_type;
+	const path = (payload.tool_input && payload.tool_input.file_path) || "";
+	if (role === "crew" && path.startsWith("features")) {
+		process.stderr.write(
+			'open-plugin custody denies role "crew" writing under "features"',
+		);
+		process.exit(2);
+	}
+	process.exit(0);
+});

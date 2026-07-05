@@ -1,0 +1,6 @@
+{
+  "name": "commands-empty-fixture",
+  "version": "0.0.0",
+  "description": "Real open-plugin fixture: ships no commands directory so the shim reports none",
+  "hooks": "hooks/hooks.json"
+}

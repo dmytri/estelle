@@ -1,0 +1,27 @@
+#!/usr/bin/env node
+// Real open-plugin PostToolUse hook (verification fixture).
+//
+// Reads the PostToolUse payload as JSON on stdin. When the completed Bash tool
+// call was a push, it emits "batch shipped" on stdout and exits 0. PostToolUse
+// runs after the tool call, so its stdout is the observable signal the shim
+// must carry, not a gate.
+"use strict";
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+});
+process.stdin.on("end", () => {
+	let payload = {};
+	try {
+		payload = JSON.parse(input || "{}");
+	} catch {
+		payload = {};
+	}
+	const command = (payload.tool_input && payload.tool_input.command) || "";
+	if (/\bgit\s+push\b/.test(command)) {
+		process.stdout.write("batch shipped");
+	}
+	process.exit(0);
+});

@@ -1,0 +1,6 @@
+{
+  "name": "posttooluse-emit-fixture",
+  "version": "0.0.0",
+  "description": "Real open-plugin fixture: a PostToolUse Bash hook that emits on a push command",
+  "hooks": "hooks/hooks.json"
+}
