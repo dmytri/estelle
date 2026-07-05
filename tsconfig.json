@@ -10,5 +10,5 @@
     "types": ["node"],
     "ignoreDeprecations": "6.0"
   },
-  "include": ["src", "features"]
+  "include": ["src", "features", "packages/*/index.ts", "packages/*/src", "packages/*/features"]
 }

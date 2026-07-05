@@ -39,10 +39,6 @@
       "./index.ts"
     ]
   },
-  "scripts": {
-    "test": "cucumber-js --tags \"not @captain\"",
-    "typecheck": "tsc --noEmit"
-  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.74.0 <1"
   }

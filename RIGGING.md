@@ -11,10 +11,19 @@ Procedure lives in the skills. Every role reads this on open.
 
 ## Directories
 
-- implementation: src/, package.json
-- specs: features/
-- verification: features/steps/, features/support/
-- assets: assets/
+- implementation: src
+- implementation: package.json
+- implementation: packages/*/src
+- implementation: packages/*/index.ts
+- implementation: packages/*/package.json
+- specs: features
+- specs: packages/*/features
+- verification: features/steps
+- verification: features/support
+- verification: packages/*/features/steps
+- verification: packages/*/features/support
+- assets: assets
+- assets: packages/*/assets
 
 ## Commands
 
