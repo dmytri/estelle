@@ -3,6 +3,10 @@
     {
       "matcher": "write|edit",
       "hooks": [{ "type": "command", "command": "hooks/write-custody" }]
+    },
+    {
+      "matcher": "bash",
+      "hooks": [{ "type": "command", "command": "hooks/command-custody" }]
     }
   ]
 }

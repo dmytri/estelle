@@ -19,6 +19,7 @@ interface ShimWorld {
 	shim?: OpenPluginShim;
 	role?: string;
 	decision?: WriteCustodyDecision;
+	denialMessage?: string;
 }
 
 const FIXTURE_PLUGIN_DIR = join(
@@ -43,6 +44,7 @@ Given(
 		this.shim = loadOpenPlugin(FIXTURE_PLUGIN_DIR);
 		this.role = undefined;
 		this.decision = undefined;
+		this.denialMessage = DENIAL_MESSAGE;
 	},
 );
 
@@ -77,9 +79,11 @@ Then("the shim blocks the write", function (this: ShimWorld) {
 Then(
 	"the block reason carries the hook's denial message",
 	function (this: ShimWorld) {
+		const expected = this.denialMessage ?? "";
+		assert.ok(expected, "no denial message expected for this scenario");
 		const reason = this.decision?.reason ?? "";
 		assert.ok(
-			reason.includes(DENIAL_MESSAGE),
+			reason.includes(expected),
 			`block reason did not carry the hook denial message: ${reason}`,
 		);
 	},

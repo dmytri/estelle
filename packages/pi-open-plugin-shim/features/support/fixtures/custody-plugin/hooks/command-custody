@@ -1,0 +1,35 @@
+#!/usr/bin/env node
+// Real open-plugin command-custody hook (verification fixture).
+//
+// Keyed off `agent_type`, the open-plugin custody model. Reads the PreToolUse
+// payload as JSON on stdin, denies every role a push, and lets only the role
+// "boatswain" commit. Exit 0 permits. A non-zero exit denies and the message
+// on stderr is the denial reason the shim must carry.
+"use strict";
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+});
+process.stdin.on("end", () => {
+	let payload = {};
+	try {
+		payload = JSON.parse(input || "{}");
+	} catch {
+		payload = {};
+	}
+	const role = payload.agent_type;
+	const command = (payload.tool_input && payload.tool_input.command) || "";
+	if (/\bgit\s+push\b/.test(command)) {
+		process.stderr.write("open-plugin custody denies every role a push");
+		process.exit(2);
+	}
+	if (/\bgit\s+commit\b/.test(command) && role !== "boatswain") {
+		process.stderr.write(
+			'open-plugin custody lets only role "boatswain" commit',
+		);
+		process.exit(2);
+	}
+	process.exit(0);
+});
