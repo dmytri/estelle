@@ -11,6 +11,9 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: ^0.80.2
         version: 0.80.2(supports-color@10.2.2)(ws@8.21.0)(zod@4.4.3)
+      pi-open-plugin-shim:
+        specifier: workspace:*
+        version: link:packages/pi-open-plugin-shim
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.1

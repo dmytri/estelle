@@ -51,7 +51,7 @@ Procedure lives in the skills. Every role reads this on open.
 ## Dependencies
 
 - policy: Captain selects dependencies and records them here; Crew installs them from this section; Crew MUST NOT install unspecced dependencies
-- runtime: `@earendil-works/pi-coding-agent`
+- runtime: `@earendil-works/pi-coding-agent`, `pi-open-plugin-shim` (workspace)
 - dev: `@cucumber/cucumber`, `tsx`, `typescript`, `@biomejs/biome`
 
 ## Outbound
