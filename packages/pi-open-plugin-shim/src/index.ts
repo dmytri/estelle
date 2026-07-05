@@ -16,11 +16,16 @@ export interface OpenPluginShim {
 		role: string | undefined,
 		command: string,
 	): Promise<WriteCustodyDecision>;
+	checkRead(
+		role: string | undefined,
+		path: string,
+	): Promise<WriteCustodyDecision>;
 }
 
 /**
  * @planks("Given the shim runs an open-plugin whose write-custody hook denies the role \"crew\" writing under \"features\" and permits it writing under \"src\"")
  * @planks("Given the shim runs an open-plugin whose command-custody hook lets only the role \"boatswain\" commit and denies every role a push")
+ * @planks("Given the shim runs an open-plugin whose read-custody hook denies the role \"crew\" reading \"CAPTAIN.md\" and permits the role \"boatswain\"")
  */
 export function loadOpenPlugin(pluginDir: string): OpenPluginShim {
 	const plugin = JSON.parse(
@@ -31,7 +36,10 @@ export function loadOpenPlugin(pluginDir: string): OpenPluginShim {
 	const bashCommand: string = hooks.PreToolUse.find(
 		(entry: { matcher: string }) => /bash/.test(entry.matcher),
 	).hooks[0].command;
-	return new WriteCustodyShim(pluginDir, command, bashCommand);
+	const readCommand: string = hooks.PreToolUse.find(
+		(entry: { matcher: string }) => /read/.test(entry.matcher),
+	).hooks[0].command;
+	return new WriteCustodyShim(pluginDir, command, bashCommand, readCommand);
 }
 
 class WriteCustodyShim implements OpenPluginShim {
@@ -39,6 +47,7 @@ class WriteCustodyShim implements OpenPluginShim {
 		private readonly pluginDir: string,
 		private readonly command: string,
 		private readonly bashCommand: string,
+		private readonly readCommand: string,
 	) {}
 
 	/**
@@ -93,6 +102,36 @@ class WriteCustodyShim implements OpenPluginShim {
 		});
 		const { code, stderr } = await runHook(
 			join(this.pluginDir, this.bashCommand),
+			this.pluginDir,
+			payload,
+		);
+		if (code === 0) {
+			return { allowed: true };
+		}
+		return { allowed: false, reason: stderr };
+	}
+
+	/**
+	 * @planks("When a read tool call opens \"CAPTAIN.md\"")
+	 * @planks("Then the shim blocks the read")
+	 * @planks("Then the block reason carries the hook's denial message")
+	 * @planks("Then the shim allows the read")
+	 * @planks("Given the host acts with no plugin role")
+	 */
+	async checkRead(
+		role: string | undefined,
+		path: string,
+	): Promise<WriteCustodyDecision> {
+		if (role === undefined) {
+			return { allowed: true };
+		}
+		const payload = JSON.stringify({
+			agent_type: role,
+			tool_name: "read",
+			tool_input: { file_path: path },
+		});
+		const { code, stderr } = await runHook(
+			join(this.pluginDir, this.readCommand),
 			this.pluginDir,
 			payload,
 		);

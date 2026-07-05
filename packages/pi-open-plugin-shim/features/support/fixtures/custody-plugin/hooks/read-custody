@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+// Real open-plugin read-custody hook (verification fixture).
+//
+// Keyed off `agent_type`, the open-plugin custody model. Reads the PreToolUse
+// payload as JSON on stdin, denies the role "crew" reading "CAPTAIN.md", and
+// permits the role "boatswain". Exit 0 permits. A non-zero exit denies and the
+// message on stderr is the denial reason the shim must carry.
+"use strict";
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+});
+process.stdin.on("end", () => {
+	let payload = {};
+	try {
+		payload = JSON.parse(input || "{}");
+	} catch {
+		payload = {};
+	}
+	const role = payload.agent_type;
+	const path = (payload.tool_input && payload.tool_input.file_path) || "";
+	if (role === "crew" && path === "CAPTAIN.md") {
+		process.stderr.write(
+			'open-plugin custody denies role "crew" reading "CAPTAIN.md"',
+		);
+		process.exit(2);
+	}
+	process.exit(0);
+});

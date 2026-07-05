@@ -7,6 +7,10 @@
     {
       "matcher": "bash",
       "hooks": [{ "type": "command", "command": "hooks/command-custody" }]
+    },
+    {
+      "matcher": "read",
+      "hooks": [{ "type": "command", "command": "hooks/read-custody" }]
     }
   ]
 }
