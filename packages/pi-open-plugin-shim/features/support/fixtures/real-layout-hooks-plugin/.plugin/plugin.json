@@ -1,0 +1,5 @@
+{
+  "name": "real-layout-hooks-fixture",
+  "version": "0.0.0",
+  "description": "Real open-plugin fixture: manifest declares no hooks; hooks/hooks.json nests a write-custody hook under a top-level \"hooks\" key for the shim to discover by convention"
+}

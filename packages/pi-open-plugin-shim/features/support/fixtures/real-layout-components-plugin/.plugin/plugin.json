@@ -1,0 +1,5 @@
+{
+  "name": "real-layout-components-fixture",
+  "version": "0.0.0",
+  "description": "Real open-plugin fixture: manifest declares no components; ships an agent \"qm\" and a command \"status\" in their own directories for the shim to discover by convention"
+}

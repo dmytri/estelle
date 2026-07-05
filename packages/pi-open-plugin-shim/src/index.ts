@@ -45,12 +45,15 @@ interface SessionStartEntry {
  * @planks("Given the shim runs an open-plugin whose matcher \"Edit|Write|MultiEdit|NotebookEdit\" carries a hook that denies the write")
  * @planks("Given the shim runs an open-plugin whose write matcher stacks a hook that permits and a hook that denies")
  * @planks("Given the shim runs an open-plugin whose only matcher is \"Bash\"")
+ * @planks("Given the shim runs an open-plugin whose manifest declares no hooks and whose \"hooks/hooks.json\" nests a write hook under a top-level \"hooks\" key, denying the role \"crew\" writing under \"features\"")
+ * @planks("Given the shim runs an open-plugin whose manifest declares no components and which ships an agent \"qm\" and a command \"status\"")
  */
 export function loadOpenPlugin(pluginDir: string): OpenPluginShim {
-	const plugin = JSON.parse(
-		readFileSync(join(pluginDir, ".plugin", "plugin.json"), "utf8"),
-	);
-	const hooks = JSON.parse(readFileSync(join(pluginDir, plugin.hooks), "utf8"));
+	const hooksFile = join(pluginDir, "hooks", "hooks.json");
+	const raw = existsSync(hooksFile)
+		? JSON.parse(readFileSync(hooksFile, "utf8"))
+		: {};
+	const hooks = raw.hooks ?? raw;
 	return new WriteCustodyShim(
 		pluginDir,
 		hooks.PreToolUse,
