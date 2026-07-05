@@ -1,0 +1,6 @@
+{
+  "name": "agents-fixture",
+  "version": "0.0.0",
+  "description": "Real open-plugin fixture: ships an agent \"qm\" with YAML frontmatter and a prompt body for the shim to report",
+  "hooks": "hooks/hooks.json"
+}

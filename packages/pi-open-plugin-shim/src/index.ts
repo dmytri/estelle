@@ -21,6 +21,12 @@ export interface OpenPluginShim {
 		path: string,
 	): Promise<WriteCustodyDecision>;
 	reportCommands(): string[];
+	reportAgents(): ReportedAgent[];
+}
+
+export interface ReportedAgent {
+	name: string;
+	prompt: string;
 }
 
 interface HookEntry {
@@ -196,6 +202,31 @@ class WriteCustodyShim implements OpenPluginShim {
 		return readdirSync(commandsDir)
 			.filter((entry) => entry.endsWith(".md"))
 			.map((entry) => basename(entry, ".md"));
+	}
+
+	/**
+	 * @planks("When the shim reports the plugin's agents")
+	 */
+	reportAgents(): ReportedAgent[] {
+		const agentsDir = join(this.pluginDir, "agents");
+		if (!existsSync(agentsDir)) {
+			return [];
+		}
+		return readdirSync(agentsDir)
+			.filter((entry) => entry.endsWith(".md"))
+			.map((entry) => {
+				const source = readFileSync(join(agentsDir, entry), "utf8");
+				const match = source.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+				const frontmatter = match ? match[1] : "";
+				const body = match ? match[2] : source;
+				const nameLine = frontmatter
+					.split("\n")
+					.find((line) => line.startsWith("name:"));
+				const name = nameLine
+					? nameLine.slice("name:".length).trim()
+					: basename(entry, ".md");
+				return { name, prompt: body.trim() };
+			});
 	}
 
 	/**
