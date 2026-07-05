@@ -11,6 +11,7 @@ export interface OpenPluginShim {
 	checkWrite(
 		role: string | undefined,
 		path: string,
+		projectDir?: string,
 	): Promise<WriteCustodyDecision>;
 	checkCommand(
 		role: string | undefined,
@@ -165,12 +166,15 @@ class WriteCustodyShim implements OpenPluginShim {
 	/**
 	 * @planks("When a write to \"features/login.feature\" is attempted")
 	 * @planks("When a write to \"greeting.md\" is attempted")
+	 * @planks("When a write to \"src/pay.ts\" in that project is attempted")
+	 * @planks("When a write to \"features/pay.feature\" in that project is attempted")
 	 */
 	async checkWrite(
 		role: string | undefined,
 		path: string,
+		projectDir?: string,
 	): Promise<WriteCustodyDecision> {
-		return this.dispatch(role, "write", { file_path: path });
+		return this.dispatch(role, "write", { file_path: path }, projectDir);
 	}
 
 	/**
@@ -235,6 +239,7 @@ class WriteCustodyShim implements OpenPluginShim {
 	/**
 	 * @planks("Given the host acts with no plugin role")
 	 * @planks("Given the shim runs an open-plugin whose write hook command is \"${PLUGIN_ROOT}/hooks/scripts/write-custody\" and denies the role \"crew\" writing under \"features\"")
+	 * @planks("Given the shim runs an open-plugin whose write hook is the real Shipshape write-custody script, its hooks.json command quoted and rooted at \"${PLUGIN_ROOT}\"")
 	 * @planks("Then the shim blocks the write")
 	 * @planks("Then the shim allows the write")
 	 * @planks("Then the shim blocks the command")
@@ -243,11 +248,13 @@ class WriteCustodyShim implements OpenPluginShim {
 	 * @planks("Then the shim allows the read")
 	 * @planks("Then the block reason carries the hook's denial message")
 	 * @planks("Then the block reason carries the denying hook's message")
+	 * @planks("Then the block reason carries \"Production code belongs to Crew\"")
 	 */
 	private async dispatch(
 		role: string | undefined,
 		toolName: string,
 		toolInput: Record<string, string>,
+		projectDir?: string,
 	): Promise<WriteCustodyDecision> {
 		if (role === undefined) {
 			return { allowed: true };
@@ -257,6 +264,7 @@ class WriteCustodyShim implements OpenPluginShim {
 			tool_name: toolName,
 			tool_input: toolInput,
 		});
+		const cwd = projectDir ?? this.pluginDir;
 		for (const entry of this.preToolUse) {
 			if (!matcherMatchesTool(entry.matcher, toolName)) {
 				continue;
@@ -264,15 +272,12 @@ class WriteCustodyShim implements OpenPluginShim {
 			for (const hook of entry.hooks) {
 				// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
 				const resolved = hook.command.replace("${PLUGIN_ROOT}", this.pluginDir);
+				const unquoted = resolved.replace(/^"(.*)"$/, "$1");
 				const hookPath =
-					resolved === hook.command
+					unquoted === hook.command
 						? join(this.pluginDir, hook.command)
-						: resolved;
-				const { code, stderr } = await runHook(
-					hookPath,
-					this.pluginDir,
-					payload,
-				);
+						: unquoted;
+				const { code, stderr } = await runHook(hookPath, cwd, payload);
 				if (code !== 0) {
 					return { allowed: false, reason: stderr };
 				}

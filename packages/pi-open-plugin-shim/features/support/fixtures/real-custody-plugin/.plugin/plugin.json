@@ -1,0 +1,6 @@
+{
+  "name": "shipshape",
+  "version": "0.0.0",
+  "description": "Real open-plugin fixture: carries the real Shipshape write-custody script, referenced with a quoted ${PLUGIN_ROOT} command, so the shim runs it against the project's RIGGING.md",
+  "hooks": "hooks/hooks.json"
+}
