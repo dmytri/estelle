@@ -73,8 +73,6 @@ export interface EstelleSession {
 	installSkill(source: string): Promise<void>;
 	installExtension(source: string): Promise<void>;
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
-	read(path: string): { allowed: boolean; reason?: string; contents?: string };
-	command(command: string): Promise<{ allowed: boolean; reason?: string }>;
 	sendToOperator(message: string): { allowed: boolean; reason?: string };
 	setSeatModel(
 		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
@@ -721,39 +719,6 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			mkdirSync(dirname(absolute), { recursive: true });
 			writeFileSync(absolute, contents, "utf8");
 			return { allowed: true };
-		},
-		/**
-		 * @planks("When the Crew hand runs \"git commit -m batch\" through the session custody API")
-		 * @planks("Then the session custody API blocks the command")
-		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Boatswain holds local commit custody\"")
-		 */
-		command: (command) =>
-			shipshapeCustody.checkCommand(
-				`shipshape:${state.activeSeat.skill}`,
-				command,
-			),
-		/**
-		 * @planks("When the Crew hand reads \"CAPTAIN.md\" through the session custody API")
-		 * @planks("Then the session custody API blocks the read")
-		 * @planks("Then the block reason carries the Shipshape plugin's denial \"MUST NOT read CAPTAIN.md\"")
-		 */
-		read: (path) => {
-			const relPath = relativeToCwd(cwd, path);
-			const decision =
-				state.activeSeat.role === "captain"
-					? evaluateRead(state.activeSeat.role, relPath)
-					: shipshapeCustody.checkReadSync(
-							`shipshape:${state.activeSeat.skill}`,
-							relPath,
-							process.cwd(),
-						);
-			if (!decision.allowed) {
-				return decision;
-			}
-			return {
-				allowed: true,
-				contents: readFileSync(resolve(cwd, path), "utf8"),
-			};
 		},
 		/**
 		 * @planks("When Bonny sends a message to the operator")
