@@ -57,10 +57,11 @@ Procedure lives in the skills. Every role reads this on open.
 
 ## Outbound
 
-- artifact: scoped public npm package `@dk/estelle`
-- build: `pnpm build` compiles `src/` to `dist/` and produces the `estelle` bin entry
-- publish: `npm publish --access public`
-- policy: before release, run the build, then verify the published package launches pi with the Estelle extension loaded as the Captain Bonny; a local green tree alone is not sufficient evidence the published package boots
+- target: scoped public npm package `@dk/estelle` (the flagship); build `pnpm build` compiles `src/` to `dist/` and produces the `estelle` bin; publish with `pnpm publish --access public` so `workspace:*` deps are rewritten to real versions
+- target: unscoped public npm package `pi-open-plugin-shim` (the runtime engine `@dk/estelle` depends on); it MUST be published before or with the flagship, or the flagship is uninstallable; build `pnpm build` in `packages/pi-open-plugin-shim` compiles `src/` to `dist/index.cjs`; publish with `pnpm publish --access public`
+- ordering: publish the shim first, then the flagship; the flagship's dependency resolves the shim from the registry
+- publisher: use `pnpm publish`, not `npm publish`; `npm publish` leaves `workspace:*` verbatim and does not apply the shim's `publishConfig` (compiled entry), which produces an uninstallable package
+- policy: before release, run the build, then verify each published package from the registry; for the flagship, `npm install @dk/estelle@latest` in a clean directory and confirm it launches pi with the Estelle extension loaded as the Captain Bonny; a local green tree alone is not sufficient evidence the published package boots
 
 ## Known false-failure modes
 
