@@ -62,10 +62,18 @@ They/them, gender-neutral. Voice is honour-system; names are where code bites. C
 
 **Runtime custody consolidation: done (commit `eb606e5`).** The running `pi.on("tool_call")` hook now gates write/read/bash through the plugin for internal seats and the flagship gate for the Captain, matching the method seams. Verification drives the real hook through `session.extensionRunner.emitToolCall` (`features/support/world.ts` `runningSessionToolCall`), so the three custody features falsify the gate on the seat's own tool call, not a test-facing method. The vacuous green and the `evaluateRead` read regression are both closed. Full `@logic` suite green, `tsc` clean, no perturbation in production.
 
-**Harbour pass (base `21920f6`, outbound clear).** Shipwright scanned clean: 0 `@captain` skeletons needed (every live seam planked, 212 planks), 1 refit (`RIGGING.md` now declares `- implementation: bin`, since `bin/estelle.js` is planked production). Findings resolved below.
+**Harbour pass: complete (commits `0e3dab2`, `67fdbcb`, `531e46f`).** Outcome:
+- `bin` declared as an implementation directory in `RIGGING.md`; `bin/estelle.js` is planked production.
+- Stale `@planks` from the custody reword re-based to live step text across `src/index.ts` and the shim; stale-plank join now clean.
+- **Dead custody methods retired.** `EstelleSession.read()` and `command()` were a zero-caller duplicate of the `tool_call` hook's custody, so they were condemned (`@shipwright`) and removed with their interface declarations; the tool-call hook is the single custody path. `write()` proved live through the `@eval` crew-session tier and stays. Suite green throughout.
+- `RIGGING.md` verification commands (`discover`, `focused`, `broad`, `coverage`, `step-usage`, `eval`) now exclude `@shipwright` as the Articles require; the prior rigging omitted it and reddened once a `@shipwright` feature landed.
 
-- **Retire the dead custody methods: approved (operator, this voyage).** `EstelleSession.write()`/`read()`/`command()` (`src/index.ts` ~700-763) are a zero-caller duplicate of the `tool_call` hook's custody; every scenario drives the hook via `emitToolCall`. All ~10 in-voyage stale `@planks` sit on these dead methods. Remove the three methods and their `EstelleSession` interface declarations; the stale planks go with the code. The hook stays the single custody path. Suite stays green (methods are already dead). Per pre-1.0 current-design-only, the exported-surface change is intended.
-- Pre-existing drift still open: about 6 stale `@planks` on unrelated seams; 3 deferred `noNonNullAssertion` biome warnings (`src/index.ts:1199,1226`).
+Deferred, for a future pass:
+- Shipwright flagged the `@eval` tier as environmentally flaky (5000ms live-model step timeout; `ENOENT` races on pi temp session jsonl under parallel clones). Not yet in `## Known false-failure modes`. Document or stabilize.
+- Methodology checks are largely unenforced (`Passing verification is not proof`): no executable conformance for watchbill-shape, perturbation-liveness, stale-plank join, forbidden-doubles, gherkin lint (`.gplintrc` present, no `gplint` command in `RIGGING.md`), or a tier-auth probe. New `@property` spec work, aligned with the Phase 3 pilot charter.
+- Pre-existing: about 6 stale `@planks` on unrelated seams; 3 deferred `noNonNullAssertion` biome warnings (`src/index.ts` ~1158, 1185).
+
+**npm target `@dk/estelle` is stale.** Published `0.1.7` dates to 2026-07-03, before this voyage; local is also `0.1.7`. Publishing the current tree needs a version bump, `pnpm build`, `npm publish --access public`, and a boot-verify of the published package per `## Outbound`. Not done this voyage.
 
 ## Upstream, ~/shipshape, human-owned
 
