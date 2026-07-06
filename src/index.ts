@@ -237,9 +237,9 @@ function assistantText(message: { content?: unknown }): string {
 }
 
 /**
- * @planks("Then Estelle reports that the Crew may write only \"src/**\"")
- * @planks("Then Estelle reports that the Captain writes specs, assets, \"CAPTAIN.md\", and \"watchbill.json\"")
- * @planks("Then Estelle reports that only the Captain may write \"watchbill.json\"")
+ * @planks("Then the crew session allows a Crew hand to write \"src/handoff.ts\"")
+ * @planks("Then the crew session blocks a Crew hand from writing \"features/new.feature\"")
+ * @planks("Then the block reason names the Captain's write scope")
  */
 function evaluateWrite(
 	role: string,
@@ -276,7 +276,7 @@ function evaluateWrite(
 }
 
 /**
- * @planks("Then Estelle reports that \"CAPTAIN.md\" is private to the Captain")
+ * @planks("Then Estelle allows the read")
  */
 function evaluateRead(
 	role: string,
@@ -558,7 +558,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			return state.activeSeat;
 		},
 		/**
-		 * @planks("Given the active seat is the Crew hand \"Belka\"")
+		 * @planks("Given the active seat is a Crew hand")
 		 * @planks("Given the active seat is the Quartermaster \"Misson\"")
 		 * @planks("Given the active seat is the Boatswain \"Bellamy\"")
 		 */
