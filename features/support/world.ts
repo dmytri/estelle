@@ -62,14 +62,17 @@ export class EstelleWorld extends World {
 			cpSync(join(process.cwd(), "assets"), join(this.workspaceDir, "assets"), {
 				recursive: true,
 			});
-			for (const [relPath, contents] of Object.entries(seed)) {
-				writeFileSync(join(this.workspaceDir, relPath), contents, "utf8");
-			}
 			const { launch } = await import("../../src/index.js");
 			this.launched = await launch({
 				cwd: this.workspaceDir,
 				agentDir: this.agentDir,
 			});
+		}
+		// Seed after any launch too: a Background may start the session first and
+		// declare project files in a later step, so the file must still land in
+		// the workspace the launched session reads.
+		for (const [relPath, contents] of Object.entries(seed)) {
+			writeFileSync(join(this.workspaceDir!, relPath), contents, "utf8");
 		}
 		return this.launched;
 	}

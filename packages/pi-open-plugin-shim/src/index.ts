@@ -26,6 +26,11 @@ export interface OpenPluginShim {
 		role: string | undefined,
 		path: string,
 	): Promise<WriteCustodyDecision>;
+	checkReadSync(
+		role: string | undefined,
+		path: string,
+		projectDir?: string,
+	): WriteCustodyDecision;
 	reportCommands(): string[];
 	reportAgents(): ReportedAgent[];
 }
@@ -259,6 +264,52 @@ class WriteCustodyShim implements OpenPluginShim {
 		path: string,
 	): Promise<WriteCustodyDecision> {
 		return this.dispatch(role, "read", { file_path: path });
+	}
+
+	/**
+	 * @planks("Then Estelle blocks the read")
+	 * @planks("Then the block reason carries the Shipshape plugin's denial \"MUST NOT read CAPTAIN.md\"")
+	 */
+	checkReadSync(
+		role: string | undefined,
+		path: string,
+		projectDir?: string,
+	): WriteCustodyDecision {
+		if (role === undefined) {
+			return { allowed: true };
+		}
+		const payload = JSON.stringify({
+			agent_type: role,
+			tool_name: "read",
+			tool_input: { file_path: path },
+		});
+		const cwd = projectDir ?? this.pluginDir;
+		for (const entry of this.preToolUse) {
+			if (!matcherMatchesTool(entry.matcher, "read")) {
+				continue;
+			}
+			for (const hook of entry.hooks) {
+				const resolved = hook.command
+					// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
+					.replace("${PLUGIN_ROOT}", this.pluginDir)
+					// biome-ignore lint/suspicious/noTemplateCurlyInString: the Claude-format plugin root token the installed plugin uses
+					.replace("${CLAUDE_PLUGIN_ROOT}", this.pluginDir);
+				const unquoted = resolved.replace(/^"(.*)"$/, "$1");
+				const hookPath =
+					unquoted === hook.command
+						? join(this.pluginDir, hook.command)
+						: unquoted;
+				const result = spawnSync(hookPath, {
+					cwd,
+					input: payload,
+					encoding: "utf8",
+				});
+				if ((result.status ?? 0) !== 0) {
+					return { allowed: false, reason: result.stderr };
+				}
+			}
+		}
+		return { allowed: true };
 	}
 
 	/**

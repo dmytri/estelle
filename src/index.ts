@@ -677,10 +677,19 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		/**
 		 * @planks("Then Estelle allows the read")
 		 * @planks("Then the contents of \"CAPTAIN.md\" are returned")
+		 * @planks("Then Estelle blocks the read")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"MUST NOT read CAPTAIN.md\"")
 		 */
 		read: (path) => {
 			const relPath = relativeToCwd(cwd, path);
-			const decision = evaluateRead(state.activeSeat.role, relPath);
+			const decision =
+				state.activeSeat.role === "captain"
+					? evaluateRead(state.activeSeat.role, relPath)
+					: shipshapeCustody.checkReadSync(
+							`shipshape:${state.activeSeat.skill}`,
+							relPath,
+							process.cwd(),
+						);
 			if (!decision.allowed) {
 				return decision;
 			}
