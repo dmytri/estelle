@@ -5,7 +5,7 @@ import type {
 	AgentSessionRuntime,
 	ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { loadOpenPlugin } from "pi-open-plugin-shim";
+import { loadOpenPlugin, type OpenPluginShim } from "pi-open-plugin-shim";
 
 export interface LaunchOptions {
 	cwd?: string;
@@ -74,6 +74,7 @@ export interface EstelleSession {
 	installExtension(source: string): Promise<void>;
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
 	read(path: string): { allowed: boolean; reason?: string; contents?: string };
+	command(command: string): Promise<{ allowed: boolean; reason?: string }>;
 	sendToOperator(message: string): { allowed: boolean; reason?: string };
 	setSeatModel(
 		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
@@ -279,12 +280,9 @@ function evaluateWrite(
  * @planks("Then Estelle allows the read")
  */
 function evaluateRead(
-	role: string,
-	relPath: string,
+	_role: string,
+	_relPath: string,
 ): { allowed: boolean; reason?: string } {
-	if (relPath === "CAPTAIN.md" && role !== "captain" && role !== "boatswain") {
-		return { allowed: false, reason: '"CAPTAIN.md" is private to the Captain' };
-	}
 	return { allowed: true };
 }
 
@@ -301,7 +299,11 @@ function evaluateRead(
  * @planks("Then the started session stays seated as the Captain \"Bonny\"")
  * @planks("Then the started session carries no greeting before the operator speaks")
  */
-function createEstelleExtension(state: EstelleState, cwd: string) {
+function createEstelleExtension(
+	state: EstelleState,
+	cwd: string,
+	custody: OpenPluginShim,
+) {
 	return (pi: ExtensionAPI) => {
 		state.pi = pi;
 		for (const command of SEAT_COMMANDS) {
@@ -340,23 +342,67 @@ function createEstelleExtension(state: EstelleState, cwd: string) {
 				),
 			};
 		});
-		pi.on("tool_call", (event) => {
+		/**
+		 * @planks("When the Crew hand writes \"src/pay.ts\" in the running session")
+		 * @planks("When Misson writes \"src/pay.ts\" in the running session")
+		 * @planks("When Misson writes \"watchbill.json\" in the running session")
+		 * @planks("When Bonny writes \"src/sneaky.ts\" in the running session")
+		 * @planks("Then the running session allows the write")
+		 * @planks("Then the running session blocks the write")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain writes specs\"")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Production code belongs to Crew\"")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain-custodied or configuration artifact\"")
+		 * @planks("Then the block reason names the Captain's write scope")
+		 * @planks("When Bonny reads \"CAPTAIN.md\" in the running session")
+		 * @planks("When Bellamy reads \"CAPTAIN.md\" in the running session")
+		 * @planks("When Misson reads \"CAPTAIN.md\" in the running session")
+		 * @planks("Then the running session allows the read")
+		 * @planks("Then the running session blocks the read")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"MUST NOT read CAPTAIN.md\"")
+		 * @planks("When Bellamy runs \"git commit -m batch\" in the running session")
+		 * @planks("When Misson runs \"git commit -m batch\" in the running session")
+		 * @planks("When the Crew hand runs \"git push origin main\" in the running session")
+		 * @planks("When Bellamy runs \"git push origin main\" in the running session")
+		 * @planks("Then the running session allows the command")
+		 * @planks("Then the running session blocks the command")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Boatswain holds local commit custody\"")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Outbound is Captain-only and requires explicit user approval\"")
+		 */
+		pi.on("tool_call", async (event) => {
+			const seat = `shipshape:${state.activeSeat.skill}`;
 			if (event.toolName === "write" || event.toolName === "edit") {
 				const relPath = relativeToCwd(
 					cwd,
 					(event.input as { path: string }).path,
 				);
-				const decision = evaluateWrite(state.activeSeat.role, relPath);
+				const decision =
+					state.activeSeat.role === "captain"
+						? evaluateWrite(state.activeSeat.role, relPath)
+						: custody.checkWriteSync(seat, relPath, process.cwd());
 				if (!decision.allowed) {
 					return { block: true, reason: decision.reason };
 				}
+				return;
 			}
 			if (event.toolName === "read") {
 				const relPath = relativeToCwd(
 					cwd,
 					(event.input as { path: string }).path,
 				);
-				const decision = evaluateRead(state.activeSeat.role, relPath);
+				const decision =
+					state.activeSeat.role === "captain"
+						? evaluateRead(state.activeSeat.role, relPath)
+						: custody.checkReadSync(seat, relPath, process.cwd());
+				if (!decision.allowed) {
+					return { block: true, reason: decision.reason };
+				}
+				return;
+			}
+			if (event.toolName === "bash") {
+				const decision = await custody.checkCommand(
+					seat,
+					(event.input as { command: string }).command,
+				);
 				if (!decision.allowed) {
 					return { block: true, reason: decision.reason };
 				}
@@ -492,7 +538,9 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		...shipshapeUrl.pathname.split("/").filter(Boolean),
 	);
 	const shipshapeCustody = loadOpenPlugin(shipshapePluginDir);
-	const extensionFactories = [createEstelleExtension(state, cwd)];
+	const extensionFactories = [
+		createEstelleExtension(state, cwd, shipshapeCustody),
+	];
 	const skillsRoot = join(assetsDir(cwd), "skills");
 	const additionalSkillPaths = [
 		join(skillsRoot, "update-config", "SKILL.md"),
@@ -674,6 +722,21 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			writeFileSync(absolute, contents, "utf8");
 			return { allowed: true };
 		},
+		/**
+		 * @planks("When Bellamy runs the command \"git commit -m batch\"")
+		 * @planks("When Misson attempts the command \"git commit -m batch\"")
+		 * @planks("When the Crew hand attempts the command \"git push origin main\"")
+		 * @planks("When Bellamy attempts the command \"git push origin main\"")
+		 * @planks("Then Estelle allows the command")
+		 * @planks("Then Estelle blocks the command")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Boatswain holds local commit custody\"")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Outbound is Captain-only and requires explicit user approval\"")
+		 */
+		command: (command) =>
+			shipshapeCustody.checkCommand(
+				`shipshape:${state.activeSeat.skill}`,
+				command,
+			),
 		/**
 		 * @planks("Then Estelle allows the read")
 		 * @planks("Then the contents of \"CAPTAIN.md\" are returned")
@@ -864,6 +927,14 @@ export async function run(options?: RunOptions): Promise<void> {
 		settingsManager,
 		DefaultPackageManager,
 	});
+	const shipshapeUrl = new URL(SHIPSHAPE_PACKAGE_SOURCE);
+	const shipshapePluginDir = join(
+		agentDir,
+		"git",
+		shipshapeUrl.host,
+		...shipshapeUrl.pathname.split("/").filter(Boolean),
+	);
+	const shipshapeCustody = loadOpenPlugin(shipshapePluginDir);
 	const skillsRoot = join(assetsDir(cwd), "skills");
 	const additionalSkillPaths = [
 		join(skillsRoot, "update-config", "SKILL.md"),
@@ -879,7 +950,11 @@ export async function run(options?: RunOptions): Promise<void> {
 					settingsManager,
 					resourceLoaderOptions: {
 						extensionFactories: [
-							createEstelleExtension(runtimeState, runtimeCwd),
+							createEstelleExtension(
+								runtimeState,
+								runtimeCwd,
+								shipshapeCustody,
+							),
 						],
 						additionalSkillPaths,
 						noExtensions: false,

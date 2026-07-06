@@ -384,8 +384,11 @@ class WriteCustodyShim implements OpenPluginShim {
 				continue;
 			}
 			for (const hook of entry.hooks) {
-				// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
-				const resolved = hook.command.replace("${PLUGIN_ROOT}", this.pluginDir);
+				const resolved = hook.command
+					// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
+					.replace("${PLUGIN_ROOT}", this.pluginDir)
+					// biome-ignore lint/suspicious/noTemplateCurlyInString: the Claude-format plugin root token the installed plugin uses
+					.replace("${CLAUDE_PLUGIN_ROOT}", this.pluginDir);
 				const unquoted = resolved.replace(/^"(.*)"$/, "$1");
 				const hookPath =
 					unquoted === hook.command

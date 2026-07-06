@@ -23,27 +23,26 @@ Given(
 );
 
 When(
-	"the Crew hand writes {string}",
-	function (this: EstelleWorld, path: string) {
-		this.result = this.launched!.write(path, "estelle verification\n");
+	"the Crew hand writes {string} in the running session",
+	async function (this: EstelleWorld, path: string) {
+		await this.runningSessionToolCall("write", {
+			path,
+			content: "estelle verification\n",
+		});
 	},
 );
 
 When(
-	"the Crew hand attempts to write {string}",
-	function (this: EstelleWorld, path: string) {
-		this.result = this.launched!.write(path, "estelle verification\n");
+	"{word} writes {string} in the running session",
+	async function (this: EstelleWorld, _name: string, path: string) {
+		await this.runningSessionToolCall("write", {
+			path,
+			content: "estelle verification\n",
+		});
 	},
 );
 
-When(
-	"{word} attempts to write {string}",
-	function (this: EstelleWorld, _name: string, path: string) {
-		this.result = this.launched!.write(path, "estelle verification\n");
-	},
-);
-
-Then("Estelle allows the write", function (this: EstelleWorld) {
+Then("the running session allows the write", function (this: EstelleWorld) {
 	assert.ok(this.result, "no write was attempted");
 	assert.equal(
 		this.result.allowed,
@@ -52,7 +51,7 @@ Then("Estelle allows the write", function (this: EstelleWorld) {
 	);
 });
 
-Then("Estelle blocks the write", function (this: EstelleWorld) {
+Then("the running session blocks the write", function (this: EstelleWorld) {
 	assert.ok(this.result, "no write was attempted");
 	assert.equal(
 		this.result.allowed,

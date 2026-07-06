@@ -2,6 +2,7 @@ import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { After, Before, setWorldConstructor, World } from "@cucumber/cucumber";
+import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import type { EstelleSession, LaunchOptions } from "../../src/index.js";
 
 /**
@@ -39,6 +40,28 @@ export class EstelleWorld extends World {
 			  }
 			| undefined;
 	};
+
+	private toolCallSeq = 0;
+
+	/**
+	 * Drive the seat's own tool call through the running session's real
+	 * tool_call hook, the path a seat takes when it acts. Records the gate
+	 * outcome as the observable custody decision. No test-facing custody method
+	 * is involved: the decision comes from the live extension runner.
+	 */
+	async runningSessionToolCall(
+		toolName: "write" | "read" | "bash",
+		input: Record<string, unknown>,
+	): Promise<void> {
+		this.toolCallSeq += 1;
+		const outcome = await this.launched!.session.extensionRunner.emitToolCall({
+			type: "tool_call",
+			toolCallId: `estelle-verify-${this.toolCallSeq}`,
+			toolName,
+			input,
+		} as ToolCallEvent);
+		this.result = { allowed: !outcome?.block, reason: outcome?.reason };
+	}
 
 	async ensureLaunched(options?: LaunchOptions): Promise<EstelleSession> {
 		if (!this.launched) {

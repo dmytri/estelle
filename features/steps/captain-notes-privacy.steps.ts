@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Given, Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
 
@@ -20,25 +22,33 @@ Given(
 );
 
 When(
-	"{word} reads {string}",
-	function (this: EstelleWorld, _name: string, path: string) {
-		this.result = this.launched!.read(path);
+	"{word} reads {string} in the running session",
+	async function (this: EstelleWorld, _name: string, path: string) {
+		await this.runningSessionToolCall("read", { path });
+		if (this.result?.allowed) {
+			this.result.contents = readFileSync(
+				join(this.workspaceDir!, path),
+				"utf8",
+			);
+		}
 	},
 );
 
-When(
-	"{word} attempts to read {string}",
-	function (this: EstelleWorld, _name: string, path: string) {
-		this.result = this.launched!.read(path);
-	},
-);
-
-Then("Estelle allows the read", function (this: EstelleWorld) {
+Then("the running session allows the read", function (this: EstelleWorld) {
 	assert.ok(this.result, "no read was attempted");
 	assert.equal(
 		this.result.allowed,
 		true,
 		`read was blocked: ${this.result.reason ?? ""}`,
+	);
+});
+
+Then("the running session blocks the read", function (this: EstelleWorld) {
+	assert.ok(this.result, "no read was attempted");
+	assert.equal(
+		this.result.allowed,
+		false,
+		"read was allowed but should have been blocked",
 	);
 });
 
@@ -49,30 +59,6 @@ Then(
 			this.result?.contents,
 			CAPTAIN_NOTES,
 			"the file contents were not returned",
-		);
-	},
-);
-
-Then("Estelle blocks the read", function (this: EstelleWorld) {
-	assert.ok(this.result, "no read was attempted");
-	assert.equal(
-		this.result.allowed,
-		false,
-		"read was allowed but should have been blocked",
-	);
-});
-
-Then(
-	"Estelle reports that {string} is private to the Captain",
-	function (this: EstelleWorld, target: string) {
-		const reason = this.result?.reason ?? "";
-		assert.ok(
-			reason.includes(target),
-			`reason did not name "${target}": ${reason}`,
-		);
-		assert.ok(
-			reason.includes("private to the Captain"),
-			`reason did not state privacy: ${reason}`,
 		);
 	},
 );
