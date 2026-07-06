@@ -12,6 +12,7 @@ Procedure lives in the skills. Every role reads this on open.
 ## Directories
 
 - implementation: src
+- implementation: bin
 - implementation: package.json
 - implementation: packages/*/src
 - implementation: packages/*/index.ts

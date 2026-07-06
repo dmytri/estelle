@@ -62,12 +62,10 @@ They/them, gender-neutral. Voice is honour-system; names are where code bites. C
 
 **Runtime custody consolidation: done (commit `eb606e5`).** The running `pi.on("tool_call")` hook now gates write/read/bash through the plugin for internal seats and the flagship gate for the Captain, matching the method seams. Verification drives the real hook through `session.extensionRunner.emitToolCall` (`features/support/world.ts` `runningSessionToolCall`), so the three custody features falsify the gate on the seat's own tool call, not a test-facing method. The vacuous green and the `evaluateRead` read regression are both closed. Full `@logic` suite green, `tsc` clean, no perturbation in production.
 
-**Harbour drift, for the next `/shipwright` pass; none breaks verification:**
-- The `EstelleSession` method seams now duplicate custody the hook owns. `session.command()` (added this voyage) is driven by no scenario; `session.read()` by none; `session.write()` only by an excluded `@eval` scenario. Decide per method: retire the seam, or restore real coverage. One custody path is the goal.
-- Stale `@planks` from the reword: about 10 in-voyage annotations point at deleted `Estelle ...` step text, entangled with the method-seam decision above; plus about 6 pre-existing stale planks on unrelated seams.
-- 3 deferred `noNonNullAssertion` biome warnings still open.
+**Harbour pass (base `21920f6`, outbound clear).** Shipwright scanned clean: 0 `@captain` skeletons needed (every live seam planked, 212 planks), 1 refit (`RIGGING.md` now declares `- implementation: bin`, since `bin/estelle.js` is planked production). Findings resolved below.
 
-Harbour is blocked until outbound clears: `main` is ahead of `origin/main` by the two custody commits. Push or abandon before the harbour pass begins.
+- **Retire the dead custody methods: approved (operator, this voyage).** `EstelleSession.write()`/`read()`/`command()` (`src/index.ts` ~700-763) are a zero-caller duplicate of the `tool_call` hook's custody; every scenario drives the hook via `emitToolCall`. All ~10 in-voyage stale `@planks` sit on these dead methods. Remove the three methods and their `EstelleSession` interface declarations; the stale planks go with the code. The hook stays the single custody path. Suite stays green (methods are already dead). Per pre-1.0 current-design-only, the exported-surface change is intended.
+- Pre-existing drift still open: about 6 stale `@planks` on unrelated seams; 3 deferred `noNonNullAssertion` biome warnings (`src/index.ts:1199,1226`).
 
 ## Upstream, ~/shipshape, human-owned
 
