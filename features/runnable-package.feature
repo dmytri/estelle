@@ -14,6 +14,12 @@ Feature: Estelle runnable package
     Then the active seat is the Captain "Bonny"
     And the pi session starts with the "estelle" extension loaded
 
+  Scenario: Estelle uses its bundled assets when the operator directory has its own assets folder
+    Given an operator directory that has its own unrelated "assets" folder
+    When the operator runs the Estelle package in that directory
+    Then the active seat is the Captain "Bonny"
+    And the pi session starts with the "estelle" extension loaded
+
   Scenario: The built package boots pi as the Captain Bonny
     Given the built Estelle package
     When the operator runs the built package in a directory without Estelle assets
