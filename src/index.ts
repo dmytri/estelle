@@ -173,7 +173,7 @@ const SEAT_BY_ROLE: Record<string, Seat> = Object.fromEntries(
  */
 function assetsDir(cwd: string): string {
 	const local = join(cwd, "assets");
-	if (existsSync(local)) {
+	if (existsSync(join(local, "crew-roster.json"))) {
 		return local;
 	}
 	return join(__dirname, "..", "assets");

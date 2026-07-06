@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Given, Then, When } from "@cucumber/cucumber";
@@ -36,6 +42,24 @@ Given(
 		// A bare directory an operator runs npx in: no assets/ travel with it, so
 		// the package must resolve its own shipped assets to boot.
 		this.workspaceDir = mkdtempSync(join(tmpdir(), "estelle-operator-"));
+	},
+);
+
+Given(
+	"an operator directory that has its own unrelated {string} folder",
+	function (this: EstelleWorld, folderName: string) {
+		// A directory an operator runs npx in that already carries its own folder
+		// of the given name, unrelated to Estelle. Seed it with operator content
+		// so the folder genuinely belongs to the operator and holds none of
+		// Estelle's shipped assets, forcing the package to resolve its own.
+		this.workspaceDir = mkdtempSync(join(tmpdir(), "estelle-operator-assets-"));
+		const ownFolder = join(this.workspaceDir, folderName);
+		mkdirSync(ownFolder, { recursive: true });
+		writeFileSync(
+			join(ownFolder, "operator-notes.txt"),
+			"operator's own material\n",
+			"utf8",
+		);
 	},
 );
 
