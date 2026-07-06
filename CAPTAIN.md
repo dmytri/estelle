@@ -37,7 +37,8 @@ pi support is additive: the shim interprets the SAME neutral `.plugin/`; nothing
 - **Pre-1.0: no backward compatibility, no compat cruft.** Current design only. Old forms are Shipwright's to refit, never a parser's to tolerate.
 - A change to a SHARED plugin hook affects EVERY vendor. Regression-test the current form; do not add legacy fallbacks.
 - Extension packages unscoped (`pi-open-plugin-shim`); flagship scoped (`@dk/estelle`).
-- `shipshape:*` subagent types are unavailable this environment. Roles run as fresh-context general-purpose agents that load the role skill and follow it by discipline. Context bulkhead and discipline hold; the Claude-Code custody hard-gate does not fire for these.
+- Roles run as the plugin's real `shipshape:*` subagents. The Claude dev env installs the plugin via `npx plugins add ~/shipshape` (the open-plugin vendor model). The old github marketplace `dmytri-shipshape` was removed: shipshape migrated to the `.plugin/` open-plugin format and no longer carries `marketplace.json`, which broke the native marketplace install. Dispatch-guard, custody hooks, and captain-reset-nudge are live. Thin dispatches only: role, base commit, optional watchbill.
+- No Claude-specific config in the repo. `.claude/` stays gitignored; role agents are the plugin's, never hand-built files.
 
 ## The crew, flagship personas to salvage
 
@@ -53,13 +54,15 @@ They/them, gender-neutral. Voice is honour-system; names are where code bites. C
 
 ## Phase plan and status
 
-1. **Shim engine and pi installer, in progress.** Done: PreToolUse write, bash, and read custody plus generic dispatch (case-insensitive matcher matching, stacked hooks), against real hook subprocesses. Next: `${PLUGIN_ROOT}` resolution, PostToolUse, SessionStart and SessionEnd, `commands/`, then `agents/` to pi sessions, then the pi installer.
-2. **Methodology-check pilot, not started, the note's charter.** `/shipwright` refit to derive executable checks (watchbill shape, perturbation liveness, stale-plank join, forbidden-doubles scan, feature lint, tier auth probe), negative-test each (plant a violation, confirm red, remove), report the evidence.
-3. **Flagship on the real foundation, not started.** Re-base Estelle onto the shim (rip out `evaluateWrite`/`evaluateRead`), salvage the flagship UX from the parked live-crew work, and fix the live-crew gaps: a visible panel, `/embark` actually running the loop, and real verification instead of the toy target.
+1. **Shim engine, mostly done.** Write/bash/read custody + generic dispatch, PostToolUse, SessionStart/End, `commands/`, `${PLUGIN_ROOT}`, install/discover, agent reporting — all against real hook subprocesses. Real-plugin fidelity proven and fixed: convention discovery (`hooks/hooks.json`, no manifest field), nested `hooks` key, quoted `${PLUGIN_ROOT}` commands, project `cwd`/RIGGING via sync seams `checkWriteSync`/`checkReadSync`. The shim runs the actual `~/shipshape` plugin, verified. **Remaining: `agents/` to pi sessions RUNNING (the role capability's pi half — the operator flagged this as core), then the pi installer.**
+2. **Flagship on the real foundation, write+read done.** Estelle enforces the plugin's real **write + read** custody via the shim (`checkWriteSync`/`checkReadSync`); message custody (only Captain addresses the operator) and the Captain write path (`evaluateWrite`) stay flagship. **Remaining: flagship `perturb` command — Option 1 script-tool, no MCP; Captain-gate + perturb are flagship-first, upstream later (the additive `captain` case pulls in perturbation-as-tool doctrine, a bigger commitment). Then salvage the flagship UX: personas, `/embark`, `/clear`, per-seat models, fitting-out.**
+3. **Methodology-check pilot, not started, the note's charter.** `/shipwright` refit to derive executable checks (watchbill shape, perturbation liveness, stale-plank join, forbidden-doubles, feature lint, tier auth probe), negative-test each (plant, confirm red, remove), report evidence. Was gated on a quiescent deck; now unblocked.
+
+**Immediate next: harbour pass** (deck quiescent, both repos pushed). Re-plank `evaluateWrite`'s 3 stale `@planks` (they name removed seat-write-scope step phrasings), add a `@planks` for `seat-write-scope.feature:43` "block reason names the Captain's write scope", and clear 3 pre-existing `noNonNullAssertion` biome warnings.
 
 ## Upstream, ~/shipshape, human-owned
 
-Refine only when piloting surfaces a need, under its own workflow. Committed and unpushed: `0.8.6`, one-path-per-line `## Directories` with glob custody and the Shipwright refit. The pilot's first contribution.
+Refine only when piloting surfaces a need, under its own workflow. Pushed `0.8.6`: one-path-per-line `## Directories` with glob custody and the Shipwright refit — the pilot's first contribution. Estelle's tests clone `dmytri/shipshape` from github (now `0.8.6`); the Claude dev env runs the plugin from local `~/shipshape`.
 
 ## Parked
 
