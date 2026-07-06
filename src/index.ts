@@ -277,7 +277,7 @@ function evaluateWrite(
 }
 
 /**
- * @planks("Then Estelle allows the read")
+ * @planks("Then the running session allows the read")
  */
 function evaluateRead(
 	_role: string,
@@ -288,8 +288,8 @@ function evaluateRead(
 
 /**
  * @planks("Then the name is present before the hand first provider request")
- * @planks("Then Estelle blocks the write")
- * @planks("Then Estelle blocks the read")
+ * @planks("Then the running session blocks the write")
+ * @planks("Then the running session blocks the read")
  * @planks("Then the started session registers the commands \"/bonny\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\"")
  * @planks("When the operator runs the \"/misson\" command in the started session")
  * @planks("Then the started session's active seat is the Quartermaster \"Misson\"")
@@ -698,8 +698,8 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			commands.push(...merged);
 		},
 		/**
-		 * @planks("Then Estelle allows the write")
-		 * @planks("Then Estelle blocks the write")
+		 * @planks("Then the crew session allows a Crew hand to write \"src/handoff.ts\"")
+		 * @planks("Then the crew session blocks a Crew hand from writing \"features/new.feature\"")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain writes specs\"")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Production code belongs to Crew\"")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain-custodied or configuration artifact\"")
@@ -723,14 +723,9 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			return { allowed: true };
 		},
 		/**
-		 * @planks("When Bellamy runs the command \"git commit -m batch\"")
-		 * @planks("When Misson attempts the command \"git commit -m batch\"")
-		 * @planks("When the Crew hand attempts the command \"git push origin main\"")
-		 * @planks("When Bellamy attempts the command \"git push origin main\"")
-		 * @planks("Then Estelle allows the command")
-		 * @planks("Then Estelle blocks the command")
+		 * @planks("When the Crew hand runs \"git commit -m batch\" through the session custody API")
+		 * @planks("Then the session custody API blocks the command")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Boatswain holds local commit custody\"")
-		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Outbound is Captain-only and requires explicit user approval\"")
 		 */
 		command: (command) =>
 			shipshapeCustody.checkCommand(
@@ -738,9 +733,8 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 				command,
 			),
 		/**
-		 * @planks("Then Estelle allows the read")
-		 * @planks("Then the contents of \"CAPTAIN.md\" are returned")
-		 * @planks("Then Estelle blocks the read")
+		 * @planks("When the Crew hand reads \"CAPTAIN.md\" through the session custody API")
+		 * @planks("Then the session custody API blocks the read")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"MUST NOT read CAPTAIN.md\"")
 		 */
 		read: (path) => {

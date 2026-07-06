@@ -28,12 +28,12 @@ Procedure lives in the skills. Every role reads this on open.
 
 ## Commands
 
-- discover: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval"`
-- focused: `pnpm exec cucumber-js --tags "not @captain" --name "{scenario}"`
-- broad: `pnpm exec cucumber-js --tags "not @captain and not @eval"`
-- coverage: `pnpm exec cucumber-js --tags "not @captain and not @eval" --format usage`
-- step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval" --format usage-json`
-- eval: `pnpm exec cucumber-js --tags "@eval and not @captain"`
+- discover: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval and not @shipwright"`
+- focused: `pnpm exec cucumber-js --tags "not @captain and not @shipwright" --name "{scenario}"`
+- broad: `pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright"`
+- coverage: `pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright" --format usage`
+- step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval and not @shipwright" --format usage-json`
+- eval: `pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright"`
 - plank-inventory: `rg -n "@planks\(" src bin packages/*/src packages/*/index.ts`
 - typecheck: `pnpm exec tsc --noEmit`
 - lint: `pnpm exec biome check .`

@@ -198,7 +198,7 @@ class WriteCustodyShim implements OpenPluginShim {
 	}
 
 	/**
-	 * @planks("Then Estelle blocks the write")
+	 * @planks("Then the shim blocks the write")
 	 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain writes specs\"")
 	 * @planks("Then the block reason carries the Shipshape plugin's denial \"Production code belongs to Crew\"")
 	 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain-custodied or configuration artifact\"")
@@ -267,7 +267,7 @@ class WriteCustodyShim implements OpenPluginShim {
 	}
 
 	/**
-	 * @planks("Then Estelle blocks the read")
+	 * @planks("Then the shim blocks the read")
 	 * @planks("Then the block reason carries the Shipshape plugin's denial \"MUST NOT read CAPTAIN.md\"")
 	 */
 	checkReadSync(
