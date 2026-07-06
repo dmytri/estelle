@@ -62,22 +62,26 @@ They/them, gender-neutral. Voice is honour-system; names are where code bites. C
 
 ## Upstream, ~/shipshape, human-owned
 
-Refine only when piloting surfaces a need, under its own workflow. Pushed `0.8.6`: one-path-per-line `## Directories` with glob custody and the Shipwright refit — the pilot's first contribution. Estelle's tests clone `dmytri/shipshape` from github (now `0.8.6`); the Claude dev env runs the plugin from local `~/shipshape`.
+Refine only when piloting surfaces a need, under its own workflow. The `0.8.6` `## Directories` glob-custody and Shipwright refit was the pilot's first contribution. Estelle's tests clone `dmytri/shipshape` from github (now `0.9.0`); the Claude dev env runs the plugin from local `~/shipshape`.
 
-### 0.9.0 taxonomy pass, uncommitted in `~/shipshape` (2026-07-06)
+### 0.9.0 upstream, pushed (2026-07-06)
 
-A taxonomy pass sits in local `~/shipshape`, not yet pushed. Pick up if desired; the upstream is human-owned and refined under its own workflow.
+Upstream is `0.9.0`, committed and pushed. The 0.9.0 vocabulary: scantlings (machine-checkable, work-free constraints, Captain-authored, vendored read-only, gated Captain-only in `write-custody.sh`), the rigging (the config/toolchain `RIGGING.md` documents; Boatswain tends, Captain selects deps, Crew installs), the wake (`dist/` and other transient output, git-ignored, off-canon), the `implementation` to `plank-inventory` bind, and the per-target `## Outbound` shape. README now carries live-fire downstream to real agents, naming Estelle.
 
-- **Scantlings** — new durable kind for machine-readable testable specs (OpenAPI/JSON Schema/GraphQL), renamed from "standard contract". Creates no work; a scenario references it and asserts conformance. Captain authors, vendored read-only. Optional `scantlings:` `Directories` key; `write-custody.sh` now gates it Captain-only (new negative tests in `tests/hooks.sh`).
-- **Rigging** — the config/toolchain files `RIGGING.md` documents are "the rigging". Boatswain tends it, Captain selects dependencies, Crew installs. Matches Estelle's existing "Captain selects, Crew installs" rig.
-- **implementation ↔ plank-inventory bind** — `implementation:` lists every dir that can hold a planked seam; `plank-inventory` scans exactly those. **Fresh fix:** `bin/estelle.js` is planked but `bin` is absent from `implementation:` — refit adds it, or add now.
-- **Outbound fixed shape** — `## Outbound` is now per-target name / ship / verify against the live artifact. Refit reshapes Estelle's outbound (the `@dk/estelle` npm target).
-- **Wake** — transient build/verification output (`dist/`) is "the wake": git-ignored, off the canon layer.
-- **RIGGING grammar stated once** — `- key: value` per line, commands backticked, paths bare.
-- **Refit posture, no backward-compat** — Shipwright re-derives `RIGGING.md` to the current shape and drops superseded slots. Run `/shipwright` refit next harbour.
-- **README live-fire removed** — enforcement claims are now verified DOWNSTREAM on real coding agents, and Estelle is named as the example. This makes Estelle's live-fire-pilot charter explicit upstream; the Phase 3 methodology-check pilot is where that evidence is produced.
+Standing Estelle deltas, apply at next harbour refit (`/shipwright` re-derives to current shape and drops superseded slots):
 
-Version bumped `0.8.6 -> 0.9.0` (hooks + `shipshape.md` changed). Not yet pushed.
+- `bin/estelle.js` is planked but `bin` is absent from `implementation:` — refit adds it.
+- Reshape `## Outbound` to per-target name / ship / verify against the live artifact (the `@dk/estelle` npm target).
+
+### Structural-refactor pilot charter (Phase 3)
+
+Upstream `0.9.0` deliberately ships no refactoring engine, no smell catalogue, no refactor role. The README `Structural evolution` section states the proven position: trace instruments make drift visible, scantlings constrain approved structure, perturbation rebuilds, the project brings stack-native tools; Shipwright fit-out now derives quality gates and biases stack-native. Everything below is UNPROVEN and lives here until the pilot earns it upstream, same discipline as live-fire.
+
+- **The refit engine already composes, test this first.** Perturbation + scantlings + Shipwright-reports + narrow-Crew is bounded refit today, no new role. Captain perturbs a seam cluster against an approved scantling; it reddens; QM discovers; Crew rebuilds under the constraint. Prove or break this composition before proposing a Carpenter.
+- **Carpenter reserved, not built.** Ship's carpenter does running repairs at sea; shipwright builds in harbour. Cut the seat only if the pilot hits a wall where Crew-under-perturbation genuinely cannot carry a multi-seam refit and Boatswain should not.
+- **Smells, filtered trace-not-taste.** Doctrine-worthy only if it degrades the trace. Keep: the plank-distribution family as ONE smell, three directions (fat or unrelated-fat splits, over-split merges, scattered behaviour), plus scantling-mismatch, the one truly new load-bearing smell. Trace defects (missing, stale, unexercised plank) already exist upstream. Drop as taste: hidden behaviour, domain plus IO mix, high churn; Shipwright's craft, not Articles.
+- **Co-use guardrail, keep verbatim if any goes upstream.** A merge or over-split finding needs per-scenario co-use evidence, not full-run coverage. This is what stops "looks similar, merge it" becoming a work order.
+- **Tooling stays stack-local.** ts-morph, c8, cucumber usage-json, jscpd are pilot reference, never canon. Avoid JVM or enterprise tooling imported for popularity; bias stack-native. Generate candidate hotspots first, do not LLM the whole codebase.
 
 ## Parked
 
