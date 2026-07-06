@@ -58,7 +58,16 @@ They/them, gender-neutral. Voice is honour-system; names are where code bites. C
 2. **Flagship on the real foundation, write+read done.** Estelle enforces the plugin's real **write + read** custody via the shim (`checkWriteSync`/`checkReadSync`); message custody (only Captain addresses the operator) and the Captain write path (`evaluateWrite`) stay flagship. **Remaining: flagship `perturb` command — Option 1 script-tool, no MCP; Captain-gate + perturb are flagship-first, upstream later (the additive `captain` case pulls in perturbation-as-tool doctrine, a bigger commitment). Then salvage the flagship UX: personas, `/embark`, `/clear`, per-seat models, fitting-out.**
 3. **Methodology-check pilot, not started, the note's charter.** `/shipwright` refit to derive executable checks (watchbill shape, perturbation liveness, stale-plank join, forbidden-doubles, feature lint, tier auth probe), negative-test each (plant, confirm red, remove), report evidence. Was gated on a quiescent deck; now unblocked.
 
-**Immediate next: harbour pass** (deck quiescent, both repos pushed). Re-plank `evaluateWrite`'s 3 stale `@planks` (they name removed seat-write-scope step phrasings), add a `@planks` for `seat-write-scope.feature:43` "block reason names the Captain's write scope", and clear 3 pre-existing `noNonNullAssertion` biome warnings.
+**Harbour pass done** (commit `3342dc0`): re-based 5 stale `evaluateWrite`/`evaluateRead`/`selectSeat` `@planks` to live step text, removed the orphaned `packages/pi-shipshape` (line 22 already dropped it) plus its stale lockfile importer. The 3 `noNonNullAssertion` biome warnings are still open, deferred.
+
+**Runtime custody consolidation: done (commit `eb606e5`).** The running `pi.on("tool_call")` hook now gates write/read/bash through the plugin for internal seats and the flagship gate for the Captain, matching the method seams. Verification drives the real hook through `session.extensionRunner.emitToolCall` (`features/support/world.ts` `runningSessionToolCall`), so the three custody features falsify the gate on the seat's own tool call, not a test-facing method. The vacuous green and the `evaluateRead` read regression are both closed. Full `@logic` suite green, `tsc` clean, no perturbation in production.
+
+**Harbour drift, for the next `/shipwright` pass; none breaks verification:**
+- The `EstelleSession` method seams now duplicate custody the hook owns. `session.command()` (added this voyage) is driven by no scenario; `session.read()` by none; `session.write()` only by an excluded `@eval` scenario. Decide per method: retire the seam, or restore real coverage. One custody path is the goal.
+- Stale `@planks` from the reword: about 10 in-voyage annotations point at deleted `Estelle ...` step text, entangled with the method-seam decision above; plus about 6 pre-existing stale planks on unrelated seams.
+- 3 deferred `noNonNullAssertion` biome warnings still open.
+
+Harbour is blocked until outbound clears: `main` is ahead of `origin/main` by the two custody commits. Push or abandon before the harbour pass begins.
 
 ## Upstream, ~/shipshape, human-owned
 
