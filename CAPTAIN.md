@@ -64,6 +64,21 @@ They/them, gender-neutral. Voice is honour-system; names are where code bites. C
 
 Refine only when piloting surfaces a need, under its own workflow. Pushed `0.8.6`: one-path-per-line `## Directories` with glob custody and the Shipwright refit — the pilot's first contribution. Estelle's tests clone `dmytri/shipshape` from github (now `0.8.6`); the Claude dev env runs the plugin from local `~/shipshape`.
 
+### 0.9.0 taxonomy pass, uncommitted in `~/shipshape` (2026-07-06)
+
+A taxonomy pass sits in local `~/shipshape`, not yet pushed. Pick up if desired; the upstream is human-owned and refined under its own workflow.
+
+- **Scantlings** — new durable kind for machine-readable testable specs (OpenAPI/JSON Schema/GraphQL), renamed from "standard contract". Creates no work; a scenario references it and asserts conformance. Captain authors, vendored read-only. Optional `scantlings:` `Directories` key; `write-custody.sh` now gates it Captain-only (new negative tests in `tests/hooks.sh`).
+- **Rigging** — the config/toolchain files `RIGGING.md` documents are "the rigging". Boatswain tends it, Captain selects dependencies, Crew installs. Matches Estelle's existing "Captain selects, Crew installs" rig.
+- **implementation ↔ plank-inventory bind** — `implementation:` lists every dir that can hold a planked seam; `plank-inventory` scans exactly those. **Fresh fix:** `bin/estelle.js` is planked but `bin` is absent from `implementation:` — refit adds it, or add now.
+- **Outbound fixed shape** — `## Outbound` is now per-target name / ship / verify against the live artifact. Refit reshapes Estelle's outbound (the `@dk/estelle` npm target).
+- **Wake** — transient build/verification output (`dist/`) is "the wake": git-ignored, off the canon layer.
+- **RIGGING grammar stated once** — `- key: value` per line, commands backticked, paths bare.
+- **Refit posture, no backward-compat** — Shipwright re-derives `RIGGING.md` to the current shape and drops superseded slots. Run `/shipwright` refit next harbour.
+- **README live-fire removed** — enforcement claims are now verified DOWNSTREAM on real coding agents, and Estelle is named as the example. This makes Estelle's live-fire-pilot charter explicit upstream; the Phase 3 methodology-check pilot is where that evidence is produced.
+
+Version bumped `0.8.6 -> 0.9.0` (hooks + `shipshape.md` changed). Not yet pushed.
+
 ## Parked
 
 The pre-reorientation live-crew stack (`/embark` alongside crew loop, heartbeat, narration, report-back) sits on `main` under the reorientation commits. Its custody guts are wrong and get replaced; its product surface (personas, `/embark`, `/clear`, per-seat models, fitting-out) is the Phase 3 salvage.
