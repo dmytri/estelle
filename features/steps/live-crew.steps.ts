@@ -105,7 +105,7 @@ interface InteractiveHandleView {
 		boatswain: boolean;
 	};
 	crewLoopTargetsAllGreen(): boolean;
-	// Slice 7: Bonny embarks from her own turn. The embark seam is a real
+	// Slice 7: Bonny embarks from their own turn. The embark seam is a real
 	// Captain-seat tool the seated model can call, not an operator command.
 	// captainTools lists the tools registered on Bonny's Captain seat; each run()
 	// invokes the real registered tool the way the seated model would. The
@@ -473,7 +473,7 @@ Given(
 		// Record the eval model as both the crew's Quartermaster seat model and
 		// Bonny's Captain seat model, then relaunch so the crew session and Bonny's
 		// narration both run against the live model. Bonny voices the handoff line,
-		// so her Captain seat needs the model too, not the Quartermaster seat alone.
+		// so their Captain seat needs the model too, not the Quartermaster seat alone.
 		writeFileSync(
 			join(this.agentDir!, "estelle.json"),
 			JSON.stringify({
@@ -495,7 +495,7 @@ Given(
 );
 
 Then(
-	"Bonny's narration for the handoff carries a live line in her voice",
+	"Bonny's narration for the handoff carries a live line in their voice",
 	function (this: EstelleWorld) {
 		// A live line is real text Bonny's model voiced for the handoff, not a
 		// static template. Require the recorded QM -> Crew narration line to be the
@@ -518,7 +518,7 @@ Then(
 			.filter((text) => text.trim().length > 0);
 		assert.ok(
 			bonnyReplies.includes(entry.line),
-			`Bonny's narration line was not voiced by her live model; line: ${JSON.stringify(
+			`Bonny's narration line was not voiced by their live model; line: ${JSON.stringify(
 				entry.line,
 			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
 		);
@@ -596,7 +596,7 @@ Then(
 			.filter((text) => text.trim().length > 0);
 		assert.ok(
 			bonnyReplies.includes(report.summary),
-			`Bonny's crew-run summary was not voiced by her live model; summary: ${JSON.stringify(
+			`Bonny's crew-run summary was not voiced by their live model; summary: ${JSON.stringify(
 				report.summary,
 			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
 		);
@@ -900,7 +900,7 @@ Then(
 			.filter((text) => text.trim().length > 0);
 		assert.ok(
 			bonnyReplies.includes(report.summary),
-			`Bonny's crew-run summary was not voiced by her live model; summary: ${JSON.stringify(
+			`Bonny's crew-run summary was not voiced by their live model; summary: ${JSON.stringify(
 				report.summary,
 			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
 		);

@@ -183,12 +183,12 @@ Given(
 	},
 );
 
-// Bonny takes a neutral operator turn. The reset nudge is already in her session
-// context, so a live Bonny must decide, on her own, whether to offer a fresh
+// Bonny takes a neutral operator turn. The reset nudge is already in their session
+// context, so a live Bonny must decide, on their own, whether to offer a fresh
 // context. The prompt names no reset, so any fresh-context offer comes from the
-// nudge she honours, not from the prompt wording.
+// nudge they honour, not from the prompt wording.
 When(
-	"Bonny takes her next turn",
+	"Bonny takes their next turn",
 	{ timeout: 180000 },
 	async function (this: EstelleWorld) {
 		await startedSession(this).sendUserMessage("Aye, that batch is pushed.");
@@ -204,7 +204,7 @@ Then(
 			.filter((text) => text.trim().length > 0);
 		assert.ok(
 			replies.length > 0,
-			"Bonny produced no live assistant reply on her next turn",
+			"Bonny produced no live assistant reply on their next turn",
 		);
 		const reply = replies[replies.length - 1];
 		const offersFresh =
@@ -213,7 +213,7 @@ Then(
 			);
 		assert.ok(
 			offersFresh,
-			`Bonny did not offer the operator a fresh context for the next batch; her reply: ${JSON.stringify(
+			`Bonny did not offer the operator a fresh context for the next batch; their reply: ${JSON.stringify(
 				reply,
 			)}`,
 		);
