@@ -129,6 +129,13 @@ When(
 	"the operator runs the {string} command in the started session",
 	async function (this: EstelleWorld, command: string) {
 		const runtime = this.interactiveSession!.runtime as RuntimeView;
+		// Record the running session object the operator talks to before the switch,
+		// so a seat-switch scenario can observe whether the switch recreated it.
+		(
+			this as unknown as { sessionBeforeCommand?: unknown }
+		).sessionBeforeCommand = (
+			this.interactiveSession!.runtime as { session: unknown }
+		).session;
 		const name = command.replace(/^\//, "");
 		let handler: RegisteredCommandView["handler"] | undefined;
 		for (const ext of runtime.services.resourceLoader.getExtensions()

@@ -296,6 +296,8 @@ function evaluateRead(
  * @planks("Then the started session's message history excludes the operator's message \"make the greeting warmer\"")
  * @planks("Then the started session stays seated as the Captain \"Bonny\"")
  * @planks("Then the started session carries no greeting before the operator speaks")
+ * @planks("When the operator runs the \"/bellamy\" command in the started session")
+ * @planks("Then the interactive session the operator talks to is a fresh session seated as the Boatswain \"Bellamy\"")
  */
 function createEstelleExtension(
 	state: EstelleState,
@@ -310,6 +312,7 @@ function createEstelleExtension(
 				description: `Switch to the ${SEATS[id].role} ${SEATS[id].name} seat`,
 				handler: async () => {
 					state.activeSeat = SEATS[id];
+					await state.runtime?.newSession();
 				},
 			});
 		}
@@ -840,6 +843,10 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
  * @planks("When the crew session runs a turn")
  * @planks("Then the crew session received a live reply from the Quartermaster's model")
  * @planks("Then the crew session's heartbeat reflected live activity during the run")
+ * @planks("Then the interactive session the operator talks to is a fresh session seated as the Boatswain \"Bellamy\"")
+ * @planks("Then that session's system prompt includes the \"bellamy\" character card")
+ * @planks("Then that session's system prompt includes the upstream \"boatswain\" role instructions")
+ * @planks("Then that session's system prompt excludes the \"bonny\" character card")
  */
 export async function run(options?: RunOptions): Promise<void> {
 	if (options?.argv?.length) {
@@ -900,6 +907,10 @@ export async function run(options?: RunOptions): Promise<void> {
 		join(skillsRoot, "find-skills", "SKILL.md"),
 	];
 
+	const seatBaseAppend = (seat: Seat, runtimeCwd: string): string =>
+		seatSystemPrompt("", seat, runtimeCwd, {
+			[seat.skill]: join(shipshapePluginDir, "skills", seat.skill, "SKILL.md"),
+		});
 	const buildRuntime = (runtimeState: EstelleState) =>
 		createAgentSessionRuntime(
 			async ({ cwd: runtimeCwd, sessionManager, sessionStartEvent }) => {
@@ -916,6 +927,9 @@ export async function run(options?: RunOptions): Promise<void> {
 							),
 						],
 						additionalSkillPaths,
+						appendSystemPrompt: [
+							seatBaseAppend(runtimeState.activeSeat, runtimeCwd),
+						],
 						noExtensions: false,
 					},
 				});
