@@ -201,3 +201,35 @@ Feature: Embarking runs the crew alongside Bonny
     Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live
     And the crew loop ended with every target green
     And Bonny's crew-run report carries a live summary of the run
+
+  # Slice 8: the alongside experience in the real run. The loop-driving,
+  # narration, and report-back must live in Estelle's core, triggered by embark,
+  # so they reach the operator's own session on the real run and not only through
+  # a test-supplied interactive callback. The operator stays seated as Bonny, who
+  # narrates the crew's progress; Bonny embarks the crew rather than sending the
+  # operator to a role command.
+
+  Scenario: Embarking narrates the crew's progress into the operator's session
+    Given a started Estelle session seated as the Captain "Bonny"
+    And the Quartermaster's verdict reports all targets green
+    When Bonny embarks the batch from their turn
+    Then the started session receives the crew's narration as the crew runs
+    And the started session receives Bonny's report when the run ends
+    And the started session stays seated as the Captain "Bonny"
+
+  @eval
+  Scenario: A live embark narrates the crew's run to the operator
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew and Bonny
+    And a target that is red until the Crew fixes it
+    When Bonny embarks the batch from their turn
+    Then the started session shows live narration of the crew's run
+    And the started session shows Bonny's report of the completed run
+
+  @eval
+  Scenario: Bonny embarks the crew instead of sending the operator to a role command
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for Bonny
+    And the operator has confirmed a batch of intent to Bonny
+    When Bonny takes their next turn
+    Then Bonny embarks the crew rather than instructing the operator to run a role command
