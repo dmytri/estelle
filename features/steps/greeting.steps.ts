@@ -90,25 +90,6 @@ Given(
 );
 
 Given(
-	"an operator directory whose Bonny greeting asset reads {string}",
-	function (this: EstelleWorld, greeting: string) {
-		// A disposable operator workspace carrying the full Estelle assets so launch
-		// resolves its roster, characters, and skills, with the Bonny greeting asset
-		// overwritten to the operator-owned text this scenario pins. The started
-		// session must open with this asset content, not a built-in string.
-		this.workspaceDir ??= mkdtempSync(join(tmpdir(), "estelle-operator-"));
-		cpSync(join(process.cwd(), "assets"), join(this.workspaceDir, "assets"), {
-			recursive: true,
-		});
-		writeFileSync(
-			join(this.workspaceDir, "assets", "greeting.md"),
-			greeting,
-			"utf8",
-		);
-	},
-);
-
-Given(
 	"an operator directory whose Bonny fitting-out steer asset reads {string}",
 	function (this: EstelleWorld, steer: string) {
 		// A disposable operator workspace carrying the full Estelle assets so launch
@@ -133,18 +114,6 @@ Given(
 );
 
 Then(
-	"Bonny opens the session with a greeting before the operator speaks",
-	function (this: EstelleWorld) {
-		const opening = openingMessages(this);
-		const greeting = opening.find((m) => messageText(m).trim().length > 0);
-		assert.ok(
-			greeting,
-			"started session carries no operator-visible message before the operator speaks",
-		);
-	},
-);
-
-Then(
 	"Bonny begins their Captain opening turn before the operator speaks",
 	function (this: EstelleWorld) {
 		// A Captain opening turn drives the model: it fires a provider request, the
@@ -163,22 +132,6 @@ Then(
 		assert.ok(
 			handle.providerRequestCount!() > 0,
 			"Bonny drove no provider request before the operator spoke: startup posted a canned message rather than actuating a Captain opening turn",
-		);
-	},
-);
-
-Then(
-	"Bonny opens the session with the greeting {string}",
-	function (this: EstelleWorld, greeting: string) {
-		const opening = openingMessages(this);
-		const match = opening.find(
-			(m) => messageText(m).trim() === greeting.trim(),
-		);
-		assert.ok(
-			match,
-			`started session did not open with the greeting ${JSON.stringify(
-				greeting,
-			)}; opening messages: ${JSON.stringify(opening.map(messageText))}`,
 		);
 	},
 );
