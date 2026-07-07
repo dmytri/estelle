@@ -233,3 +233,32 @@ Feature: Embarking runs the crew alongside Bonny
     And the operator has confirmed a batch of intent to Bonny
     When Bonny takes their next turn
     Then Bonny embarks the crew rather than instructing the operator to run a role command
+
+  # Slice 9: a manual role command invokes that role into an isolated session
+  # alongside, the same mechanism as embark, rather than switching the operator's
+  # seat. The operator stays seated with Bonny, who narrates. The isolated role
+  # starts with clean context, so it proceeds rather than refusing the
+  # Captain-to-role bulkhead. This replaces switching the operator's own seat to
+  # an internal role.
+
+  Scenario: A manual role command dispatches the role alongside, keeping the operator with Bonny
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/qm" command in the started session
+    Then a crew session opens alongside the started session
+    And the crew session is seated as the Quartermaster "Misson"
+    And the started session stays seated as the Captain "Bonny"
+
+  Scenario: A manually dispatched role starts with clean context
+    Given a started Estelle session carrying the operator's message "make the greeting warmer" to Bonny
+    When the operator runs the "/qm" command in the started session
+    Then the crew session opens alongside the started session
+    And the crew session's message history excludes the operator's message "make the greeting warmer"
+
+  @eval
+  Scenario: A manually invoked Quartermaster proceeds instead of refusing for unclean context
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew and Bonny
+    And the operator has discussed intent with Bonny in the started session
+    When the operator runs the "/qm" command in the started session
+    And the alongside Quartermaster takes a turn
+    Then the alongside Quartermaster does not refuse for unclean context
