@@ -1282,13 +1282,13 @@ Then(
 			reply !== undefined && reply.trim().length > 0,
 			"the alongside Quartermaster produced no live reply to inspect; the turn drove no live model reply",
 		);
-		// The Quartermaster's context-bulkhead refusal names Captain context as
-		// visible and asks for clear context before proceeding. An isolated session
-		// opens with clean context, so a live Quartermaster proceeds and voices no
-		// such refusal. A refusal here is evidence the alongside session inherited
-		// the operator's discovery context.
+		// The Quartermaster's context-bulkhead refusal DEMANDS clear context before
+		// proceeding ("Need clear context, then QM"). An isolated session opens with
+		// clean context, so a live Quartermaster proceeds. Match the demand, not a
+		// bare mention of Captain context: the proceed voice says "No Captain
+		// context visible. Proceeding.", which must not read as a refusal.
 		const refusal =
-			/unclean context|captain context (is )?visible|need (a )?clear context/i;
+			/(need|require)s? (a |the )?(clean|clear) context|context (is )?not clean|unclean context/i;
 		assert.ok(
 			!refusal.test(reply),
 			`the alongside Quartermaster refused for unclean context instead of proceeding; reply: ${JSON.stringify(
