@@ -28,6 +28,7 @@ export class EstelleWorld extends World {
 	requestedSeatModel?: string;
 	commands?: string[];
 	commandRun?: boolean;
+	scannedFiles?: string[];
 	result?: { allowed: boolean; reason?: string; contents?: string };
 	interactiveSession?: {
 		runtime: unknown;
