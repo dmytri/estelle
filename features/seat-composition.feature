@@ -36,3 +36,32 @@ Feature: Seat commands and composition
   Scenario: Estelle does not vendor the upstream Shipshape role instructions
     Given Estelle has launched
     Then the upstream Shipshape role instructions resolve from outside the Estelle repository
+
+  # A command switch must re-seat the running model, not only flip the custody
+  # seat. The scenarios above pin the composed prompt for a seat set directly;
+  # these pin that a real /command switch reaches the running session's next
+  # turn, so the seated model actually becomes its character.
+
+  Scenario: A command switch re-seats the running model on its next turn
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/bellamy" command in the started session
+    And the seated model begins its next turn
+    Then the system prompt applied to the turn includes the "bellamy" character card
+    And the system prompt applied to the turn includes the upstream "boatswain" role instructions
+    But the system prompt applied to the turn excludes the "bonny" character card
+
+  # Every seat carries the crew roster so a seat knows its crewmates by name and
+  # role, and the Captain knows who they dispatch to.
+
+  Scenario: Every seat carries the crew roster
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the seated model begins its next turn
+    Then the system prompt applied to the turn names the Captain "Bonny", the Quartermaster "Misson", the Crew, the Boatswain "Bellamy", and the Shipwright "Johnson"
+
+  @eval
+  Scenario: A switched seat speaks as its own character
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the seat
+    When the operator runs the "/bellamy" command in the started session
+    And the operator asks the seated model "state your seat and name"
+    Then the seated model's live reply names the Boatswain "Bellamy"
