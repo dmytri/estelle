@@ -25,5 +25,5 @@ Feature: Captain reset nudge
     Given a started Estelle session seated as the Captain "Bonny"
     And a live eval model is configured for Bonny
     When an outbound command runs in the started session and the Shipshape captain-reset-nudge fires
-    And Bonny takes her next turn
+    And Bonny takes their next turn
     Then Bonny offers the operator a fresh context for the next batch

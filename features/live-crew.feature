@@ -80,7 +80,7 @@ Feature: Embarking runs the crew alongside Bonny
   # Slice 4: handoff narration. One small Bonny call per seat handoff, voiced
   # off the completed seat's work, is the paid colour over the free heartbeat.
   # @logic pins that a handoff records a narration for the transition; @eval
-  # pins that Bonny voices a real line in her own voice at the handoff.
+  # pins that Bonny voices a real line in their own voice at the handoff.
 
   Scenario: A handoff records a narration for the seat transition
     Given a started Estelle session seated as the Captain "Bonny"
@@ -95,10 +95,10 @@ Feature: Embarking runs the crew alongside Bonny
     When the operator runs the "/embark" command in the started session
     And the crew session runs a turn
     When Estelle hands the crew off from the Quartermaster to the Crew
-    Then Bonny's narration for the handoff carries a live line in her voice
+    Then Bonny's narration for the handoff carries a live line in their voice
 
   # Slice 5: report-back. When the crew's run ends, Estelle summarizes the
-  # result back into Bonny's session so she can speak to what shipped, while the
+  # result back into Bonny's session so they can speak to what shipped, while the
   # firewall holds: Bonny receives the distilled summary, never the crew's raw
   # context. @logic pins the report seam and the firewall; @eval pins a real
   # model summary of the crew's work.
@@ -171,15 +171,15 @@ Feature: Embarking runs the crew alongside Bonny
     And the crew loop ended with every target green
     And Bonny's crew-run report carries a live summary of the run
 
-  # Slice 7: Bonny embarks from her own turn, and embark drives the whole loop.
+  # Slice 7: Bonny embarks from their own turn, and embark drives the whole loop.
   # Until now the loop ran only when the test harness drove the interactive
   # handle; the operator's real run must drive it from embark itself, and Bonny
-  # must embark from her own turn rather than the operator typing /embark. The
+  # must embark from their own turn rather than the operator typing /embark. The
   # conversation with Bonny stays live while the crew runs.
 
-  Scenario: Bonny embarks the batch from her own turn
+  Scenario: Bonny embarks the batch from their own turn
     Given a started Estelle session seated as the Captain "Bonny"
-    When Bonny embarks the batch from her turn
+    When Bonny embarks the batch from their turn
     Then a crew session opens alongside the started session
     And the crew session is seated as the Quartermaster "Misson"
     And the started session stays seated as the Captain "Bonny"
@@ -187,16 +187,16 @@ Feature: Embarking runs the crew alongside Bonny
   Scenario: Embark drives the crew loop to completion, not only opens the crew session
     Given a started Estelle session seated as the Captain "Bonny"
     And the Quartermaster's verdict reports all targets green
-    When Bonny embarks the batch from her turn
+    When Bonny embarks the batch from their turn
     Then Estelle runs the crew loop to completion without a further operator step
     And the crew run is reported back into Bonny's session
 
   @eval
-  Scenario: A live Bonny embark runs the crew loop to green from her own turn
+  Scenario: A live Bonny embark runs the crew loop to green from their own turn
     Given a started Estelle session seated as the Captain "Bonny"
     And a live eval model is configured for the crew and Bonny
     And a target that is red until the Crew fixes it
-    When Bonny embarks the batch from her turn
+    When Bonny embarks the batch from their turn
     And Estelle runs the crew loop to completion
     Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live
     And the crew loop ended with every target green
