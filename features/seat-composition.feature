@@ -37,18 +37,24 @@ Feature: Seat commands and composition
     Given Estelle has launched
     Then the upstream Shipshape role instructions resolve from outside the Estelle repository
 
-  # A command switch must re-seat the running model, not only flip the custody
-  # seat. The scenarios above pin the composed prompt for a seat set directly;
-  # these pin that a real /command switch reaches the running session's next
-  # turn, so the seated model actually becomes its character.
+  # A command switch must re-seat the running interactive session, not only flip
+  # the custody seat. The seat prompt is composed once, when the session is
+  # created (the before_agent_start seam); the interactive TUI runs one session
+  # and never recreates it on a switch, so today the seated model keeps the
+  # launch seat's identity. The switch must recreate the interactive session for
+  # the new seat, the way beginTurn already does. Verification MUST observe the
+  # running interactive session the TUI uses, never a manual emit of the
+  # composing hook and never the systemPrompt() recompute accessor: both pass
+  # while the live model stays the launch seat. The @eval identity scenario is
+  # the load-bearing proof.
 
-  Scenario: A command switch re-seats the running model on its next turn
+  Scenario: A command switch recreates the interactive session for the new seat
     Given a started Estelle session seated as the Captain "Bonny"
     When the operator runs the "/bellamy" command in the started session
-    And the seated model begins its next turn
-    Then the system prompt applied to the turn includes the "bellamy" character card
-    And the system prompt applied to the turn includes the upstream "boatswain" role instructions
-    But the system prompt applied to the turn excludes the "bonny" character card
+    Then the interactive session the operator talks to is a fresh session seated as the Boatswain "Bellamy"
+    And that session's system prompt includes the "bellamy" character card
+    And that session's system prompt includes the upstream "boatswain" role instructions
+    But that session's system prompt excludes the "bonny" character card
 
   # Every seat carries the crew roster so a seat knows its crewmates by name and
   # role, and the Captain knows who they dispatch to.
