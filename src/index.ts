@@ -295,12 +295,12 @@ function evaluateRead(
  * @planks("When the operator runs the \"/misson\" command in the started session")
  * @planks("Then the started session's active seat is the Quartermaster \"Misson\"")
  * @planks("When the operator runs the \"/embark\" command in the started session")
+ * @planks("When the operator runs the \"/qm\" command in the started session")
  * @planks("When the operator runs the \"/clear\" command in the started session")
  * @planks("Then the started session's message history excludes the operator's message \"make the greeting warmer\"")
  * @planks("Then the started session stays seated as the Captain \"Bonny\"")
  * @planks("Then the started session carries no greeting before the operator speaks")
  * @planks("When the operator runs the \"/bellamy\" command in the started session")
- * @planks("Then the interactive session the operator talks to is a fresh session seated as the Boatswain \"Bellamy\"")
  */
 function createEstelleExtension(
 	state: EstelleState,
@@ -322,6 +322,13 @@ function createEstelleExtension(
 		pi.registerCommand("embark", {
 			description:
 				"Embark the batch: open a crew session alongside seated as the Quartermaster Misson",
+			handler: async () => {
+				await state.openCrewSession?.();
+			},
+		});
+		pi.registerCommand("qm", {
+			description:
+				"Dispatch the Quartermaster Misson in a crew session alongside, keeping you seated with Bonny",
 			handler: async () => {
 				await state.openCrewSession?.();
 			},
@@ -934,7 +941,6 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
  * @planks("When the crew session runs a turn")
  * @planks("Then the crew session received a live reply from the Quartermaster's model")
  * @planks("Then the crew session's heartbeat reflected live activity during the run")
- * @planks("Then the interactive session the operator talks to is a fresh session seated as the Boatswain \"Bellamy\"")
  * @planks("Then that session's system prompt includes the \"bellamy\" character card")
  * @planks("Then that session's system prompt includes the upstream \"boatswain\" role instructions")
  * @planks("Then that session's system prompt excludes the \"bonny\" character card")

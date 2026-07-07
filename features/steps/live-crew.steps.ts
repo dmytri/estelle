@@ -1200,3 +1200,100 @@ Then(
 		);
 	},
 );
+
+// Slice 9: a manual role command dispatches the role alongside with clean
+// context. The operator discusses intent with Bonny in the started session, then
+// runs /qm. The alongside Quartermaster session opens isolated from the operator's
+// discovery, so a live Quartermaster turn proceeds instead of refusing for
+// unclean context. The refusal check reads the alongside session's real reply.
+
+Given(
+	"the operator has discussed intent with Bonny in the started session",
+	// Settling Bonny's live opening turn to idle can outlast cucumber's 5000ms
+	// default, so this step carries a live-run budget.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		// Seed the operator's discovery into Bonny's own started session as a real
+		// user message without triggering a turn. Human discovery context now lives
+		// in the operator's Captain session, ready for the alongside dispatch to
+		// isolate the Quartermaster from.
+		const session = operatorSession(this);
+		await settleOperatorTurn(session);
+		await session.sendUserMessage(
+			"I have been thinking the greeting is too cold. Let us make it warmer and friendlier for new operators.",
+			{ triggerTurn: false },
+		);
+	},
+);
+
+When(
+	"the alongside Quartermaster takes a turn",
+	// A live provider turn on the alongside Quartermaster seat needs the live-step
+	// budget its sibling live steps carry, not cucumber's 5000ms default.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		const crew = crewSession(this);
+		const session = crew.runtime.session as unknown as SessionView;
+		// Drive a real turn on the alongside Quartermaster session and wait for the
+		// seated model's live reply. The Quartermaster's own instructions govern
+		// whether it proceeds or refuses for unclean context, so the prompt opens
+		// the turn without steering that decision. Resolve as soon as a live reply
+		// lands or the turn settles.
+		await new Promise<void>((resolve) => {
+			let done = false;
+			const finish = () => {
+				if (done) {
+					return;
+				}
+				done = true;
+				unsubscribe();
+				resolve();
+			};
+			const unsubscribe = session.subscribe(() => {
+				const gotReply = session.messages.some(
+					(m) => m.role === "assistant" && messageText(m).trim().length > 0,
+				);
+				if (gotReply) {
+					finish();
+				}
+			});
+			session
+				.sendUserMessage(
+					"You have been dispatched as the Quartermaster. Take your first turn now and state how you proceed. Reply with plain text only. Do not call any tools.",
+				)
+				.then(finish, finish);
+		});
+		await session.abort();
+		(this as unknown as { alongsideQmReply?: string }).alongsideQmReply =
+			session.messages
+				.filter((m) => m.role === "assistant")
+				.map(messageText)
+				.filter((text) => text.trim().length > 0)
+				.pop();
+	},
+);
+
+Then(
+	"the alongside Quartermaster does not refuse for unclean context",
+	function (this: EstelleWorld) {
+		const reply = (this as unknown as { alongsideQmReply?: string })
+			.alongsideQmReply;
+		assert.ok(
+			reply !== undefined && reply.trim().length > 0,
+			"the alongside Quartermaster produced no live reply to inspect; the turn drove no live model reply",
+		);
+		// The Quartermaster's context-bulkhead refusal names Captain context as
+		// visible and asks for clear context before proceeding. An isolated session
+		// opens with clean context, so a live Quartermaster proceeds and voices no
+		// such refusal. A refusal here is evidence the alongside session inherited
+		// the operator's discovery context.
+		const refusal =
+			/unclean context|captain context (is )?visible|need (a )?clear context/i;
+		assert.ok(
+			!refusal.test(reply),
+			`the alongside Quartermaster refused for unclean context instead of proceeding; reply: ${JSON.stringify(
+				reply,
+			)}`,
+		);
+	},
+);
