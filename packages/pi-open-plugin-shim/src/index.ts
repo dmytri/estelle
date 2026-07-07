@@ -26,6 +26,11 @@ export interface OpenPluginShim {
 		role: string | undefined,
 		path: string,
 	): Promise<WriteCustodyDecision>;
+	runPostToolUse(
+		toolName: string,
+		toolInput: Record<string, string>,
+		projectDir?: string,
+	): Promise<{ output: string }>;
 	checkReadSync(
 		role: string | undefined,
 		path: string,
@@ -159,24 +164,31 @@ class WriteCustodyShim implements OpenPluginShim {
 	async runPostToolUse(
 		toolName: string,
 		toolInput: Record<string, string>,
+		projectDir?: string,
 	): Promise<{ output: string }> {
 		const payload = JSON.stringify({
 			tool_name: toolName,
 			tool_input: toolInput,
+			cwd: projectDir,
 		});
+		const cwd = projectDir ?? this.pluginDir;
 		let output = "";
 		for (const entry of this.postToolUse) {
 			if (!matcherMatchesTool(entry.matcher, toolName)) {
 				continue;
 			}
 			for (const hook of entry.hooks) {
-				// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
-				const resolved = hook.command.replace("${PLUGIN_ROOT}", this.pluginDir);
+				const resolved = hook.command
+					// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
+					.replace("${PLUGIN_ROOT}", this.pluginDir)
+					// biome-ignore lint/suspicious/noTemplateCurlyInString: the Claude-format plugin root token the installed plugin uses
+					.replace("${CLAUDE_PLUGIN_ROOT}", this.pluginDir);
+				const unquoted = resolved.replace(/^"(.*)"$/, "$1");
 				const hookPath =
-					resolved === hook.command
+					unquoted === hook.command
 						? join(this.pluginDir, hook.command)
-						: resolved;
-				const { stdout } = await runHook(hookPath, this.pluginDir, payload);
+						: unquoted;
+				const { stdout } = await runHook(hookPath, cwd, payload);
 				output += stdout;
 			}
 		}

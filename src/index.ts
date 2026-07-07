@@ -410,6 +410,38 @@ function createEstelleExtension(
 				}
 			}
 		});
+		/**
+		 * @planks("When an outbound command runs in the started session and the Shipshape captain-reset-nudge fires")
+		 * @planks("Then the reset nudge's guidance is delivered into Bonny's session context")
+		 * @planks("When a non-outbound command runs in the started session")
+		 * @planks("Then no reset nudge guidance is delivered into Bonny's session context")
+		 */
+		pi.on("tool_result", async (event) => {
+			if (event.toolName !== "bash") {
+				return;
+			}
+			const { output } = await custody.runPostToolUse(
+				"bash",
+				event.input as Record<string, string>,
+				cwd,
+			);
+			const trimmed = output.trim();
+			if (trimmed.length === 0) {
+				return;
+			}
+			const parsed = JSON.parse(trimmed) as {
+				hookSpecificOutput?: { additionalContext?: string };
+			};
+			const additionalContext = parsed.hookSpecificOutput?.additionalContext;
+			if (!additionalContext) {
+				return;
+			}
+			await state.runtime?.session.sendCustomMessage({
+				customType: "shipshape-reset-nudge",
+				content: additionalContext,
+				display: true,
+			});
+		});
 	};
 }
 
