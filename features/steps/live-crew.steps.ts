@@ -1127,18 +1127,41 @@ Then(
 // scenario's own prior steps establish, so this scenario reuses them.
 
 Given(
-	"the operator has confirmed a batch of intent to Bonny",
+	"the project carries a batch of specs ready for the crew to build",
+	function (this: EstelleWorld) {
+		// Seed a real Shipshape project with a ready spec into the workspace BEFORE
+		// the session launches, so Bonny surveys a coherent, actionable batch rather
+		// than an empty directory. Embark is the sensible next act only when there
+		// is a confirmed batch for the crew to build; on an empty workspace Bonny
+		// correctly returns to discovery instead.
+		this.workspaceDir ??= mkdtempSync(join(tmpdir(), "estelle-live-crew-"));
+		writeFileSync(
+			join(this.workspaceDir, "RIGGING.md"),
+			"# Rigging\n\n## Stack\n\n- language: typescript\n",
+			"utf8",
+		);
+		const featuresDir = join(this.workspaceDir, "features");
+		mkdirSync(featuresDir, { recursive: true });
+		writeFileSync(
+			join(featuresDir, "greeting.feature"),
+			"@logic\nFeature: Warm greeting\n\n  Scenario: The store greets the customer warmly\n    Given a customer opens the store\n    When the greeting renders\n    Then it welcomes them with a warm line\n",
+			"utf8",
+		);
+	},
+);
+
+Given(
+	"the operator confirms the batch is right and tells Bonny to ship it",
 	// Settling Bonny's live opening turn to idle can outlast cucumber's 5000ms
 	// default, so this step carries a live-run budget.
 	{ timeout: 600000 },
 	async function (this: EstelleWorld) {
-		// Seed the operator's confirmation into Bonny's own session as a real user
-		// message, without triggering a turn. The batch of intent is now confirmed and
-		// waiting in Bonny's history; the next step drives Bonny's turn off it.
+		// A coherent confirmation on the seeded, actionable batch: the spec is ready
+		// and the operator says proceed. Bonny's sensible next act is to embark.
 		const session = operatorSession(this);
 		await settleOperatorTurn(session);
 		await session.sendUserMessage(
-			"Yes, that is exactly what I want. Please make the greeting warmer and ship it.",
+			"Yes, that greeting spec is exactly what I want. Build it and ship it.",
 			{ triggerTurn: false },
 		);
 	},

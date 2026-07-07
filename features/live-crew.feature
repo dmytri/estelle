@@ -229,8 +229,9 @@ Feature: Embarking runs the crew alongside Bonny
   @eval
   Scenario: Bonny embarks the crew instead of sending the operator to a role command
     Given a started Estelle session seated as the Captain "Bonny"
+    And the project carries a batch of specs ready for the crew to build
     And a live eval model is configured for Bonny
-    And the operator has confirmed a batch of intent to Bonny
+    And the operator confirms the batch is right and tells Bonny to ship it
     When Bonny takes their next turn
     Then Bonny embarks the crew rather than instructing the operator to run a role command
 
