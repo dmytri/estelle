@@ -37,16 +37,13 @@ Feature: Seat commands and composition
     Given Estelle has launched
     Then the upstream Shipshape role instructions resolve from outside the Estelle repository
 
-  # A command switch must re-seat the running interactive session, not only flip
-  # the custody seat. The seat prompt is composed once, when the session is
-  # created (the before_agent_start seam); the interactive TUI runs one session
-  # and never recreates it on a switch, so today the seated model keeps the
-  # launch seat's identity. The switch must recreate the interactive session for
-  # the new seat, the way beginTurn already does. Verification MUST observe the
-  # running interactive session the TUI uses, never a manual emit of the
-  # composing hook and never the systemPrompt() recompute accessor: both pass
-  # while the live model stays the launch seat. The @eval identity scenario is
-  # the load-bearing proof.
+  # A command switch re-seats the running interactive session: it recreates the
+  # session for the new seat and composes that seat's prompt into the base, so
+  # the seated model presents the new seat's identity and drops the old seat's
+  # context. Verification observes the running interactive session the operator
+  # talks to, never a manual emit of the composing hook and never the
+  # systemPrompt() recompute accessor. The @eval identity scenario is the live
+  # proof: the switched seat's model names itself in its own voice.
 
   Scenario: A command switch recreates the interactive session for the new seat
     Given a started Estelle session seated as the Captain "Bonny"
