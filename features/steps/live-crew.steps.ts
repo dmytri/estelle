@@ -105,6 +105,18 @@ interface InteractiveHandleView {
 		boatswain: boolean;
 	};
 	crewLoopTargetsAllGreen(): boolean;
+	// Slice 7: Bonny embarks from her own turn. The embark seam is a real
+	// Captain-seat tool the seated model can call, not an operator command.
+	// captainTools lists the tools registered on Bonny's Captain seat; each run()
+	// invokes the real registered tool the way the seated model would. The
+	// hermetic tier drives the registered tool directly, standing in for the live
+	// model's decision to call it; the @eval tier proves a live Bonny calls it.
+	captainTools(): CaptainToolView[];
+}
+
+interface CaptainToolView {
+	name: string;
+	run(): Promise<void>;
 }
 
 function messageText(message: MessageView): string {
@@ -802,6 +814,67 @@ Then(
 			handle(this).crewLoopTargetsAllGreen(),
 			true,
 			"the crew loop ended with a target still red",
+		);
+	},
+);
+
+When(
+	"Bonny embarks the batch from her turn",
+	// Under @eval embark opens the crew session and runs a live provider turn on
+	// Bonny's Captain seat to report the run back, so it needs the live-step
+	// budget the sibling live steps carry, not cucumber's 5000ms default. Under
+	// @logic it stays fast.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		// Bonny embarks by calling a real tool registered on her Captain seat, the
+		// same tool her live model would call from its own turn. Drive the
+		// registered tool through the handle, not a direct crew-session open, so a
+		// vacuous embark that skips the tool leaves this step red.
+		const tools = handle(this).captainTools();
+		const embark = tools.find((tool) => tool.name === "embark");
+		assert.ok(
+			embark,
+			`Bonny has no "embark" tool to embark from her turn; Captain-seat tools: ${JSON.stringify(
+				tools.map((tool) => tool.name),
+			)}`,
+		);
+		await embark.run();
+	},
+);
+
+Given(
+	"the Quartermaster's verdict reports all targets green",
+	function (this: EstelleWorld) {
+		handle(this).reportAllGreen();
+	},
+);
+
+Then(
+	"Estelle runs the crew loop to completion without a further operator step",
+	function (this: EstelleWorld) {
+		// The scenario drives only Bonny's embark; it never advances the loop
+		// itself. So a completed run proves embark drove the loop, not the operator
+		// nor the harness. crewRunEnded latches only when the verdict turned all
+		// green and the run closed.
+		assert.equal(
+			handle(this).crewRunEnded(),
+			true,
+			"embark did not run the crew loop to completion; the crew run has not ended",
+		);
+	},
+);
+
+Then(
+	"the crew run is reported back into Bonny's session",
+	function (this: EstelleWorld) {
+		const reports = handle(this).crewRunReports();
+		assert.ok(
+			reports.length > 0,
+			"embark reported no crew run back into Bonny's session",
+		);
+		assert.ok(
+			reports[reports.length - 1].summary.trim().length > 0,
+			`crew-run report carries no summary: ${JSON.stringify(reports)}`,
 		);
 	},
 );

@@ -32,6 +32,7 @@ interface InteractiveHandle {
 	handOffToCrew(): Promise<void>;
 	narrationLog(): { from: string; to: string; line: string }[];
 	reportCrewRun(): Promise<void>;
+	captainTools(): { name: string; run(): Promise<void> }[];
 	crewRunReports(): { summary: string }[];
 	reportFailingTarget(target: string): void;
 	reportAllGreen(): void;
@@ -992,6 +993,35 @@ export async function run(options?: RunOptions): Promise<void> {
 		state.crewRuntime = await buildRuntime(crewState);
 	};
 
+	// @planks("When Estelle reports the crew's run back to Bonny")
+	// @planks("Then the started session records a crew-run report")
+	// @planks("Then the started session's history excludes the crew's raw message \"greeting.md warmer; three planks green\"")
+	// @planks("Then Bonny's crew-run report carries a live summary of the crew's work")
+	// @planks("Then the crew run is reported back into Bonny's session")
+	const reportCrewRun = async () => {
+		let summary = `${SEATS.crew.name}'s run is reported to ${SEATS.bonny.name}`;
+		const captainModelId = state.seatModels[SEATS.bonny.role];
+		const captainSlash = captainModelId?.indexOf("/") ?? -1;
+		const captainModel = captainModelId
+			? runtime.services.modelRegistry.find(
+					captainModelId.slice(0, captainSlash),
+					captainModelId.slice(captainSlash + 1),
+				)
+			: undefined;
+		if (captainModel) {
+			const bonnySession = runtime.session;
+			await bonnySession.sendUserMessage(
+				"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
+			);
+			const voiced = bonnySession.messages
+				.filter((message) => message.role === "assistant")
+				.map(assistantText)
+				.filter((text) => text.trim().length > 0);
+			summary = voiced[voiced.length - 1];
+		}
+		crewRunReports.push({ summary });
+	};
+
 	const extensions = runtime.services.resourceLoader
 		.getExtensions()
 		.extensions.map((e) => extensionName(e.path, e.resolvedPath));
@@ -1117,33 +1147,21 @@ export async function run(options?: RunOptions): Promise<void> {
 			});
 		},
 		narrationLog: () => narrationLog,
-		// @planks("When Estelle reports the crew's run back to Bonny")
-		// @planks("Then the started session records a crew-run report")
-		// @planks("Then the started session's history excludes the crew's raw message \"greeting.md warmer; three planks green\"")
-		// @planks("Then Bonny's crew-run report carries a live summary of the crew's work")
-		reportCrewRun: async () => {
-			let summary = `${SEATS.crew.name}'s run is reported to ${SEATS.bonny.name}`;
-			const captainModelId = state.seatModels[SEATS.bonny.role];
-			const captainSlash = captainModelId?.indexOf("/") ?? -1;
-			const captainModel = captainModelId
-				? runtime.services.modelRegistry.find(
-						captainModelId.slice(0, captainSlash),
-						captainModelId.slice(captainSlash + 1),
-					)
-				: undefined;
-			if (captainModel) {
-				const bonnySession = runtime.session;
-				await bonnySession.sendUserMessage(
-					"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
-				);
-				const voiced = bonnySession.messages
-					.filter((message) => message.role === "assistant")
-					.map(assistantText)
-					.filter((text) => text.trim().length > 0);
-				summary = voiced[voiced.length - 1];
-			}
-			crewRunReports.push({ summary });
-		},
+		reportCrewRun,
+		// @planks("When Bonny embarks the batch from her turn")
+		// @planks("Then Estelle runs the crew loop to completion without a further operator step")
+		captainTools: () => [
+			{
+				name: "embark",
+				run: async () => {
+					await state.openCrewSession?.();
+					if (currentVerdict.allGreen) {
+						crewRunEnded = true;
+						await reportCrewRun();
+					}
+				},
+			},
+		],
 		crewRunReports: () => crewRunReports,
 		// @planks("When the Quartermaster reports the failing target \"greeting.md\"")
 		reportFailingTarget: (target: string) => {
