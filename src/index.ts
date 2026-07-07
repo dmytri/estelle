@@ -326,6 +326,44 @@ function createEstelleExtension(
 				await state.openCrewSession?.();
 			},
 		});
+		// @planks("Then Bonny embarks the crew rather than instructing the operator to run a role command")
+		if (state.activeSeat.role === "captain") {
+			pi.registerTool({
+				name: "embark",
+				label: "Embark the crew",
+				description:
+					"Embark the batch: open a crew session alongside seated as the Quartermaster Misson and set the Quartermaster, Crew, and Boatswain working while you stay with the operator. Call this yourself once the operator's intent is confirmed, rather than asking the operator to run a role command.",
+				promptSnippet:
+					"embark: set the crew working on the confirmed batch in a session alongside",
+				promptGuidelines: [
+					"Once the operator has confirmed what they want built and tells you to proceed, embark the crew immediately by calling the embark tool. Do not keep surveying the workspace, do not ask further questions, and never tell the operator to run a role command or switch seats. Calling embark is how you hand the confirmed batch to the crew.",
+				],
+				parameters: {
+					type: "object",
+					properties: {},
+					additionalProperties: false,
+				} as unknown as Parameters<typeof pi.registerTool>[0]["parameters"],
+				execute: async () => {
+					await state.openCrewSession?.();
+					return {
+						content: [
+							{
+								type: "text",
+								text: "Crew embarked. Misson is seated and the crew is working alongside.",
+							},
+						],
+						details: undefined,
+					};
+				},
+			});
+			// The session's active tool set defaults to the built-in tools, so a
+			// registered tool stays hidden from the model until activated. Activate
+			// embark on session_start, after the default set is applied, so Bonny's
+			// live model can call it from their own turn.
+			pi.on("session_start", () => {
+				pi.setActiveTools([...pi.getActiveTools(), "embark"]);
+			});
+		}
 		pi.registerCommand("clear", {
 			description:
 				"Start a fresh Bonny session, dropping the conversation without re-greeting",
@@ -1050,6 +1088,8 @@ export async function run(options?: RunOptions): Promise<void> {
 	// @planks("Then the started session's history excludes the crew's raw message \"greeting.md warmer; three planks green\"")
 	// @planks("Then Bonny's crew-run report carries a live summary of the crew's work")
 	// @planks("Then the crew run is reported back into Bonny's session")
+	// @planks("Then the started session receives Bonny's report when the run ends")
+	// @planks("Then the started session shows Bonny's report of the completed run")
 	const reportCrewRun = async () => {
 		let summary = `${SEATS.crew.name}'s run is reported to ${SEATS.bonny.name}`;
 		const captainModelId = state.seatModels[SEATS.bonny.role];
@@ -1072,6 +1112,41 @@ export async function run(options?: RunOptions): Promise<void> {
 			summary = voiced[voiced.length - 1];
 		}
 		crewRunReports.push({ summary });
+		await runtime.session.sendCustomMessage({
+			customType: "crew-run-report",
+			content: summary,
+			display: true,
+		});
+	};
+
+	// @planks("Then the started session receives the crew's narration as the crew runs")
+	// @planks("Then the started session shows live narration of the crew's run")
+	const narrateCrewRun = async () => {
+		let line = `${SEATS.misson.name} sets the crew to work`;
+		const captainModelId = state.seatModels[SEATS.bonny.role];
+		const captainSlash = captainModelId?.indexOf("/") ?? -1;
+		const captainModel = captainModelId
+			? runtime.services.modelRegistry.find(
+					captainModelId.slice(0, captainSlash),
+					captainModelId.slice(captainSlash + 1),
+				)
+			: undefined;
+		if (captainModel) {
+			const bonnySession = runtime.session;
+			await bonnySession.sendUserMessage(
+				"Voice a single short line in your own voice narrating that the crew is now running the batch for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
+			);
+			const voiced = bonnySession.messages
+				.filter((message) => message.role === "assistant")
+				.map(assistantText)
+				.filter((text) => text.trim().length > 0);
+			line = voiced[voiced.length - 1];
+		}
+		await runtime.session.sendCustomMessage({
+			customType: "crew-narration",
+			content: line,
+			display: true,
+		});
 	};
 
 	const extensions = runtime.services.resourceLoader
@@ -1203,15 +1278,18 @@ export async function run(options?: RunOptions): Promise<void> {
 		reportCrewRun,
 		// @planks("When Bonny embarks the batch from her turn")
 		// @planks("Then Estelle runs the crew loop to completion without a further operator step")
+		// @planks("Then the started session receives the crew's narration as the crew runs")
+		// @planks("Then the started session receives Bonny's report when the run ends")
 		captainTools: () => [
 			{
 				name: "embark",
 				run: async () => {
 					await state.openCrewSession?.();
+					await narrateCrewRun();
 					if (currentVerdict.allGreen) {
 						crewRunEnded = true;
-						await reportCrewRun();
 					}
+					await reportCrewRun();
 				},
 			},
 		],

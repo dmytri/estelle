@@ -13,15 +13,38 @@ interface MessageView {
 	role: string;
 	content?: unknown;
 	display?: boolean;
+	customType?: string;
 }
 
 interface SessionView {
 	messages: MessageView[];
-	sendCustomMessage(message: {
-		customType: string;
-		content: string;
-		display: boolean;
-	}): Promise<void>;
+	sendCustomMessage(
+		message: {
+			customType: string;
+			content: string;
+			display: boolean;
+		},
+		options?: { triggerTurn?: boolean },
+	): Promise<void>;
+	sendUserMessage(
+		content: string,
+		options?: { triggerTurn?: boolean },
+	): Promise<unknown>;
+	subscribe(
+		listener: (event: { type: string; willRetry?: boolean }) => void,
+	): () => void;
+	readonly isStreaming: boolean;
+	abort(): Promise<void>;
+}
+
+// Bonny's live opening turn keeps streaming after launch. On the real run the
+// operator embarks after that opening settles; the hermetic tier has no opening
+// turn at all. So before a step drives the operator's session, settle any turn in
+// flight to idle, standing in for the operator waiting for Bonny to finish.
+async function settleOperatorTurn(session: SessionView): Promise<void> {
+	if (session.isStreaming) {
+		await session.abort();
+	}
 }
 
 interface SessionRuntimeView {
@@ -826,6 +849,11 @@ When(
 	// @logic it stays fast.
 	{ timeout: 600000 },
 	async function (this: EstelleWorld) {
+		// Settle Bonny's live opening turn before embarking, so the embark seam's own
+		// Bonny-voice turns do not collide with a turn already in flight.
+		await settleOperatorTurn(
+			handle(this).runtime.session as unknown as SessionView,
+		);
 		// Bonny embarks by calling a real tool registered on their Captain seat, the
 		// same tool their live model would call from their own turn. Drive the
 		// registered tool through the handle, not a direct crew-session open, so a
@@ -975,6 +1003,160 @@ When(
 			},
 		});
 		(this as unknown as { openingReply?: string }).openingReply = openingReply;
+	},
+);
+
+// Slice 8: the alongside experience in the real run. The loop-driving,
+// narration, and report-back must reach the operator's OWN session on the real
+// run, not only a handle array a test callback reads. So these steps observe the
+// operator's session directly (handle.runtime.session), the same session the
+// operator talks to, and read the crew's narration and Bonny's report as display
+// messages surfaced there. The core embark seam surfaces each as a custom
+// display message: crew progress under the "crew-narration" customType, and
+// Bonny's end-of-run report under the "crew-run-report" customType. A run that
+// pushes those only into a handle array, and not into the operator's session,
+// leaves these steps red.
+
+function operatorSession(world: EstelleWorld): SessionView {
+	const handle = world.interactiveSession as unknown as InteractiveHandleView;
+	return handle.runtime.session as unknown as SessionView;
+}
+
+function surfacedMessages(
+	world: EstelleWorld,
+	customTypeFragment: string,
+): MessageView[] {
+	return operatorSession(world).messages.filter(
+		(message) =>
+			message.role === "custom" &&
+			typeof message.customType === "string" &&
+			message.customType.includes(customTypeFragment) &&
+			message.display !== false &&
+			messageText(message).trim().length > 0,
+	);
+}
+
+function operatorAssistantReplies(world: EstelleWorld): string[] {
+	return operatorSession(world)
+		.messages.filter((message) => message.role === "assistant")
+		.map(messageText)
+		.filter((text) => text.trim().length > 0);
+}
+
+Then(
+	"the started session receives the crew's narration as the crew runs",
+	function (this: EstelleWorld) {
+		const narration = surfacedMessages(this, "crew-narration");
+		assert.ok(
+			narration.length > 0,
+			`the operator's own session received no crew narration display message; session custom types: ${JSON.stringify(
+				operatorSession(this)
+					.messages.filter((m) => m.role === "custom")
+					.map((m) => m.customType),
+			)}`,
+		);
+	},
+);
+
+Then(
+	"the started session receives Bonny's report when the run ends",
+	function (this: EstelleWorld) {
+		const reports = surfacedMessages(this, "crew-run-report");
+		assert.ok(
+			reports.length > 0,
+			`the operator's own session received no crew-run report display message; session custom types: ${JSON.stringify(
+				operatorSession(this)
+					.messages.filter((m) => m.role === "custom")
+					.map((m) => m.customType),
+			)}`,
+		);
+	},
+);
+
+Then(
+	"the started session shows live narration of the crew's run",
+	function (this: EstelleWorld) {
+		// Live narration reaches the operator's session as a display message whose
+		// text Bonny's live model voiced. Require a surfaced narration message and
+		// require its text to appear among Bonny's own live assistant replies in the
+		// operator's session, the same live-proof seam the sibling @eval steps use. A
+		// static template pushed straight into the session never appears as a live
+		// assistant reply, so this fails rather than passing green without a live run.
+		const narration = surfacedMessages(this, "crew-narration");
+		assert.ok(
+			narration.length > 0,
+			"the operator's session shows no live crew narration display message",
+		);
+		const replies = operatorAssistantReplies(this);
+		const narrationTexts = narration.map(messageText);
+		assert.ok(
+			narrationTexts.some((text) => replies.includes(text)),
+			`the operator's crew narration was not voiced by Bonny's live model; narration: ${JSON.stringify(
+				narrationTexts,
+			)}; Bonny's assistant replies: ${JSON.stringify(replies)}`,
+		);
+	},
+);
+
+Then(
+	"the started session shows Bonny's report of the completed run",
+	function (this: EstelleWorld) {
+		// The completed-run report reaches the operator's session as a display
+		// message whose summary Bonny's live model voiced. Require a surfaced report
+		// message and require its summary to appear among Bonny's own live assistant
+		// replies in the operator's session.
+		const reports = surfacedMessages(this, "crew-run-report");
+		assert.ok(
+			reports.length > 0,
+			"the operator's session shows no live crew-run report display message",
+		);
+		const summary = messageText(reports[reports.length - 1]);
+		const replies = operatorAssistantReplies(this);
+		assert.ok(
+			replies.includes(summary),
+			`the operator's crew-run report was not voiced by Bonny's live model; summary: ${JSON.stringify(
+				summary,
+			)}; Bonny's assistant replies: ${JSON.stringify(replies)}`,
+		);
+	},
+);
+
+// "a live eval model is configured for Bonny" and "Bonny takes their next turn"
+// are shared with the captain-reset-nudge feature. Their single definitions live
+// in captain-reset-nudge.steps.ts; both trigger Bonny's turn off the context the
+// scenario's own prior steps establish, so this scenario reuses them.
+
+Given(
+	"the operator has confirmed a batch of intent to Bonny",
+	// Settling Bonny's live opening turn to idle can outlast cucumber's 5000ms
+	// default, so this step carries a live-run budget.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		// Seed the operator's confirmation into Bonny's own session as a real user
+		// message, without triggering a turn. The batch of intent is now confirmed and
+		// waiting in Bonny's history; the next step drives Bonny's turn off it.
+		const session = operatorSession(this);
+		await settleOperatorTurn(session);
+		await session.sendUserMessage(
+			"Yes, that is exactly what I want. Please make the greeting warmer and ship it.",
+			{ triggerTurn: false },
+		);
+	},
+);
+
+Then(
+	"Bonny embarks the crew rather than instructing the operator to run a role command",
+	function (this: EstelleWorld) {
+		// Bonny embarking is observed as a crew session opened alongside from Bonny's
+		// own turn: the embark tool ran. A turn that instead instructs the operator to
+		// run a role command opens no crew session, so this fails. The positive
+		// observable proves embark over instruction against the live model.
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const crew = handle.crewSession();
+		assert.ok(
+			crew,
+			"Bonny did not embark the crew from their turn; no crew session opened alongside. Bonny instructed a role command instead of embarking.",
+		);
 	},
 );
 

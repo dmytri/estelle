@@ -35,6 +35,15 @@ interface SessionView {
 	messages: MessageView[];
 	extensionRunner: ToolResultEmitter;
 	sendUserMessage(content: string): Promise<void>;
+	sendCustomMessage(
+		message: { customType: string; content: string; display: boolean },
+		options?: { triggerTurn?: boolean },
+	): Promise<void>;
+	subscribe(
+		listener: (event: { type: string; willRetry?: boolean }) => void,
+	): () => void;
+	readonly isStreaming: boolean;
+	abort(): Promise<void>;
 }
 
 interface SessionRuntimeView {
@@ -183,15 +192,28 @@ Given(
 	},
 );
 
-// Bonny takes a neutral operator turn. The reset nudge is already in their session
-// context, so a live Bonny must decide, on their own, whether to offer a fresh
-// context. The prompt names no reset, so any fresh-context offer comes from the
-// nudge they honour, not from the prompt wording.
+// Bonny takes their next turn off the context already in their session. This step
+// is shared with the live-crew feature, so it injects no operator-visible content:
+// each scenario's own prior steps establish what Bonny decides from. Here the
+// reset nudge is already in context, so a live Bonny must decide, on their own,
+// whether to offer a fresh context; any fresh-context offer comes from the nudge
+// they honour. A hidden trigger starts the turn without naming a reset. The step
+// awaits agent_end so the full turn lands before assertions read the session.
 When(
 	"Bonny takes their next turn",
-	{ timeout: 180000 },
+	{ timeout: 600000 },
 	async function (this: EstelleWorld) {
-		await startedSession(this).sendUserMessage("Aye, that batch is pushed.");
+		const session = startedSession(this);
+		// Settle Bonny's live opening turn before triggering their next turn, so the
+		// trigger does not collide with a turn already in flight.
+		if (session.isStreaming) {
+			await session.abort();
+		}
+		// Trigger Bonny's turn with a neutral operator line that dictates no action
+		// and names no reset. Each scenario's own prior context decides what Bonny
+		// does: honour the reset nudge here, embark from confirmed intent in
+		// live-crew. sendUserMessage resolves once the turn completes.
+		await session.sendUserMessage("Please carry on.");
 	},
 );
 
