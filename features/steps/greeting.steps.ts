@@ -145,6 +145,29 @@ Then(
 );
 
 Then(
+	"Bonny begins their Captain opening turn before the operator speaks",
+	function (this: EstelleWorld) {
+		// A Captain opening turn drives the model: it fires a provider request, the
+		// same seam the launch-path scenarios count. A canned greeting posts a
+		// display message and drives no request. The scenario configures a model and
+		// never lets the operator speak, so a provider request observed right after
+		// start is Bonny's opening turn, not the operator's.
+		const handle = this.interactiveSession as unknown as {
+			providerRequestCount?: () => number;
+		};
+		assert.equal(
+			typeof handle.providerRequestCount,
+			"function",
+			"started session exposes no provider-request count, so whether Bonny's opening turn drove the model cannot be observed",
+		);
+		assert.ok(
+			handle.providerRequestCount!() > 0,
+			"Bonny drove no provider request before the operator spoke: startup posted a canned message rather than actuating a Captain opening turn",
+		);
+	},
+);
+
+Then(
 	"Bonny opens the session with the greeting {string}",
 	function (this: EstelleWorld, greeting: string) {
 		const opening = openingMessages(this);

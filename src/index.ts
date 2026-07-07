@@ -48,6 +48,7 @@ interface InteractiveHandle {
 		boatswain: boolean;
 	};
 	crewLoopTargetsAllGreen(): boolean;
+	providerRequestCount(): number;
 }
 
 export interface RunOptions extends LaunchOptions {
@@ -100,6 +101,7 @@ interface EstelleState {
 	runtime?: AgentSessionRuntime;
 	crewRuntime?: AgentSessionRuntime;
 	openCrewSession?: () => Promise<void>;
+	onProviderRequest?: () => void;
 }
 
 const CHARACTER_CARDS: Record<string, string> = {
@@ -333,6 +335,7 @@ function createEstelleExtension(
 		});
 		pi.on("before_provider_request", () => {
 			state.providerRequestCount += 1;
+			state.onProviderRequest?.();
 		});
 		pi.on("before_agent_start", (event) => {
 			return {
@@ -485,19 +488,36 @@ async function ensureShipshapePackage(options: {
 }
 
 /**
- * @planks("Then Bonny opens the session with a greeting before the operator speaks")
- * @planks("Then Bonny opens the session with the greeting \"Ahoy again, Commodore. Bonny at the helm.\"")
+ * @planks("Then Bonny begins their Captain opening turn before the operator speaks")
  * @planks("Then Bonny opens the session with the guidance \"Commodore, no model is rigged yet. Use /login, then /model.\"")
  */
 async function openWithBonnyVoice(
+	state: EstelleState,
 	session: AgentSession,
 	modelRegistry: { getAvailable(): unknown[] },
 	cwd: string,
 ): Promise<void> {
-	const content =
-		modelRegistry.getAvailable().length > 0
-			? readFileSync(join(assetsDir(cwd), "greeting.md"), "utf8").trim()
-			: readFileSync(join(assetsDir(cwd), "steer.md"), "utf8").trim();
+	if (modelRegistry.getAvailable().length > 0) {
+		// Actuate Bonny's Captain opening turn: fire a real turn so the seat runs
+		// its opening instructions. The interactive session streams the turn, so
+		// startup returns once the opening turn has dispatched its provider request
+		// rather than blocking on the full turn.
+		const requestDispatched = new Promise<void>((resolve) => {
+			state.onProviderRequest = resolve;
+		});
+		void session.sendCustomMessage(
+			{
+				customType: "estelle-opening",
+				content:
+					"Begin your Captain opening turn now, before the operator speaks.",
+				display: false,
+			},
+			{ triggerTurn: true },
+		);
+		await requestDispatched;
+		return;
+	}
+	const content = readFileSync(join(assetsDir(cwd), "steer.md"), "utf8").trim();
 	await session.sendCustomMessage({
 		customType: "estelle-greeting",
 		content,
@@ -1059,6 +1079,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		.extensions.map((e) => extensionName(e.path, e.resolvedPath));
 
 	await openWithBonnyVoice(
+		state,
 		runtime.session,
 		runtime.services.modelRegistry,
 		cwd,
@@ -1319,6 +1340,8 @@ export async function run(options?: RunOptions): Promise<void> {
 		crewLoopSeatsRanLive: () => crewLoopSeats,
 		// @planks("Then the crew loop ended with every target green")
 		crewLoopTargetsAllGreen: () => crewLoopAllGreen,
+		// @planks("Then Bonny begins their Captain opening turn before the operator speaks")
+		providerRequestCount: () => state.providerRequestCount,
 	});
 
 	runtime.session.dispose();

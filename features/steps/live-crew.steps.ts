@@ -819,22 +819,22 @@ Then(
 );
 
 When(
-	"Bonny embarks the batch from her turn",
+	"Bonny embarks the batch from their turn",
 	// Under @eval embark opens the crew session and runs a live provider turn on
 	// Bonny's Captain seat to report the run back, so it needs the live-step
 	// budget the sibling live steps carry, not cucumber's 5000ms default. Under
 	// @logic it stays fast.
 	{ timeout: 600000 },
 	async function (this: EstelleWorld) {
-		// Bonny embarks by calling a real tool registered on her Captain seat, the
-		// same tool her live model would call from its own turn. Drive the
+		// Bonny embarks by calling a real tool registered on their Captain seat, the
+		// same tool their live model would call from their own turn. Drive the
 		// registered tool through the handle, not a direct crew-session open, so a
 		// vacuous embark that skips the tool leaves this step red.
 		const tools = handle(this).captainTools();
 		const embark = tools.find((tool) => tool.name === "embark");
 		assert.ok(
 			embark,
-			`Bonny has no "embark" tool to embark from her turn; Captain-seat tools: ${JSON.stringify(
+			`Bonny has no "embark" tool to embark from their turn; Captain-seat tools: ${JSON.stringify(
 				tools.map((tool) => tool.name),
 			)}`,
 		);
