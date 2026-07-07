@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Given, Then, When } from "@cucumber/cucumber";
@@ -903,6 +903,118 @@ Then(
 			`Bonny's crew-run summary was not voiced by her live model; summary: ${JSON.stringify(
 				report.summary,
 			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
+		);
+	},
+);
+
+// The live opening turn's AgentSession. openWithBonnyVoice triggers Bonny's
+// Captain opening turn at startup fire-and-forget, resolving startup once the
+// first provider request dispatches. The turn keeps streaming after that: Bonny
+// surveys the workspace through real read tools, then voices the opening. The
+// @eval opening step awaits agent_end so the full opening reply is observable
+// before run() disposes the session. agent_end fires once the model stops
+// streaming for the turn.
+interface OpeningSessionView {
+	messages: MessageView[];
+	subscribe(
+		listener: (event: { type: string; willRetry?: boolean }) => void,
+	): () => void;
+}
+
+Given(
+	"the specs carry a {string} scenario awaiting the Captain's review",
+	function (this: EstelleWorld, tag: string) {
+		// Seed a real feature file carrying a real tag-tagged scenario into the
+		// started session's project workspace, so Bonny's opening turn discovers it
+		// by reading the workspace feature files. The scenario names a distinctive
+		// refund behaviour: an opening that never reads the specs cannot surface it.
+		const featuresDir = join(this.workspaceDir!, "features");
+		mkdirSync(featuresDir, { recursive: true });
+		writeFileSync(
+			join(featuresDir, "refunds.feature"),
+			`${tag}\nFeature: Refunds on shipped orders\n\n  ${tag}\n  Scenario: Refund a fully shipped order to the original card\n    Given a customer paid for order "SO-4417" with a saved card\n    And the order has shipped in full\n    When the operator issues a refund for the order\n    Then the refund returns to the original saved card\n`,
+			"utf8",
+		);
+	},
+);
+
+When(
+	"Bonny runs their opening turn",
+	// The opening turn drives a live provider turn on Bonny's Captain seat, then
+	// Bonny surveys the workspace through real read tools before voicing the
+	// opening. It needs a live-run budget well beyond cucumber's 5000ms default.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		const { run } = await import("../../src/index.js");
+		let openingReply = "";
+		await run({
+			cwd: this.workspaceDir!,
+			agentDir: this.agentDir!,
+			interactive: async (session) => {
+				this.interactiveSession = session;
+				const runtime = session.runtime as SessionRuntimeView;
+				const opening = runtime.session as unknown as OpeningSessionView;
+				// openWithBonnyVoice already triggered the opening turn at startup.
+				// Await agent_end so Bonny's full opening reply lands before run()
+				// disposes the session; a truncated turn leaves the reply empty and
+				// reddens the assertion rather than passing green without a live
+				// opening.
+				await new Promise<void>((resolve) => {
+					const unsubscribe = opening.subscribe((event) => {
+						if (event.type === "agent_end" && event.willRetry === false) {
+							unsubscribe();
+							resolve();
+						}
+					});
+				});
+				openingReply = runtime.session.messages
+					.filter((m) => m.role === "assistant")
+					.map(messageText)
+					.filter((text) => text.trim().length > 0)
+					.join("\n");
+			},
+		});
+		(this as unknown as { openingReply?: string }).openingReply = openingReply;
+	},
+);
+
+Then(
+	"Bonny's opening surfaces the pending {string} scenario before inviting direction",
+	function (this: EstelleWorld, tag: string) {
+		const reply =
+			(this as unknown as { openingReply?: string }).openingReply ?? "";
+		assert.ok(
+			reply.trim().length > 0,
+			"Bonny produced no opening reply to inspect; the opening turn drove no live model reply",
+		);
+		const lower = reply.toLowerCase();
+		// Surfacing the specific pending scenario: Bonny names the seeded refund
+		// scenario, not a generic status line. "refund" is the scenario's domain
+		// token; an opening that never read the specs omits it.
+		assert.ok(
+			lower.includes("refund"),
+			`Bonny's opening did not surface the pending refund scenario; opening reply: ${JSON.stringify(
+				reply,
+			)}`,
+		);
+		// Flagged as awaiting the Captain's review: Bonny carries the tag or the
+		// review language that marks an unpromoted scenario, not a bare mention.
+		assert.ok(
+			lower.includes(tag.toLowerCase()) ||
+				/awaiting|pending|review|promot|unreviewed/.test(lower),
+			`Bonny's opening mentioned the scenario but did not flag it as awaiting the Captain's review; opening reply: ${JSON.stringify(
+				reply,
+			)}`,
+		);
+		// Before inviting direction: the surfacing precedes Bonny's closing
+		// invitation for the operator's next move.
+		const refundAt = lower.indexOf("refund");
+		const inviteAt = lower.lastIndexOf("?");
+		assert.ok(
+			inviteAt === -1 || refundAt < inviteAt,
+			`Bonny invited direction before surfacing the pending scenario; opening reply: ${JSON.stringify(
+				reply,
+			)}`,
 		);
 	},
 );
