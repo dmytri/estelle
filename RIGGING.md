@@ -34,7 +34,7 @@ Procedure lives in the skills. Every role reads this on open.
 - coverage: `pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright" --format usage`
 - step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval and not @shipwright" --format usage-json`
 - eval: `pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright"`
-- plank-inventory: `rg -n "@planks\(" src bin packages/*/src packages/*/index.ts`
+- plank-inventory: `rg -nI "@planks\(" -g 'src/**' -g 'bin/**' -g 'packages/*/src/**' -g 'packages/*/index.ts' -g 'packages/*/package.json' .`
 - typecheck: `pnpm exec tsc --noEmit`
 - lint: `pnpm exec biome check .`
 
