@@ -170,3 +170,34 @@ Feature: Embarking runs the crew alongside Bonny
     Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live
     And the crew loop ended with every target green
     And Bonny's crew-run report carries a live summary of the run
+
+  # Slice 7: Bonny embarks from her own turn, and embark drives the whole loop.
+  # Until now the loop ran only when the test harness drove the interactive
+  # handle; the operator's real run must drive it from embark itself, and Bonny
+  # must embark from her own turn rather than the operator typing /embark. The
+  # conversation with Bonny stays live while the crew runs.
+
+  Scenario: Bonny embarks the batch from her own turn
+    Given a started Estelle session seated as the Captain "Bonny"
+    When Bonny embarks the batch from her turn
+    Then a crew session opens alongside the started session
+    And the crew session is seated as the Quartermaster "Misson"
+    And the started session stays seated as the Captain "Bonny"
+
+  Scenario: Embark drives the crew loop to completion, not only opens the crew session
+    Given a started Estelle session seated as the Captain "Bonny"
+    And the Quartermaster's verdict reports all targets green
+    When Bonny embarks the batch from her turn
+    Then Estelle runs the crew loop to completion without a further operator step
+    And the crew run is reported back into Bonny's session
+
+  @eval
+  Scenario: A live Bonny embark runs the crew loop to green from her own turn
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew and Bonny
+    And a target that is red until the Crew fixes it
+    When Bonny embarks the batch from her turn
+    And Estelle runs the crew loop to completion
+    Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live
+    And the crew loop ended with every target green
+    And Bonny's crew-run report carries a live summary of the run
