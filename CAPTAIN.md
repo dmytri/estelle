@@ -4,6 +4,14 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
+## Open: @eval session-persistence race, decided fix now (2026-07-08)
+
+Fourth-ish occurrence of the same class this file has deferred twice already (see lines below: "`@eval` flakiness... do NOT enshrine as a known false-failure" and "Shipwright flagged the `@eval` tier as environmentally flaky... Document or stabilize"). Latest Shipwright harbour boundary check: `@eval` tier 7/12 green, 5 failed, 104/125 steps. Named failure: `features/live-crew.feature:164` "A live embark runs the crew loop through every seat to green" threw `ENOENT` inside pi's `SessionManager._persist`, opening a session `.jsonl` under `/tmp/estelle-agent-*/sessions/`.
+
+Decision: stop deferring. This scenario already pins the exact required behaviour, so this is not a spec gap, it is a production defect in how Estelle's alongside internal-role sessions (Captain, Quartermaster, Crew, Boatswain, each per the Slice 9 alongside model) share session persistence. Working theory, unconfirmed, QM's to verify: several `SessionManager` instances construct concurrently against the same `agentDir/sessions` directory (`src/index.ts:1115`, `SessionManager.create(cwd, join(agentDir, "sessions"))`); a teardown or write race under that shared path is the leading candidate, matching this file's own prior-noted remedy, "per-worker pi session-path isolation." No spec change made. Dispatching QM directly against the already-failing `@eval` target; no watchbill needed, it is the one red target this tier surfaces.
+
+Coverage-tooling side note: piloted `c8` as the real per-line/per-branch `coverage` command this session, replacing the `cucumber --format usage` traceability proxy (`RIGGING.md`, commit `127ce77`, pushed). Generalization proposal left for the Shipshape maintainer in `~/shipshape/CAPTAIN.md`.
+
 ## Shipped 2026-07-08: voyage (a), embark drives the real crew
 
 Operator field-tested `0.1.15` and found `/embark`, `/qm`, and the embark tool did nothing observable: all three called `state.openCrewSession`, which only built an in-process, invisible, idle Misson runtime. `runCrewLoopToCompletion` was an `@eval` demo, canned lines and a fixture, no real verification: the old "runs the crew loop to green" scenarios were false greens. Fifth instance of the test-path-diverges-from-live-path pattern.
