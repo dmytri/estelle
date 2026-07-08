@@ -30,3 +30,7 @@ Feature: Methodology conformance
   Scenario: A present watchbill has the valid watchbill shape
     Given a "watchbill.json" file is present in the project
     Then it contains only ordered watch objects with scenario references
+
+  Scenario: Every live crew-session step carries a live-step timeout budget
+    Given the project's step definitions that await a live crew-session turn
+    Then each one declares an explicit timeout at least as long as the live-step budget
