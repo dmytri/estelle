@@ -4,6 +4,12 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
+## Shipped 2026-07-08: @dk/estelle 0.1.18, no internal-role command switches seats
+
+The prior note's fix (`6c98bb9`) was incomplete: it moved `/bellamy`, `/johnson`, `/crew` off the seat-switch loop but left `/misson` on it, and never registered the `/quartermaster`, `/boatswain`, `/shipwright` aliases as pi commands at all, same "alias exists in a lookup table but never registered" defect `/captain` originally had. Caught by broadening `seat-composition.feature`'s alongside-dispatch outline from 4 to 8 examples (adding the alias commands) before publishing, rather than after. `SEAT_COMMANDS` is now `["/bonny", "/captain"]` only, `ALONGSIDE_COMMANDS` carries every internal-role command and alias. Commit `6edeb08`.
+
+Released `0.1.18` (`5616e60`), boot-verified: fix confirmed present in the published `dist/index.js`, real registry install, real `estelle` bin, clean boot. Registry propagation lagged briefly after publish, resolved on retry, not a defect.
+
 ## Shipped 2026-07-08: Estelle never switches seats, `/captain` registered for real
 
 Operator field report against `0.1.17`: `/bellamy` put them in direct conversation with Bellamy instead of dispatching alongside, and `/captain` started a generic upstream Shipshape captain instead of Bonny. Both confirmed real.
