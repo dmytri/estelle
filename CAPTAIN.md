@@ -18,6 +18,12 @@ Watchbill-scoped single-scenario run of `live-crew.feature:164` came back green 
 
 Parked, not deferred blind: next observed occurrence of this `SessionManager._persist` `ENOENT` signature is the trigger to stop investigating passively and either (a) run the `@eval` command several times back-to-back to try to catch it live, or (b) implement the already-named remedy, per-worker pi session-path isolation for concurrent alongside sessions (`src/index.ts:1115`), as a deliberate exception to smallest-sufficient-change since the class and the remedy are both already known. Do not write a fifth "still flaky, deferred" note without one of those two actions.
 
+### Trigger fired: next occurrence observed, different scenarios this time (2026-07-08, harbour pass)
+
+Shipwright's harbour boundary check ran the full `@eval` tier fresh: 10/12 scenarios, 114/125 steps, 2 failed. Failing scenarios this run: `features/live-crew.feature:39` and `:70`, NOT `:164` as before. Different scenarios failing across runs, same `ENOENT`/timeout signature, confirms this is a systemic concurrency race across whichever `@eval` scenarios happen to run alongside each other, not a defect isolated to one scenario's own steps.
+
+Per the bounded trigger above, this is action time, not another park. Redispatching QM for a full-tier boundary check; if `@eval` reproduces under QM's own fresh live run, QM dispatches Crew itself against whatever target it directly observes red, carrying only that target and QM's own observed evidence, per the normal QM-to-Crew contract.
+
 ## Shipped 2026-07-08: voyage (a), embark drives the real crew
 
 Operator field-tested `0.1.15` and found `/embark`, `/qm`, and the embark tool did nothing observable: all three called `state.openCrewSession`, which only built an in-process, invisible, idle Misson runtime. `runCrewLoopToCompletion` was an `@eval` demo, canned lines and a fixture, no real verification: the old "runs the crew loop to green" scenarios were false greens. Fifth instance of the test-path-diverges-from-live-path pattern.
