@@ -104,7 +104,7 @@ Then(
 );
 
 Then(
-	"the started session registers the commands {string}, {string}, {string}, {string}, and {string}",
+	"the started session registers the commands {string}, {string}, {string}, {string}, {string}, and {string}",
 	function (
 		this: EstelleWorld,
 		first: string,
@@ -112,10 +112,11 @@ Then(
 		third: string,
 		fourth: string,
 		fifth: string,
+		sixth: string,
 	) {
 		const runtime = this.interactiveSession!.runtime as RuntimeView;
 		const registered = registeredCommandNames(runtime);
-		for (const command of [first, second, third, fourth, fifth]) {
+		for (const command of [first, second, third, fourth, fifth, sixth]) {
 			const name = command.replace(/^\//, "");
 			assert.ok(
 				registered.has(name),
@@ -160,6 +161,15 @@ Then(
 	function (this: EstelleWorld, name: string) {
 		const seat = this.interactiveSession!.seat();
 		assert.equal(seat.role, "quartermaster");
+		assert.equal(seat.name, name);
+	},
+);
+
+Then(
+	"the started session's active seat is the Captain {string}",
+	function (this: EstelleWorld, name: string) {
+		const seat = this.interactiveSession!.seat();
+		assert.equal(seat.role, "captain");
 		assert.equal(seat.name, name);
 	},
 );

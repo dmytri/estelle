@@ -27,7 +27,6 @@ export class EstelleWorld extends World {
 	seat?: { role: string; name: string };
 	requestedSeatModel?: string;
 	commands?: string[];
-	commandRun?: boolean;
 	scannedFiles?: string[];
 	result?: { allowed: boolean; reason?: string; contents?: string };
 	interactiveSession?: {

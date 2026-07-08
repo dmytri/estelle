@@ -53,7 +53,7 @@ When(
 );
 
 Then(
-	"the commands {string}, {string}, {string}, {string}, and {string} are present",
+	"the commands {string}, {string}, {string}, {string}, {string}, and {string} are present",
 	function (
 		this: EstelleWorld,
 		a: string,
@@ -61,9 +61,10 @@ Then(
 		c: string,
 		d: string,
 		e: string,
+		f: string,
 	) {
 		const present = new Set(this.commands ?? []);
-		for (const command of [a, b, c, d, e]) {
+		for (const command of [a, b, c, d, e, f]) {
 			assert.ok(
 				present.has(command),
 				`command "${command}" missing; present: ${[...present].join(", ")}`,

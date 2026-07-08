@@ -101,7 +101,7 @@ interface EstelleState {
 	pi?: ExtensionAPI;
 	runtime?: AgentSessionRuntime;
 	crewRuntime?: AgentSessionRuntime;
-	openCrewSession?: () => Promise<void>;
+	openCrewSession?: (seat?: Seat) => Promise<void>;
 	embark?: () => Promise<void>;
 	onProviderRequest?: () => void;
 }
@@ -167,7 +167,8 @@ const SEAT_BY_COMMAND: Record<string, string> = {
 	"/crew": "crew",
 };
 
-const SEAT_COMMANDS = ["/bonny", "/misson", "/crew", "/bellamy", "/johnson"];
+const SEAT_COMMANDS = ["/bonny", "/captain", "/misson"];
+const ALONGSIDE_COMMANDS = ["/bellamy", "/johnson", "/crew"];
 
 const SEAT_BY_ROLE: Record<string, Seat> = Object.fromEntries(
 	Object.values(SEATS).map((seat) => [seat.role, seat]),
@@ -304,9 +305,12 @@ function evaluateRead(
  * @planks("Then the name is present before the hand first provider request")
  * @planks("Then the running session blocks the write")
  * @planks("Then the running session blocks the read")
- * @planks("Then the started session registers the commands \"/bonny\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\"")
- * @planks("When the operator runs the \"/misson\" command in the started session")
- * @planks("Then the started session's active seat is the Quartermaster \"Misson\"")
+ * @planks("Then the started session registers the commands \"/bonny\", \"/captain\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\"")
+ * @planks("When the operator runs the \"/captain\" command in the started session")
+ * @planks("When the operator runs the \"/bellamy\" command in the started session")
+ * @planks("When the operator runs the \"/johnson\" command in the started session")
+ * @planks("When the operator runs the \"/crew\" command in the started session")
+ * @planks("Then the started session's active seat is the Captain \"Bonny\"")
  * @planks("When the operator runs the \"/embark\" command in the started session")
  * @planks("When the operator runs the \"/qm\" command in the started session")
  * @planks("When the operator runs the \"/clear\" command in the started session")
@@ -328,6 +332,15 @@ function createEstelleExtension(
 				handler: async () => {
 					state.activeSeat = SEATS[id];
 					await state.runtime?.newSession();
+				},
+			});
+		}
+		for (const command of ALONGSIDE_COMMANDS) {
+			const id = SEAT_BY_COMMAND[command];
+			pi.registerCommand(command.slice(1), {
+				description: `Dispatch the ${SEATS[id].role} ${SEATS[id].name} in a crew session alongside, keeping you seated with Bonny`,
+				handler: async () => {
+					await state.openCrewSession?.(SEATS[id]);
 				},
 			});
 		}
@@ -717,7 +730,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	state.skillPaths = Object.fromEntries(
 		skills.map((s) => [s.name, s.filePath]),
 	);
-	const commands = [...SEAT_COMMANDS];
+	const commands = [...SEAT_COMMANDS, ...ALONGSIDE_COMMANDS];
 
 	return {
 		get session() {
@@ -726,7 +739,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		extensions,
 		skills,
 		/**
-		 * @planks("Then the commands \"/bonny\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\" are present")
+		 * @planks("Then the commands \"/bonny\", \"/captain\", \"/misson\", \"/crew\", \"/bellamy\", and \"/johnson\" are present")
 		 * @planks("Then the command \"/websearch\" is present")
 		 */
 		commands,
@@ -1132,10 +1145,15 @@ export async function run(options?: RunOptions): Promise<void> {
 	const crewLoopSeats = { quartermaster: false, crew: false, boatswain: false };
 	let crewLoopAllGreen = false;
 	let redTargetPath: string | undefined;
-	state.openCrewSession = async () => {
+	// @planks("Then a crew session opens alongside the started session")
+	// @planks("Then the crew session opens alongside the started session")
+	// @planks("Then the crew session is seated as the Boatswain \"Bellamy\"")
+	// @planks("Then the crew session is seated as the Shipwright \"Johnson\"")
+	// @planks("Then the crew session is seated as a Crew hand")
+	state.openCrewSession = async (seat: Seat = SEATS.misson) => {
 		const crewState: EstelleState = {
 			providerRequestCount: 0,
-			activeSeat: SEATS.misson,
+			activeSeat: seat,
 			skillPaths: {},
 			seatModels: state.seatModels,
 			unavailableModels: [],
@@ -1143,7 +1161,7 @@ export async function run(options?: RunOptions): Promise<void> {
 			deliveryFailures: 0,
 		};
 		crewSawActivity = false;
-		crewSeat = SEATS.misson;
+		crewSeat = seat;
 		state.crewRuntime = await buildRuntime(crewState);
 	};
 

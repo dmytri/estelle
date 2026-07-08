@@ -34,25 +34,12 @@ function characterCard(world: EstelleWorld, seat: string): string {
 	).trim();
 }
 
-When(
-	"the operator runs the command {string}",
-	function (this: EstelleWorld, command: string) {
-		this.commandRun = true;
-		this.launched!.runCommand(command);
-	},
-);
-
-// Serves both uses of the same Gherkin phrase. As a Then after an explicit
-// command (outline 1) it strictly asserts the command activated this seat. As
-// a Given precondition (outline 2) no command ran, so it establishes the seat
-// through the same command seam, then asserts.
+// Establishes the seat through the real command seam, then asserts.
 Then(
 	"the active seat is the {string} seat",
 	async function (this: EstelleWorld, seat: string) {
 		const estelle = await this.ensureLaunched();
-		if (!this.commandRun) {
-			estelle.runCommand(`/${seat}`);
-		}
+		estelle.runCommand(`/${seat}`);
 		const actual = estelle.seat().id;
 		assert.equal(
 			actual,

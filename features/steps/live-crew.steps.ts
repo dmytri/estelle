@@ -759,6 +759,15 @@ Then(
 );
 
 Then(
+	"the crew session is seated as the Shipwright {string}",
+	function (this: EstelleWorld, name: string) {
+		const seat = crewSession(this).seat();
+		assert.equal(seat.role, "shipwright");
+		assert.equal(seat.name, name);
+	},
+);
+
+Then(
 	"the crew session lets only the Boatswain commit",
 	function (this: EstelleWorld) {
 		const result = crewSession(this).commit();
