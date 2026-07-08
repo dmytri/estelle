@@ -12,6 +12,12 @@ Decision: stop deferring. This scenario already pins the exact required behaviou
 
 Coverage-tooling side note: piloted `c8` as the real per-line/per-branch `coverage` command this session, replacing the `cucumber --format usage` traceability proxy (`RIGGING.md`, commit `127ce77`, pushed). Generalization proposal left for the Shipshape maintainer in `~/shipshape/CAPTAIN.md`.
 
+### Resolution: did not reproduce, parked with a bounded trigger (2026-07-08, same day)
+
+Watchbill-scoped single-scenario run of `live-crew.feature:164` came back green twice (Boatswain). A directed full-tier boundary check through a fresh QM cycle then ran the real, untargeted `@eval` command: 12/12 scenarios, 125/125 steps, fresh live run, all green. The failure did not reproduce. Consistent with an intermittent race, not a deterministic defect; QM cannot dispatch Crew against a target it cannot observe red, and none was observed this cycle.
+
+Parked, not deferred blind: next observed occurrence of this `SessionManager._persist` `ENOENT` signature is the trigger to stop investigating passively and either (a) run the `@eval` command several times back-to-back to try to catch it live, or (b) implement the already-named remedy, per-worker pi session-path isolation for concurrent alongside sessions (`src/index.ts:1115`), as a deliberate exception to smallest-sufficient-change since the class and the remedy are both already known. Do not write a fifth "still flaky, deferred" note without one of those two actions.
+
 ## Shipped 2026-07-08: voyage (a), embark drives the real crew
 
 Operator field-tested `0.1.15` and found `/embark`, `/qm`, and the embark tool did nothing observable: all three called `state.openCrewSession`, which only built an in-process, invisible, idle Misson runtime. `runCrewLoopToCompletion` was an `@eval` demo, canned lines and a fixture, no real verification: the old "runs the crew loop to green" scenarios were false greens. Fifth instance of the test-path-diverges-from-live-path pattern.
