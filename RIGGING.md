@@ -31,7 +31,7 @@ Procedure lives in the skills. Every role reads this on open.
 - discover: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval and not @shipwright"`
 - focused: `pnpm exec cucumber-js --tags "not @captain and not @shipwright" --name "{scenario}"`
 - broad: `pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright"`
-- coverage: `pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright" --format usage`
+- coverage: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright"`
 - step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval and not @shipwright" --format usage-json`
 - eval: `pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright"`
 - plank-inventory: `rg -nI "@planks\(" -g 'src/**' -g 'bin/**' -g 'packages/*/src/**' -g 'packages/*/index.ts' -g 'packages/*/package.json' .`
@@ -54,7 +54,7 @@ Procedure lives in the skills. Every role reads this on open.
 
 - policy: Captain selects dependencies and records them here; Crew installs them from this section; Crew MUST NOT install unspecced dependencies
 - runtime: `@earendil-works/pi-coding-agent`, `pi-open-plugin-shim` (workspace)
-- dev: `@cucumber/cucumber`, `tsx`, `typescript`, `@biomejs/biome`, `gplint`
+- dev: `@cucumber/cucumber`, `tsx`, `typescript`, `@biomejs/biome`, `gplint`, `c8`
 
 ## Outbound
 
