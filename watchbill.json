@@ -1,7 +1,0 @@
-{
-  "watch1": {
-    "scenarios": [
-      "features/live-crew.feature:Embarking drives the real crew to turn a failing target green"
-    ]
-  }
-}

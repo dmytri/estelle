@@ -1320,3 +1320,100 @@ Then(
 		);
 	},
 );
+
+// Slice A: embark drives the REAL crew. This scenario reuses the same red
+// target and loop-completion signals the Slice 6 capstone proved
+// (configureRedTarget, crewLoopSeatsRanLive, crewLoopTargetsAllGreen), but it
+// drives them from Bonny's own registered "embark" tool alone, with no
+// separate "Estelle runs the crew loop to completion" step in between. A
+// vacuous embark that only opens an idle crew session and never drives the
+// loop itself leaves these steps red even though the sibling capstone scenario
+// is green.
+
+Given(
+	"the project carries a verification target that is failing",
+	function (this: EstelleWorld) {
+		handle(this).configureRedTarget();
+	},
+);
+
+When(
+	"Bonny embarks the crew from their own turn",
+	// The embark tool's own run drives the live loop to completion, so this
+	// needs the same live-run budget as the Slice 6 capstone's loop-completion
+	// step, not cucumber's 5000ms default.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		// Settle Bonny's live opening turn before embarking, so the embark seam's
+		// own Bonny-voice turns do not collide with a turn already in flight.
+		await settleOperatorTurn(
+			handle(this).runtime.session as unknown as SessionView,
+		);
+		// Bonny embarks by calling a real tool registered on their Captain seat,
+		// the same tool their live model would call from their own turn.
+		const tools = handle(this).captainTools();
+		const embark = tools.find((tool) => tool.name === "embark");
+		assert.ok(
+			embark,
+			`Bonny has no "embark" tool to embark from their turn; Captain-seat tools: ${JSON.stringify(
+				tools.map((tool) => tool.name),
+			)}`,
+		);
+		await embark.run();
+	},
+);
+
+Then(
+	"Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target",
+	function (this: EstelleWorld) {
+		const seats = handle(this).crewLoopSeatsRanLive();
+		assert.equal(
+			seats.quartermaster,
+			true,
+			`embark did not drive a live Quartermaster turn against the failing target: ${JSON.stringify(
+				seats,
+			)}`,
+		);
+		assert.equal(
+			seats.crew,
+			true,
+			`embark did not drive a live Crew turn against the failing target: ${JSON.stringify(
+				seats,
+			)}`,
+		);
+		assert.equal(
+			seats.boatswain,
+			true,
+			`embark did not drive a live Boatswain turn against the failing target: ${JSON.stringify(
+				seats,
+			)}`,
+		);
+	},
+);
+
+Then(
+	"the failing target passes the project's verification after the run",
+	function (this: EstelleWorld) {
+		assert.equal(
+			handle(this).crewLoopTargetsAllGreen(),
+			true,
+			"the failing target is still red after embark's run",
+		);
+	},
+);
+
+Then(
+	"the started session receives the crew's narration and Bonny's completed-run report",
+	function (this: EstelleWorld) {
+		const narration = surfacedMessages(this, "crew-narration");
+		assert.ok(
+			narration.length > 0,
+			"the operator's own session received no crew narration display message from embark's own run",
+		);
+		const reports = surfacedMessages(this, "crew-run-report");
+		assert.ok(
+			reports.length > 0,
+			"the operator's own session received no crew-run report display message from embark's own run",
+		);
+	},
+);

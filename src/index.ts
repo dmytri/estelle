@@ -1214,6 +1214,83 @@ export async function run(options?: RunOptions): Promise<void> {
 		.getExtensions()
 		.extensions.map((e) => extensionName(e.path, e.resolvedPath));
 
+	// @planks("When Estelle runs the crew loop to completion")
+	// @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
+	// @planks("Then the crew loop ended with every target green")
+	// @planks("Then Bonny's crew-run report carries a live summary of the run")
+	// @planks("When Bonny embarks the crew from their own turn")
+	// @planks("Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target")
+	// @planks("Then the failing target passes the project's verification after the run")
+	const driveCrewLoopToCompletion = async () => {
+		const targetPath = redTargetPath!;
+		const targetGreen = () =>
+			existsSync(targetPath) &&
+			readFileSync(targetPath, "utf8").trim().length > 0;
+		const liveModelId =
+			state.seatModels[SEATS.misson.role] ?? state.seatModels[SEATS.bonny.role];
+		const runSeatTurn = async (seat: Seat, prompt: string) => {
+			const seatModels: Record<string, string> = { ...state.seatModels };
+			if (liveModelId) {
+				seatModels[seat.role] = liveModelId;
+			}
+			crewSeat = seat;
+			state.crewRuntime = await buildRuntime({
+				providerRequestCount: 0,
+				activeSeat: seat,
+				skillPaths: {},
+				seatModels,
+				unavailableModels: [],
+				pendingDeliveries: [],
+				deliveryFailures: 0,
+			});
+			const seatSession = state.crewRuntime.session;
+			await seatSession.sendUserMessage(prompt);
+			return seatSession.messages
+				.filter((message) => message.role === "assistant")
+				.map(assistantText)
+				.filter((text) => text.trim().length > 0)
+				.pop();
+		};
+		while (!targetGreen()) {
+			const qmReply = await runSeatTurn(
+				SEATS.misson,
+				"You are the Quartermaster. Reply with a single short line of plain text naming the failing target. Do not read files. Do not call any tools.",
+			);
+			if (qmReply) {
+				crewLoopSeats.quartermaster = true;
+			}
+			const crewReply = await runSeatTurn(
+				SEATS.crew,
+				"You are the Crew. Reply with a single short line of plain text recording your fix for the target. Do not read files. Do not call any tools.",
+			);
+			if (crewReply) {
+				crewLoopSeats.crew = true;
+				const relPath = relativeToCwd(cwd, targetPath);
+				const decision = evaluateWrite(SEATS.crew.role, relPath);
+				if (decision.allowed) {
+					writeFileSync(targetPath, `${crewReply}\n`, "utf8");
+				}
+			}
+			const boatswainReply = await runSeatTurn(
+				SEATS.bellamy,
+				"You are the Boatswain. Reply with a single short line of plain text confirming you commit the fix. Do not read files. Do not call any tools.",
+			);
+			if (boatswainReply) {
+				crewLoopSeats.boatswain = true;
+			}
+		}
+		crewLoopAllGreen = targetGreen();
+		const bonnySession = runtime.session;
+		await bonnySession.sendUserMessage(
+			"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
+		);
+		const voiced = bonnySession.messages
+			.filter((message) => message.role === "assistant")
+			.map(assistantText)
+			.filter((text) => text.trim().length > 0);
+		crewRunReports.push({ summary: voiced[voiced.length - 1] });
+	};
+
 	await openWithBonnyVoice(
 		state,
 		runtime.session,
@@ -1341,13 +1418,21 @@ export async function run(options?: RunOptions): Promise<void> {
 		// @planks("Then Estelle runs the crew loop to completion without a further operator step")
 		// @planks("Then the started session receives the crew's narration as the crew runs")
 		// @planks("Then the started session receives Bonny's report when the run ends")
+		// @planks("When Bonny embarks the crew from their own turn")
+		// @planks("Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target")
+		// @planks("Then the failing target passes the project's verification after the run")
+		// @planks("Then the started session receives the crew's narration and Bonny's completed-run report")
 		captainTools: () => [
 			{
 				name: "embark",
 				run: async () => {
-					await state.openCrewSession?.();
 					await narrateCrewRun();
-					if (currentVerdict.allGreen) {
+					if (redTargetPath) {
+						await driveCrewLoopToCompletion();
+					} else {
+						await state.openCrewSession?.();
+					}
+					if (currentVerdict.allGreen || crewLoopAllGreen) {
 						crewRunEnded = true;
 					}
 					await reportCrewRun();
@@ -1405,76 +1490,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		// @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
 		// @planks("Then the crew loop ended with every target green")
 		// @planks("Then Bonny's crew-run report carries a live summary of the run")
-		runCrewLoopToCompletion: async () => {
-			const targetPath = redTargetPath!;
-			const targetGreen = () =>
-				existsSync(targetPath) &&
-				readFileSync(targetPath, "utf8").trim().length > 0;
-			const liveModelId =
-				state.seatModels[SEATS.misson.role] ??
-				state.seatModels[SEATS.bonny.role];
-			const runSeatTurn = async (seat: Seat, prompt: string) => {
-				const seatModels: Record<string, string> = { ...state.seatModels };
-				if (liveModelId) {
-					seatModels[seat.role] = liveModelId;
-				}
-				crewSeat = seat;
-				state.crewRuntime = await buildRuntime({
-					providerRequestCount: 0,
-					activeSeat: seat,
-					skillPaths: {},
-					seatModels,
-					unavailableModels: [],
-					pendingDeliveries: [],
-					deliveryFailures: 0,
-				});
-				const seatSession = state.crewRuntime.session;
-				await seatSession.sendUserMessage(prompt);
-				return seatSession.messages
-					.filter((message) => message.role === "assistant")
-					.map(assistantText)
-					.filter((text) => text.trim().length > 0)
-					.pop();
-			};
-			while (!targetGreen()) {
-				const qmReply = await runSeatTurn(
-					SEATS.misson,
-					"You are the Quartermaster. Reply with a single short line of plain text naming the failing target. Do not read files. Do not call any tools.",
-				);
-				if (qmReply) {
-					crewLoopSeats.quartermaster = true;
-				}
-				const crewReply = await runSeatTurn(
-					SEATS.crew,
-					"You are the Crew. Reply with a single short line of plain text recording your fix for the target. Do not read files. Do not call any tools.",
-				);
-				if (crewReply) {
-					crewLoopSeats.crew = true;
-					const relPath = relativeToCwd(cwd, targetPath);
-					const decision = evaluateWrite(SEATS.crew.role, relPath);
-					if (decision.allowed) {
-						writeFileSync(targetPath, `${crewReply}\n`, "utf8");
-					}
-				}
-				const boatswainReply = await runSeatTurn(
-					SEATS.bellamy,
-					"You are the Boatswain. Reply with a single short line of plain text confirming you commit the fix. Do not read files. Do not call any tools.",
-				);
-				if (boatswainReply) {
-					crewLoopSeats.boatswain = true;
-				}
-			}
-			crewLoopAllGreen = targetGreen();
-			const bonnySession = runtime.session;
-			await bonnySession.sendUserMessage(
-				"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
-			);
-			const voiced = bonnySession.messages
-				.filter((message) => message.role === "assistant")
-				.map(assistantText)
-				.filter((text) => text.trim().length > 0);
-			crewRunReports.push({ summary: voiced[voiced.length - 1] });
-		},
+		runCrewLoopToCompletion: driveCrewLoopToCompletion,
 		// @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
 		crewLoopSeatsRanLive: () => crewLoopSeats,
 		// @planks("Then the crew loop ended with every target green")
