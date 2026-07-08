@@ -263,3 +263,22 @@ Feature: Embarking runs the crew alongside Bonny
     When the operator runs the "/qm" command in the started session
     And the alongside Quartermaster takes a turn
     Then the alongside Quartermaster does not refuse for unclean context
+
+  # Slice A: embark drives the REAL crew, proven where it cannot be faked. Every
+  # slice above drives the loop through test-facing handles; the shipped live run
+  # only opens an idle, invisible crew session, so /embark and /qm do nothing the
+  # operator can see. This scenario pins the registered embark tool the live model
+  # calls, and asserts an outcome only real crew work produces: a genuinely
+  # failing project target passes the project's real verification after the run,
+  # and the run surfaces into the operator's own session. Built additively; the
+  # demo-loop seams retire in harbour once this real loop stands.
+
+  @eval
+  Scenario: Embarking drives the real crew to turn a failing target green
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew and Bonny
+    And the project carries a verification target that is failing
+    When Bonny embarks the crew from their own turn
+    Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target
+    And the failing target passes the project's verification after the run
+    And the started session receives the crew's narration and Bonny's completed-run report
