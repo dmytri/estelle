@@ -1,0 +1,17 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/captain-reset-nudge.feature:Bonny offers a fresh context when the reset nudge fires"
+    ]
+  },
+  "watch2": {
+    "scenarios": [
+      "features/live-crew.feature:Bonny embarks the crew instead of sending the operator to a role command"
+    ]
+  },
+  "watch3": {
+    "scenarios": [
+      "features/live-crew.feature:A manually invoked Quartermaster proceeds instead of refusing for unclean context"
+    ]
+  }
+}
