@@ -6,7 +6,7 @@ Binding behaviour lives in `.feature` specs and referenced `assets/**`. History 
 
 ## Shipped 2026-07-08: methodology-check pilot + perturb + fitting-out (0.1.15)
 
-Harbour `8253ebd`, voyage `d8920cd`, steer refinement `3680388`; released `@dk/estelle 0.1.15` (shim unchanged at 0.1.1). Full `@logic` 124/124, all five methodology checks negative-test proven.
+Harbour `8253ebd`, voyage `d8920cd`, steer refinement `3680388`; released `@dk/estelle 0.1.15` (shim unchanged at 0.1.1), registry boot-verified. Full `@logic` 124/124, all five methodology checks negative-test proven. Boot-verify (isolated pi HOME, `npm install @dk/estelle@latest` in a dir with its own unrelated `assets/`): shim dep resolved to `0.1.1` not `workspace:*`, the `estelle-greeting` extension loaded, Bonny seated, bundled `assets/steer.md` rendered (the local `assets/` correctly ignored), no crash, no paid model call.
 
 - **Methodology-conformance pilot** (Phase 3 charter): five `@logic @property` checks, modelled on the shipped gender-neutral check, each proven by plant->red->remove->green: forbidden-doubles, stale-plank join (real Gherkin compile, outline-expanding), green-tree-carries-no-perturbation, watchbill shape, gplint feature-lint. This is the first executable enforcement of "passing verification is not proof."
 - **perturb command**: flagship Captain-gate tool. Inserts only the RIGGING `fail-fast`, no step text or rationale; only the Captain seat perturbs. The seam reads the fail-fast from RIGGING, so no `PERTURBATION` literal sits in production and the no-live-perturbation check stays green by construction.
