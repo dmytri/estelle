@@ -167,8 +167,16 @@ const SEAT_BY_COMMAND: Record<string, string> = {
 	"/crew": "crew",
 };
 
-const SEAT_COMMANDS = ["/bonny", "/captain", "/misson"];
-const ALONGSIDE_COMMANDS = ["/bellamy", "/johnson", "/crew"];
+const SEAT_COMMANDS = ["/bonny", "/captain"];
+const ALONGSIDE_COMMANDS = [
+	"/misson",
+	"/quartermaster",
+	"/bellamy",
+	"/boatswain",
+	"/johnson",
+	"/shipwright",
+	"/crew",
+];
 
 const SEAT_BY_ROLE: Record<string, Seat> = Object.fromEntries(
 	Object.values(SEATS).map((seat) => [seat.role, seat]),
@@ -310,6 +318,10 @@ function evaluateRead(
  * @planks("When the operator runs the \"/bellamy\" command in the started session")
  * @planks("When the operator runs the \"/johnson\" command in the started session")
  * @planks("When the operator runs the \"/crew\" command in the started session")
+ * @planks("When the operator runs the \"/misson\" command in the started session")
+ * @planks("When the operator runs the \"/quartermaster\" command in the started session")
+ * @planks("When the operator runs the \"/boatswain\" command in the started session")
+ * @planks("When the operator runs the \"/shipwright\" command in the started session")
  * @planks("Then the started session's active seat is the Captain \"Bonny\"")
  * @planks("When the operator runs the \"/embark\" command in the started session")
  * @planks("When the operator runs the \"/qm\" command in the started session")
