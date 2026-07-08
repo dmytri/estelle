@@ -745,12 +745,12 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		commands,
 		/**
 		 * @planks("Then the active seat is the Captain \"Bonny\"")
-		 * @planks("Then the active seat is the \"bonny\" seat")
+		 * @planks("Given the active seat is the \"bonny\" seat")
 		 */
 		seat: () => state.activeSeat,
 		seatCrew: () => assignCrewSeat(survivors),
 		/**
-		 * @planks("When the operator runs the command \"/bonny\"")
+		 * @planks("Given the active seat is the \"bonny\" seat")
 		 */
 		runCommand: (command) => {
 			const id = SEAT_BY_COMMAND[command];
