@@ -40,3 +40,10 @@ Feature: Seat commands and composition
     Given a started Estelle session seated as the Captain "Bonny"
     When the seated model begins its next turn
     Then the system prompt applied to the turn names the Captain "Bonny", the Quartermaster "Misson", the Crew, the Boatswain "Bellamy", and the Shipwright "Johnson"
+
+  Scenario: A seat's applied turn carries only its own character card
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the seated model begins its next turn
+    Then the system prompt applied to the turn includes the "bonny" character card
+    And the system prompt applied to the turn includes the upstream "captain" role instructions
+    But the system prompt applied to the turn excludes the "bellamy" character card

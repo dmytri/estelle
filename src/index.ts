@@ -300,7 +300,6 @@ function evaluateRead(
  * @planks("Then the started session's message history excludes the operator's message \"make the greeting warmer\"")
  * @planks("Then the started session stays seated as the Captain \"Bonny\"")
  * @planks("Then the started session carries no greeting before the operator speaks")
- * @planks("When the operator runs the \"/bellamy\" command in the started session")
  */
 function createEstelleExtension(
 	state: EstelleState,
@@ -382,6 +381,12 @@ function createEstelleExtension(
 			state.providerRequestCount += 1;
 			state.onProviderRequest?.();
 		});
+		/**
+		 * @planks("Then the system prompt applied to the turn names the Captain \"Bonny\", the Quartermaster \"Misson\", the Crew, the Boatswain \"Bellamy\", and the Shipwright \"Johnson\"")
+		 * @planks("Then the system prompt applied to the turn includes the \"bonny\" character card")
+		 * @planks("Then the system prompt applied to the turn includes the upstream \"captain\" role instructions")
+		 * @planks("Then the system prompt applied to the turn excludes the \"bellamy\" character card")
+		 */
 		pi.on("before_agent_start", (event) => {
 			return {
 				systemPrompt: seatSystemPrompt(
@@ -941,9 +946,6 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
  * @planks("When the crew session runs a turn")
  * @planks("Then the crew session received a live reply from the Quartermaster's model")
  * @planks("Then the crew session's heartbeat reflected live activity during the run")
- * @planks("Then that session's system prompt includes the \"bellamy\" character card")
- * @planks("Then that session's system prompt includes the upstream \"boatswain\" role instructions")
- * @planks("Then that session's system prompt excludes the \"bonny\" character card")
  */
 export async function run(options?: RunOptions): Promise<void> {
 	if (options?.argv?.length) {
@@ -1239,7 +1241,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		// @planks("Then the crew session is seated as a Crew hand")
 		// @planks("Then the crew session's message history excludes the Quartermaster's message \"target greeting.md is red\"")
 		// @planks("Then Bonny's narration log records a handoff from the Quartermaster to the Crew")
-		// @planks("Then Bonny's narration for the handoff carries a live line in her voice")
+		// @planks("Then Bonny's narration for the handoff carries a live line in their voice")
 		handOffToCrew: async () => {
 			const fromSeat = crewSeat;
 			const crewState: EstelleState = {
@@ -1282,7 +1284,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		},
 		narrationLog: () => narrationLog,
 		reportCrewRun,
-		// @planks("When Bonny embarks the batch from her turn")
+		// @planks("When Bonny embarks the batch from their turn")
 		// @planks("Then Estelle runs the crew loop to completion without a further operator step")
 		// @planks("Then the started session receives the crew's narration as the crew runs")
 		// @planks("Then the started session receives Bonny's report when the run ends")
