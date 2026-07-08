@@ -290,6 +290,7 @@ Feature: Embarking runs the crew alongside Bonny
     And the failing target passes the project's verification after the run
     And the started session receives the crew's narration and Bonny's completed-run report
 
+  @eval
   Scenario: The operator's own embark act, not a test shortcut, is what turns the failing target green
     Given a started Estelle session seated as the Captain "Bonny"
     And a live eval model is configured for the crew and Bonny
