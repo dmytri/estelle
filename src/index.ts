@@ -362,9 +362,6 @@ function createEstelleExtension(
 					additionalProperties: false,
 				} as unknown as Parameters<typeof pi.registerTool>[0]["parameters"],
 				execute: async () => {
-					throw new Error(
-						"PERTURBATION: consider current durable context; remove when fixed",
-					);
 					await state.openCrewSession?.();
 					return {
 						content: [
