@@ -4,6 +4,18 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
+## Shipped 2026-07-08: Estelle never switches seats, `/captain` registered for real
+
+Operator field report against `0.1.17`: `/bellamy` put them in direct conversation with Bellamy instead of dispatching alongside, and `/captain` started a generic upstream Shipshape captain instead of Bonny. Both confirmed real.
+
+Root cause, same defect *class* as the embark bug, a migration only partially applied. `SEAT_COMMANDS` (`src/index.ts`) registered `/bonny`, `/misson`, `/crew`, `/bellamy`, `/johnson` through one loop whose handler switched the operator's own seat and opened a fresh session as that seat, the pre-Slice-9 design. Only `/qm` had been separately re-registered for the alongside model; `/misson`, `/bellamy`, `/crew`, `/johnson` never were. `/captain` was never registered as a pi command at all, only its seat alias existed, so it fell through to the generic upstream skill. A genuine spec conflict was also found and confirmed as the reason the code never got flagged: `features/interactive-launch.feature` carried a still-live, correctly-passing scenario explicitly requiring the old switch behaviour for `/misson`, directly contradicting the Slice 9 alongside scenarios, which only ever covered `/qm`. A further vacuous-test-path instance, the sixth this project's history has hit, was found in the same investigation: `seat-composition.feature`'s scenario proving `/captain` worked was bound to a test-only `runCommand()` shortcut that flips state directly and never touches pi's real command registry, so it passed regardless of whether `/captain` was ever really registered.
+
+Operator confirmed direction: Estelle should never switch seats. Fixed via the bulkhead-respecting spec-first path: retired the stale switch-behaviour scenario, rewrote the vacuous `/captain` scenario onto the real dispatch path (matching the interactive-launch step vocabulary already proven real), and broadened the `/qm`-only alongside coverage into a `Scenario Outline` covering `/qm`, `/bellamy`, `/johnson`, `/crew`. QM discovered the 5 newly undefined/failing scenarios fresh, with no root-cause narrative from Captain, and dispatched Crew, which registered `/captain` properly and parameterized `state.openCrewSession(seat)` so all four internal-role commands now open an alongside session instead of reseating the operator. Commit `6c98bb9`. A harbour pass then found and fixed two stale `@planks(...)` comments the migration left behind (commit `49e11b9`); full `@logic` tier is 127/127 green.
+
+Not yet released to npm; `0.1.18` still pending as of this note. Same lesson as `0.1.16`: a fix on `main` is not a fix a user has until it is published and boot-verified against the actual behaviour it claims to fix.
+
+Also surfaced, unresolved: the same harbour pass's `@eval` run hit 3 new failures unrelated to this fix (`captain-reset-nudge.feature` reset-nudge assertion, an embark-narration scenario timeout, and a sandbox-clone `spawn ENOENT`/pack-corruption pair that looks environmental). Not yet triaged as flake vs defect.
+
 ## Shipped 2026-07-08: @dk/estelle 0.1.17, embark actually reaches the real crew loop
 
 `0.1.16`'s boot-verify only checked the no-model steer path; it never actually exercised embark, so it shipped a still-broken product. Operator field-tested `0.1.16` and reported it directly: Bonny claimed the crew ran but offered no proof, `/embark` and `/qm` appeared to do nothing.
