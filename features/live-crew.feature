@@ -289,3 +289,13 @@ Feature: Embarking runs the crew alongside Bonny
     Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target
     And the failing target passes the project's verification after the run
     And the started session receives the crew's narration and Bonny's completed-run report
+
+  Scenario: The operator's own embark act, not a test shortcut, is what turns the failing target green
+    Given a started Estelle session seated as the Captain "Bonny"
+    And a live eval model is configured for the crew and Bonny
+    And the project carries a verification target that is failing
+    When the operator tells Bonny to embark the crew on the failing target
+    And Bonny embarks the crew as an ordinary act of their own turn, with no further step standing in for their decision
+    Then the crew's real work, driven only by that one embark act, turns the failing target green
+    And the started session receives the crew's narration and Bonny's completed-run report
+    And no test-only stand-in for embark was needed to reach this outcome
