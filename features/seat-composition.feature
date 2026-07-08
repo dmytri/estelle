@@ -27,11 +27,15 @@ Feature: Seat commands and composition
     And the crew session is seated as <seat description>
     And the started session stays seated as the Captain "Bonny"
     Examples:
-      | command  | seat description           |
-      | /qm      | the Quartermaster "Misson" |
-      | /bellamy | the Boatswain "Bellamy"    |
-      | /johnson | the Shipwright "Johnson"   |
-      | /crew    | a Crew hand                |
+      | command        | seat description           |
+      | /qm            | the Quartermaster "Misson" |
+      | /misson        | the Quartermaster "Misson" |
+      | /quartermaster | the Quartermaster "Misson" |
+      | /bellamy       | the Boatswain "Bellamy"    |
+      | /boatswain     | the Boatswain "Bellamy"    |
+      | /johnson       | the Shipwright "Johnson"   |
+      | /shipwright    | the Shipwright "Johnson"   |
+      | /crew          | a Crew hand                |
 
   Scenario Outline: A role's system prompt composes the upstream role with its character card
     Given the active seat is the "<seat>" seat
