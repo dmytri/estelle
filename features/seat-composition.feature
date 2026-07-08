@@ -12,13 +12,26 @@ Feature: Seat commands and composition
   alongside role session alike.
 
   Scenario Outline: The Captain commands keep the operator seated as Bonny
-    Given Estelle has launched
-    When the operator runs the command "<command>"
-    Then the active seat is the "bonny" seat
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "<command>" command in the started session
+    Then the started session's active seat is the Captain "Bonny"
     Examples:
       | command |
       | /bonny |
       | /captain |
+
+  Scenario Outline: A manual role command dispatches the role alongside, keeping the operator with Bonny
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "<command>" command in the started session
+    Then a crew session opens alongside the started session
+    And the crew session is seated as <seat description>
+    And the started session stays seated as the Captain "Bonny"
+    Examples:
+      | command  | seat description           |
+      | /qm      | the Quartermaster "Misson" |
+      | /bellamy | the Boatswain "Bellamy"    |
+      | /johnson | the Shipwright "Johnson"   |
+      | /crew    | a Crew hand                |
 
   Scenario Outline: A role's system prompt composes the upstream role with its character card
     Given the active seat is the "<seat>" seat

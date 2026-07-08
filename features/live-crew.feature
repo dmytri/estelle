@@ -249,13 +249,6 @@ Feature: Embarking runs the crew alongside Bonny
   # Captain-to-role bulkhead. This replaces switching the operator's own seat to
   # an internal role.
 
-  Scenario: A manual role command dispatches the role alongside, keeping the operator with Bonny
-    Given a started Estelle session seated as the Captain "Bonny"
-    When the operator runs the "/qm" command in the started session
-    Then a crew session opens alongside the started session
-    And the crew session is seated as the Quartermaster "Misson"
-    And the started session stays seated as the Captain "Bonny"
-
   Scenario: A manually dispatched role starts with clean context
     Given a started Estelle session carrying the operator's message "make the greeting warmer" to Bonny
     When the operator runs the "/qm" command in the started session

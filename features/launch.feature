@@ -13,4 +13,4 @@ Feature: Estelle launch
   Scenario: Estelle registers a command for each seat
     Given Estelle has launched
     When the operator lists the available commands
-    Then the commands "/bonny", "/misson", "/crew", "/bellamy", and "/johnson" are present
+    Then the commands "/bonny", "/captain", "/misson", "/crew", "/bellamy", and "/johnson" are present
