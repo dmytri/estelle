@@ -4,6 +4,27 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
+## Current voyage (2026-07-08): harbour + methodology-check pilot
+
+Harbour pass done (commit `8253ebd`): 6 seat-switch stale planks resolved, the untraced `before_agent_start` seam planked, and one `@captain` scenario promoted with the operator, `A seat's applied turn carries only its own character card` (card isolation, distinct from roster naming). `@logic` 115/115 green.
+
+Then a feature voyage opened, three specs written, awaiting QM:
+- `features/methodology-conformance.feature`: the Phase 3 charter as five `@logic @property` checks, modelled on the shipped gender-neutral check: forbidden-doubles, stale-plank join, gplint feature-lint, green-tree-carries-no-perturbation, watchbill shape. Each is unproven until QM negative-tests it: plant, confirm red, remove.
+- `features/perturb-command.feature`: the flagship Captain-gate perturb tool. Inserts only the RIGGING `fail-fast`, no step text or rationale; only the Captain seat perturbs.
+- `features/fitting-out.feature`: on an unfitted project (no `RIGGING.md`) the Captain steers to the Shipwright seat Johnson; a fitted project opens to Bonny.
+
+Tier-auth-probe dropped as a charter candidate (operator's catch). The durable doctrine already settles tier credentials: fitting-out assumes envs present, a real run's auth-failure raises a fitting blocker, and a role never checks ahead. A standing tier-auth check violates never-check-ahead and would bill the paid `@eval` tier on every green run. The "prove or break" pilot broke it. The other five checks are pure-local artifact scans, no check-ahead.
+
+gplint adopted as a dev dependency (operator, 2026-07-08), recorded in `RIGGING.md ## Dependencies`. Crew installs it; QM implements + negative-tests the gplint check. A `gherkin-lint` command for `RIGGING.md ## Commands` is added once the working `gplint` invocation is verified (gplint needs feature-file globs, so the bare `pnpm exec gplint` from the confirm preview is incomplete). watchbill-shape is vacuous at rest, so its negative-test plants a malformed `watchbill.json`.
+
+QM cycle (uncommitted): 5 methodology checks implemented and negative-test PROVEN (plant->red->remove->green each), including gplint on a planted trailing-space violation. Crew installed gplint. perturb both scenarios green; Crew built the seam reading the fail-fast from RIGGING, so no PERTURBATION literal sits in production and the no-live-perturbation check stays green. fitting-out scenario 2 (fitted->Bonny) green. The stale-plank check proved Boatswain's 5 "stale planks" are valid Scenario-Outline expansions, not drift.
+
+Fitting-out scenario 1 (unfitted->Johnson): distinct-detection chosen (operator, 2026-07-08), not a combined steer. Two conditions stay separate: no model rigged -> `assets/steer.md` (login/model); no `RIGGING.md` -> `assets/unfitted-steer.md` (fit out with Johnson, `/johnson`). No-model takes priority since even fitting out needs a model, so scenario 1 pins `And a model is rigged`. Captain authored `assets/unfitted-steer.md`; Crew adds `RIGGING.md`-absence detection and steer selection in `openWithBonnyVoice`, priority after the no-model branch. Then QM reverifies, Boatswain commits.
+
+`@eval` flakiness (5000ms live-model step timeout; `ENOENT` races on pi temp session jsonl under parallel clones): do NOT document as a known false-failure (operator, 2026-07-08). Per the Verification agreement, a recurring non-product failure is a harness defect to engineer out, with a readiness gate and per-worker pi session-path isolation, not an accepted entry. Defer any `## Known false-failure modes` entry until we are sure we cannot resolve it. An empty section is the healthy state.
+
+Deferred to a future harbour: 5 pre-existing Scenario-Outline stale planks (annotation-convention drift, not deleted steps); 3 `noNonNullAssertion` biome warnings (`src/index.ts` ~1356, biome exit 0).
+
 ## What Estelle is (reoriented 2026-07-04)
 
 Estelle is three things at once, all resting on faithfully consuming the real Shipshape plugin, never a fork of it:
@@ -55,7 +76,7 @@ They/them, gender-neutral. Voice is honour-system; names are where code bites. C
 ## Phase plan and status
 
 1. **Shim engine, mostly done.** Write/bash/read custody + generic dispatch, PostToolUse, SessionStart/End, `commands/`, `${PLUGIN_ROOT}`, install/discover, agent reporting — all against real hook subprocesses. Real-plugin fidelity proven and fixed: convention discovery (`hooks/hooks.json`, no manifest field), nested `hooks` key, quoted `${PLUGIN_ROOT}` commands, project `cwd`/RIGGING via sync seams `checkWriteSync`/`checkReadSync`. The shim runs the actual `~/shipshape` plugin, verified. **Remaining: `agents/` to pi sessions RUNNING (the role capability's pi half — the operator flagged this as core), then the pi installer.**
-2. **Flagship on the real foundation, write+read done.** Estelle enforces the plugin's real **write + read** custody via the shim (`checkWriteSync`/`checkReadSync`); message custody (only Captain addresses the operator) and the Captain write path (`evaluateWrite`) stay flagship. **Remaining: flagship `perturb` command — Option 1 script-tool, no MCP; Captain-gate + perturb are flagship-first, upstream later (the additive `captain` case pulls in perturbation-as-tool doctrine, a bigger commitment). Then salvage the flagship UX: personas, `/embark`, `/clear`, per-seat models, fitting-out.**
+2. **Flagship on the real foundation, write+read done.** Estelle enforces the plugin's real **write + read** custody via the shim (`checkWriteSync`/`checkReadSync`); message custody (only Captain addresses the operator) and the Captain write path (`evaluateWrite`) stay flagship. Flagship UX shipped: personas, `/embark`, `/clear` (`clear-session.feature`), per-seat models (`seat-model-selection`/`-defaults`/`-fallback`). `perturb` and fitting-out are specced this voyage (see Current voyage), awaiting QM. `perturb` is flagship-first, upstream later; the additive `captain` case pulls in perturbation-as-tool doctrine, a bigger commitment.
 3. **Methodology-check pilot, not started, the note's charter.** `/shipwright` refit to derive executable checks (watchbill shape, perturbation liveness, stale-plank join, forbidden-doubles, feature lint, tier auth probe), negative-test each (plant, confirm red, remove), report evidence. Was gated on a quiescent deck; now unblocked.
 
 **Harbour pass done** (commit `3342dc0`): re-based 5 stale `evaluateWrite`/`evaluateRead`/`selectSeat` `@planks` to live step text, removed the orphaned `packages/pi-shipshape` (line 22 already dropped it) plus its stale lockfile importer. The 3 `noNonNullAssertion` biome warnings are still open, deferred.

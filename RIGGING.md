@@ -37,6 +37,7 @@ Procedure lives in the skills. Every role reads this on open.
 - plank-inventory: `rg -nI "@planks\(" -g 'src/**' -g 'bin/**' -g 'packages/*/src/**' -g 'packages/*/index.ts' -g 'packages/*/package.json' .`
 - typecheck: `pnpm exec tsc --noEmit`
 - lint: `pnpm exec biome check .`
+- gherkin-lint: `pnpm exec gplint 'features/**/*.feature' 'packages/*/features/**/*.feature'`
 
 ## Perturbation
 
@@ -53,7 +54,7 @@ Procedure lives in the skills. Every role reads this on open.
 
 - policy: Captain selects dependencies and records them here; Crew installs them from this section; Crew MUST NOT install unspecced dependencies
 - runtime: `@earendil-works/pi-coding-agent`, `pi-open-plugin-shim` (workspace)
-- dev: `@cucumber/cucumber`, `tsx`, `typescript`, `@biomejs/biome`
+- dev: `@cucumber/cucumber`, `tsx`, `typescript`, `@biomejs/biome`, `gplint`
 
 ## Outbound
 

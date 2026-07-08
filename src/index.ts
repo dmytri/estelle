@@ -75,6 +75,7 @@ export interface EstelleSession {
 	installSkill(source: string): Promise<void>;
 	installExtension(source: string): Promise<void>;
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
+	perturb(relPath: string): { allowed: boolean; reason?: string };
 	sendToOperator(message: string): { allowed: boolean; reason?: string };
 	setSeatModel(
 		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
@@ -216,6 +217,17 @@ function piDefaultModel(agentDir: string): string {
 
 function relativeToCwd(cwd: string, path: string): string {
 	return relative(cwd, resolve(cwd, path));
+}
+
+/**
+ * The fail-fast statement is durable configuration under "## Perturbation" in
+ * RIGGING.md, read from the project root so the stamped seam tracks the project
+ * value.
+ */
+function riggingFailFast(): string {
+	const rigging = readFileSync(join(__dirname, "..", "RIGGING.md"), "utf8");
+	const match = rigging.match(/-\s*fail-fast:\s*`([^`]+)`/);
+	return match![1].trim();
 }
 
 /**
@@ -540,6 +552,7 @@ async function ensureShipshapePackage(options: {
 /**
  * @planks("Then Bonny begins their Captain opening turn before the operator speaks")
  * @planks("Then Bonny opens the session with the guidance \"Commodore, no model is rigged yet. Use /login, then /model.\"")
+ * @planks("Then Bonny steers the operator to fit out with the Shipwright \"Johnson\"")
  */
 async function openWithBonnyVoice(
 	state: EstelleState,
@@ -547,32 +560,51 @@ async function openWithBonnyVoice(
 	modelRegistry: { getAvailable(): unknown[] },
 	cwd: string,
 ): Promise<void> {
-	if (modelRegistry.getAvailable().length > 0) {
-		// Actuate Bonny's Captain opening turn: fire a real turn so the seat runs
-		// its opening instructions. The interactive session streams the turn, so
-		// startup returns once the opening turn has dispatched its provider request
-		// rather than blocking on the full turn.
-		const requestDispatched = new Promise<void>((resolve) => {
-			state.onProviderRequest = resolve;
+	if (modelRegistry.getAvailable().length === 0) {
+		const content = readFileSync(
+			join(assetsDir(cwd), "steer.md"),
+			"utf8",
+		).trim();
+		await session.sendCustomMessage({
+			customType: "estelle-greeting",
+			content,
+			display: true,
 		});
-		void session.sendCustomMessage(
-			{
-				customType: "estelle-opening",
-				content:
-					"Begin your Captain opening turn now, before the operator speaks.",
-				display: false,
-			},
-			{ triggerTurn: true },
-		);
-		await requestDispatched;
 		return;
 	}
-	const content = readFileSync(join(assetsDir(cwd), "steer.md"), "utf8").trim();
-	await session.sendCustomMessage({
-		customType: "estelle-greeting",
-		content,
-		display: true,
+	// A project workspace carries its own assets. When that workspace holds no
+	// RIGGING.md it is unfitted, so Bonny steers the operator to the Shipwright
+	// rather than opening at the helm.
+	const isProject = existsSync(join(cwd, "assets", "crew-roster.json"));
+	if (isProject && !existsSync(join(cwd, "RIGGING.md"))) {
+		const content = readFileSync(
+			join(assetsDir(cwd), "unfitted-steer.md"),
+			"utf8",
+		).trim();
+		await session.sendCustomMessage({
+			customType: "estelle-greeting",
+			content,
+			display: true,
+		});
+		return;
+	}
+	// Actuate Bonny's Captain opening turn: fire a real turn so the seat runs
+	// its opening instructions. The interactive session streams the turn, so
+	// startup returns once the opening turn has dispatched its provider request
+	// rather than blocking on the full turn.
+	const requestDispatched = new Promise<void>((resolve) => {
+		state.onProviderRequest = resolve;
 	});
+	void session.sendCustomMessage(
+		{
+			customType: "estelle-opening",
+			content:
+				"Begin your Captain opening turn now, before the operator speaks.",
+			display: false,
+		},
+		{ triggerTurn: true },
+	);
+	await requestDispatched;
 }
 
 function extensionName(path: string, resolvedPath: string): string {
@@ -824,6 +856,27 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			const absolute = resolve(cwd, path);
 			mkdirSync(dirname(absolute), { recursive: true });
 			writeFileSync(absolute, contents, "utf8");
+			return { allowed: true };
+		},
+		/**
+		 * @planks("When Bonny perturbs a named production seam")
+		 * @planks("When Misson attempts to perturb a named production seam")
+		 * @planks("Then the seam carries the fail-fast statement from \"RIGGING.md\"")
+		 * @planks("Then the perturbed seam carries no step text, scenario name, or rationale")
+		 * @planks("Then Estelle blocks the perturbation")
+		 * @planks("Then Estelle reports that only the Captain perturbs")
+		 */
+		perturb: (relPath) => {
+			if (state.activeSeat.role !== "captain") {
+				return {
+					allowed: false,
+					reason: "only the Captain perturbs a seam",
+				};
+			}
+			const statement = riggingFailFast();
+			const absolute = resolve(cwd, relPath);
+			const original = readFileSync(absolute, "utf8");
+			writeFileSync(absolute, `${original}${statement}\n`, "utf8");
 			return { allowed: true };
 		},
 		/**

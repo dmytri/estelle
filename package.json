@@ -19,6 +19,7 @@
     "@biomejs/biome": "^2.5.1",
     "@cucumber/cucumber": "^13.0.0",
     "@types/node": "^26.0.1",
+    "gplint": "^2.5.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   },
