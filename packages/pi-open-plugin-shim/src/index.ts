@@ -210,7 +210,11 @@ class WriteCustodyShim implements OpenPluginShim {
 	}
 
 	/**
+	 * @planks("When a write to \"features/login.feature\" is synchronously attempted")
+	 * @planks("When a write to \"src/login.ts\" is synchronously attempted")
 	 * @planks("Then the shim blocks the write")
+	 * @planks("Then the shim allows the write")
+	 * @planks("Then the block reason carries the hook's denial message")
 	 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain writes specs\"")
 	 * @planks("Then the block reason carries the Shipshape plugin's denial \"Production code belongs to Crew\"")
 	 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain-custodied or configuration artifact\"")
@@ -279,7 +283,10 @@ class WriteCustodyShim implements OpenPluginShim {
 	}
 
 	/**
+	 * @planks("When a read tool call synchronously opens \"CAPTAIN.md\"")
 	 * @planks("Then the shim blocks the read")
+	 * @planks("Then the shim allows the read")
+	 * @planks("Then the block reason carries the hook's denial message")
 	 * @planks("Then the block reason carries the Shipshape plugin's denial \"MUST NOT read CAPTAIN.md\"")
 	 */
 	checkReadSync(

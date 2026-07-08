@@ -43,3 +43,9 @@ Feature: Seat write custody
     When Bonny writes "src/sneaky.ts" in the running session
     Then the running session blocks the write
     And the block reason names the Captain's write scope
+
+  @captain
+  Scenario: The Captain may write a specification
+    Given the active seat is the Captain "Bonny"
+    When Bonny writes "features/pay.feature" in the running session
+    Then the running session allows the write

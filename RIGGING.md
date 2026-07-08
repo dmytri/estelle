@@ -34,7 +34,7 @@ Procedure lives in the skills. Every role reads this on open.
 - coverage: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright"`
 - step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval and not @shipwright" --format usage-json`
 - eval: `pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright"`
-- plank-inventory: `rg -nI "@planks\(" -g 'src/**' -g 'bin/**' -g 'packages/*/src/**' -g 'packages/*/index.ts' -g 'packages/*/package.json' .`
+- plank-inventory: `rg -nI "@planks\(" -g 'src/**' -g 'bin/**' -g 'package.json' -g 'packages/*/src/**' -g 'packages/*/index.ts' -g 'packages/*/package.json' .`
 - typecheck: `pnpm exec tsc --noEmit`
 - lint: `pnpm exec biome check .`
 - gherkin-lint: `pnpm exec gplint 'features/**/*.feature' 'packages/*/features/**/*.feature'`
@@ -69,3 +69,5 @@ Procedure lives in the skills. Every role reads this on open.
 - pi enforces a project-trust gate on first launch; a freshly cloned workspace must be trusted before its extensions and skills load; an untrusted workspace is the trust gate, not an Estelle defect; trust the project, then rerun
 - Estelle installs the upstream Shipshape package on launch when the operator's pi settings do not persist it; on a host without it, the first `@logic` run performs one real git clone; later runs skip; a first-run clone or its network failure is environment state, not an Estelle defect
 - cucumber `--format usage` truncates concrete rows per step pattern; use the `step-usage` command (`usage-json`) for plank audits; a stale-plank hit from the pretty table must be confirmed against feature files
+- c8 undercounts several `packages/pi-open-plugin-shim/src/index.ts` seams that genuinely run under `@logic`, including `checkWriteSync`, `checkReadSync`, `runSessionStart`, `runPostToolUse`, `reportCommands`, and `reportAgents`; each has a passing `@logic` scenario driving the real production function against real fixtures or the real installed plugin, confirmed for the custody seams by the real plugin's denial text surfacing in assertions; a 0%-line report for these seams is a coverage-tooling gap under investigation, not a missing spec or dead code; QM should isolate the root cause, likely in how c8 attributes coverage through cucumber's dynamic `import()` of `packages/*/src` modules
+- `pi-command-passthrough.feature` runs `bin/estelle.js` as a real child process via `execFileSync`, so c8's parent-process instrumentation never sees the child's execution of `bin/estelle.js` or the `run()` argv branch in `src/index.ts`; a 0%-line report there is the same subprocess-coverage gap, not a missing spec

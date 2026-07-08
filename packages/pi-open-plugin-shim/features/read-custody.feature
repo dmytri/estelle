@@ -22,3 +22,16 @@ Feature: Enforcing an open-plugin's read custody on pi
     Given the host acts with no plugin role
     When a read tool call opens "CAPTAIN.md"
     Then the shim allows the read
+
+  @captain
+  Scenario: The shim synchronously blocks a read the hook denies
+    Given the host acts as the role "crew"
+    When a read tool call synchronously opens "CAPTAIN.md"
+    Then the shim blocks the read
+    And the block reason carries the hook's denial message
+
+  @captain
+  Scenario: The shim synchronously allows a read the hook permits
+    Given the host acts as the role "boatswain"
+    When a read tool call synchronously opens "CAPTAIN.md"
+    Then the shim allows the read

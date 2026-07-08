@@ -1355,6 +1355,7 @@ export async function run(options?: RunOptions): Promise<void> {
 						return { allowed: true };
 					},
 					// @planks("Then the crew session lets only the Boatswain commit")
+					// @planks("Then the crew session blocks a Crew hand from committing")
 					commit: () => {
 						if (crewSeat.role !== "boatswain") {
 							return {

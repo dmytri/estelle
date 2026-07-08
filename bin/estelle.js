@@ -10,7 +10,13 @@
  */
 require("../dist/index.js")
 	.run({ argv: process.argv.slice(2) })
-	.catch((err) => {
-		console.error(err);
-		process.exitCode = 1;
-	});
+	.catch(
+		/**
+		 * @planks("Then the command exits with a nonzero status")
+		 * @planks("Then the command prints the launch error to stderr")
+		 */
+		(err) => {
+			console.error(err);
+			process.exitCode = 1;
+		},
+	);

@@ -160,6 +160,13 @@ Feature: Embarking runs the crew alongside Bonny
     And the crew session lets only the Boatswain commit
     And the crew session's message history excludes the Crew's context
 
+  @captain
+  Scenario: The crew session blocks a Crew hand from committing
+    Given a started Estelle session seated as the Captain "Bonny"
+    When the operator runs the "/embark" command in the started session
+    And Estelle hands the crew off from the Quartermaster to the Crew
+    Then the crew session blocks a Crew hand from committing
+
   @eval
   Scenario: A live embark runs the crew loop through every seat to green
     Given a started Estelle session seated as the Captain "Bonny"
