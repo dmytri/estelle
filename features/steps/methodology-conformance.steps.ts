@@ -29,6 +29,7 @@ type MethWorld = EstelleWorld & {
 	methLiveSteps?: Set<string>;
 	methWatchbillPath?: string;
 	methTempDirs?: string[];
+	methLiveTurnSteps?: StepRegistration[];
 };
 
 function collectFiles(
@@ -429,6 +430,211 @@ Then(
 				);
 			}
 		});
+	},
+);
+
+// Scenario: Every live crew-session step carries a live-step timeout budget.
+
+// Markers naming a genuine live crew-session turn: the crew-session and
+// interactive-handle seams the live-crew feature documents as running a real
+// provider turn under "@eval". A step definition whose body calls one of these
+// awaits a live crew-session turn, and must carry an explicit timeout at least
+// as long as the smallest live-step budget already proven in this codebase.
+const LIVE_TURN_MARKER: RegExp[] = [
+	/\.runTurn\(/,
+	/\.handOffToCrew\(/,
+	/\.reportCrewRun\(/,
+	/\.runCrewLoopToCompletion\(/,
+	/\bembark\.run\(/,
+	/agent_end/,
+];
+const LIVE_STEP_BUDGET_MS = 120000;
+
+interface StepRegistration {
+	file: string;
+	line: number;
+	callText: string;
+}
+
+// Blank every comment to spaces, preserving line breaks and every string and
+// template literal untouched. A prose comment's possessive apostrophe, such as
+// "the operator's message", would otherwise read as a string delimiter to the
+// balanced-paren scan below and desync it across the rest of the file.
+function stripComments(source: string): string {
+	let out = "";
+	let inString: string | null = null;
+	let inLineComment = false;
+	let inBlockComment = false;
+	for (let i = 0; i < source.length; i++) {
+		const ch = source[i];
+		const next = source[i + 1];
+		if (inLineComment) {
+			if (ch === "\n") {
+				inLineComment = false;
+				out += ch;
+			} else {
+				out += " ";
+			}
+			continue;
+		}
+		if (inBlockComment) {
+			if (ch === "*" && next === "/") {
+				inBlockComment = false;
+				out += "  ";
+				i++;
+			} else {
+				out += ch === "\n" ? "\n" : " ";
+			}
+			continue;
+		}
+		if (inString) {
+			out += ch;
+			if (ch === "\\") {
+				out += next ?? "";
+				i++;
+				continue;
+			}
+			if (ch === inString) {
+				inString = null;
+			}
+			continue;
+		}
+		if (ch === '"' || ch === "'" || ch === "`") {
+			inString = ch;
+			out += ch;
+			continue;
+		}
+		if (ch === "/" && next === "/") {
+			inLineComment = true;
+			out += "  ";
+			i++;
+			continue;
+		}
+		if (ch === "/" && next === "*") {
+			inBlockComment = true;
+			out += "  ";
+			i++;
+			continue;
+		}
+		out += ch;
+	}
+	return out;
+}
+
+// Extract each Given/When/Then registration's full call text through a
+// balanced-paren scan that tracks string and template literal content, so a
+// paren inside a quoted step pattern or a template literal never desyncs the
+// match. The scan starts at the keyword's own call, not at nested calls the
+// step body may make, so each registration is captured whole. Comments are
+// blanked first, so a possessive apostrophe in prose never misreads as a
+// string delimiter.
+function extractStepRegistrations(
+	file: string,
+	rawSource: string,
+): StepRegistration[] {
+	const source = stripComments(rawSource);
+	const out: StepRegistration[] = [];
+	for (const keyword of ["Given", "When", "Then"]) {
+		const marker = `${keyword}(`;
+		let idx = 0;
+		while (true) {
+			const found = source.indexOf(marker, idx);
+			if (found === -1) {
+				break;
+			}
+			const before = source[found - 1];
+			if (before !== undefined && /[A-Za-z0-9_$]/.test(before)) {
+				idx = found + marker.length;
+				continue;
+			}
+			let i = found + keyword.length; // positioned at the call's "("
+			let depth = 0;
+			let inString: string | null = null;
+			const start = i;
+			for (; i < source.length; i++) {
+				const ch = source[i];
+				if (inString) {
+					if (ch === "\\") {
+						i++;
+						continue;
+					}
+					if (ch === inString) {
+						inString = null;
+					}
+					continue;
+				}
+				if (ch === '"' || ch === "'" || ch === "`") {
+					inString = ch;
+					continue;
+				}
+				if (ch === "(") {
+					depth++;
+				} else if (ch === ")") {
+					depth--;
+					if (depth === 0) {
+						i++;
+						break;
+					}
+				}
+			}
+			out.push({
+				file,
+				line: source.slice(0, found).split("\n").length,
+				callText: source.slice(start, i),
+			});
+			idx = i;
+		}
+	}
+	return out;
+}
+
+// A step's explicit timeout lives in an options object argument between the
+// pattern string and the handler function, the shape every live step in this
+// codebase already uses: `Given(text, { timeout: N }, async function ...)`.
+// Search only that prefix, so a coincidental "timeout" mention inside the
+// handler body never satisfies the check.
+function declaredTimeoutMs(callText: string): number | undefined {
+	const handlerAt = callText.search(/(?:async\s+)?function\s*\(/);
+	const prefix = handlerAt === -1 ? callText : callText.slice(0, handlerAt);
+	const match = prefix.match(/\{\s*timeout:\s*(\d+)/);
+	return match ? Number(match[1]) : undefined;
+}
+
+function awaitsLiveCrewTurn(callText: string): boolean {
+	return LIVE_TURN_MARKER.some((pattern) => pattern.test(callText));
+}
+
+Given(
+	"the project's step definitions that await a live crew-session turn",
+	function (this: MethWorld) {
+		const registrations = verificationSupportFiles(process.cwd()).flatMap(
+			(file) => extractStepRegistrations(file, readFileSync(file, "utf8")),
+		);
+		const liveSteps = registrations.filter((registration) =>
+			awaitsLiveCrewTurn(registration.callText),
+		);
+		assert.ok(
+			liveSteps.length > 0,
+			"no step definition was found that awaits a live crew-session turn",
+		);
+		this.methLiveTurnSteps = liveSteps;
+	},
+);
+
+Then(
+	"each one declares an explicit timeout at least as long as the live-step budget",
+	function (this: MethWorld) {
+		const violations = (this.methLiveTurnSteps ?? []).filter((step) => {
+			const timeout = declaredTimeoutMs(step.callText);
+			return timeout === undefined || timeout < LIVE_STEP_BUDGET_MS;
+		});
+		assert.equal(
+			violations.length,
+			0,
+			`step definition awaits a live crew-session turn without the live-step budget:\n${violations
+				.map((v) => `  ${v.file}:${v.line}`)
+				.join("\n")}`,
+		);
 	},
 );
 

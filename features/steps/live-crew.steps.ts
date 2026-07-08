@@ -302,18 +302,25 @@ Given(
 	},
 );
 
-When("the crew session runs a turn", async function (this: EstelleWorld) {
-	const crew = crewSession(this);
-	await crew.runTurn();
-	// Capture what the Quartermaster's turn left in the crew session's live
-	// history, so a later hand-off scenario can assert the fresh Crew session
-	// carries none of it. Empty and whitespace-only entries are dropped so the
-	// exclusion check has real content to match against.
-	(this as unknown as { qmTurnTexts?: string[] }).qmTurnTexts =
-		crew.runtime.session.messages
-			.map(messageText)
-			.filter((text) => text.trim().length > 0);
-});
+When(
+	"the crew session runs a turn",
+	// Under @eval this drives a real provider turn on the crew session's seated
+	// model, so it needs the live-step budget the sibling live steps carry, not
+	// cucumber's 5000ms default. Under @logic it stays fast.
+	{ timeout: 120000 },
+	async function (this: EstelleWorld) {
+		const crew = crewSession(this);
+		await crew.runTurn();
+		// Capture what the Quartermaster's turn left in the crew session's live
+		// history, so a later hand-off scenario can assert the fresh Crew session
+		// carries none of it. Empty and whitespace-only entries are dropped so the
+		// exclusion check has real content to match against.
+		(this as unknown as { qmTurnTexts?: string[] }).qmTurnTexts =
+			crew.runtime.session.messages
+				.map(messageText)
+				.filter((text) => text.trim().length > 0);
+	},
+);
 
 Then(
 	"the crew session received a live reply from the Quartermaster's model",
