@@ -4,6 +4,12 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
+## Shipped 2026-07-08: @dk/estelle 0.1.16, embark-drives-real-crew reaches users
+
+Caught a real gap: the embark-drives-real-crew fix (`f8d9429`, `ad3638e`, `01bbc48`) landed on `main` in a prior session but sat unpublished under a `package.json` still reading `0.1.15`. `@dk/estelle@0.1.15` on the npm registry never contained it; anyone on `latest` still had the vacuous embark. Bumped to `0.1.16` (commit `ba5f3b6`), `pnpm build`, `pnpm publish --access public`. Shim unchanged since its own `0.1.1`, no shim republish needed. Boot-verified per the `## Outbound` policy: real `npm install @dk/estelle@latest` in a disposable directory carrying its own unrelated `assets/notes.txt`, real `estelle` bin (not `launch()` alone), isolated `HOME`. Result: `estelle-greeting` extension loaded, Bonny seated, bundled assets correctly used over the unrelated local `assets/` folder, no crash, no paid model call (no credentials in the isolated `HOME`, correctly showed the "not yet fitted out" no-model state). `0.1.16` now actually carries the embark fix plus this session's `c8` coverage rig and the `@eval` timeout-budget fix, none of which are user-visible but ship cleanly alongside it.
+
+Lesson for future releases: a commit landing on `main` is not evidence it shipped. Check the published registry version against `git log -- src/ bin/ assets/ package.json` before declaring a fix delivered, not just against `origin/main`.
+
 ## Shipped 2026-07-08: @eval session-persistence race, root cause and fix
 
 Closes a thread this file had deferred three times ("`@eval` flakiness... do NOT enshrine as a known false-failure", "Shipwright flagged the `@eval` tier as environmentally flaky", "parked with a bounded trigger"). The trigger fired again during a harbour pass (different scenarios each time: `:164`, then `:39`/`:70`), which read at first like a session-path concurrency race across alongside internal-role sessions.
