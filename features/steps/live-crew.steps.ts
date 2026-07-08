@@ -1367,6 +1367,13 @@ When(
 			)}`,
 		);
 		await embark.run();
+		// Marks this scenario's own embark act as the test-only stand-in: the
+		// harness called the registered tool's run() directly rather than a live
+		// model deciding to call it from a real turn. The sibling scenario asserts
+		// no such stand-in was needed for its own outcome.
+		(
+			this as unknown as { embarkedViaTestShortcut?: boolean }
+		).embarkedViaTestShortcut = true;
 	},
 );
 
@@ -1421,6 +1428,61 @@ Then(
 		assert.ok(
 			reports.length > 0,
 			"the operator's own session received no crew-run report display message from embark's own run",
+		);
+	},
+);
+
+// The confirmed-defect scenario: proves embark from the operator's own plain
+// instruction, with no harness-side tool.run() call standing in for Bonny's
+// live decision. The registered embark tool is reachable only through Bonny's
+// own turn here, unlike the sibling scenario above, which calls captainTools's
+// embark.run() directly as a test-only stand-in for that decision.
+
+When(
+	"the operator tells Bonny to embark the crew on the failing target",
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		const session = operatorSession(this);
+		await settleOperatorTurn(session);
+		await session.sendUserMessage(
+			"The failing target is confirmed. Please embark the crew now to fix it.",
+			{ triggerTurn: false },
+		);
+	},
+);
+
+When(
+	"Bonny embarks the crew as an ordinary act of their own turn, with no further step standing in for their decision",
+	// Triggers Bonny's real turn on the live model. No captainTools().run() call
+	// stands in for the model's own decision to invoke the registered embark
+	// tool; whichever tool the live model calls from this turn is the real path.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		const session = operatorSession(this);
+		await session.sendUserMessage("Please carry on.");
+	},
+);
+
+Then(
+	"the crew's real work, driven only by that one embark act, turns the failing target green",
+	function (this: EstelleWorld) {
+		assert.equal(
+			handle(this).crewLoopTargetsAllGreen(),
+			true,
+			"the failing target is still red after the operator's own embark instruction",
+		);
+	},
+);
+
+Then(
+	"no test-only stand-in for embark was needed to reach this outcome",
+	function (this: EstelleWorld) {
+		const usedShortcut = (
+			this as unknown as { embarkedViaTestShortcut?: boolean }
+		).embarkedViaTestShortcut;
+		assert.ok(
+			!usedShortcut,
+			"this scenario's own steps called the test-only captainTools().run() stand-in instead of driving embark from a real live turn",
 		);
 	},
 );

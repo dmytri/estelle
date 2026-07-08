@@ -102,6 +102,7 @@ interface EstelleState {
 	runtime?: AgentSessionRuntime;
 	crewRuntime?: AgentSessionRuntime;
 	openCrewSession?: () => Promise<void>;
+	embark?: () => Promise<void>;
 	onProviderRequest?: () => void;
 }
 
@@ -345,6 +346,8 @@ function createEstelleExtension(
 			},
 		});
 		// @planks("Then Bonny embarks the crew rather than instructing the operator to run a role command")
+		// @planks("When Bonny embarks the crew as an ordinary act of their own turn, with no further step standing in for their decision")
+		// @planks("Then the crew's real work, driven only by that one embark act, turns the failing target green")
 		if (state.activeSeat.role === "captain") {
 			pi.registerTool({
 				name: "embark",
@@ -362,7 +365,7 @@ function createEstelleExtension(
 					additionalProperties: false,
 				} as unknown as Parameters<typeof pi.registerTool>[0]["parameters"],
 				execute: async () => {
-					await state.openCrewSession?.();
+					await (state.embark ?? state.openCrewSession)?.();
 					return {
 						content: [
 							{
@@ -1161,7 +1164,11 @@ export async function run(options?: RunOptions): Promise<void> {
 					captainModelId.slice(captainSlash + 1),
 				)
 			: undefined;
-		if (captainModel) {
+		// Bonny's own turn may already be streaming when this runs: embark can be
+		// driven from inside Bonny's own live tool call. Sending Bonny another user
+		// message while that turn is still streaming throws, so skip the live
+		// voice line and keep the default summary in that case.
+		if (captainModel && !runtime.session.isStreaming) {
 			const bonnySession = runtime.session;
 			await bonnySession.sendUserMessage(
 				"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
@@ -1192,7 +1199,11 @@ export async function run(options?: RunOptions): Promise<void> {
 					captainModelId.slice(captainSlash + 1),
 				)
 			: undefined;
-		if (captainModel) {
+		// Bonny's own turn may already be streaming when this runs: embark can be
+		// driven from inside Bonny's own live tool call. Sending Bonny another user
+		// message while that turn is still streaming throws, so skip the live
+		// voice line and keep the default narration in that case.
+		if (captainModel && !runtime.session.isStreaming) {
 			const bonnySession = runtime.session;
 			await bonnySession.sendUserMessage(
 				"Voice a single short line in your own voice narrating that the crew is now running the batch for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
@@ -1281,6 +1292,16 @@ export async function run(options?: RunOptions): Promise<void> {
 		}
 		crewLoopAllGreen = targetGreen();
 		const bonnySession = runtime.session;
+		// Bonny's own turn may already be streaming when this runs: the crew loop
+		// can be driven from inside Bonny's own live tool call. Sending Bonny
+		// another user message while that turn is still streaming throws, so skip
+		// the live voice line and keep the default summary in that case.
+		if (bonnySession.isStreaming) {
+			crewRunReports.push({
+				summary: `${SEATS.crew.name}'s run is reported to ${SEATS.bonny.name}`,
+			});
+			return;
+		}
 		await bonnySession.sendUserMessage(
 			"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
 		);
@@ -1289,6 +1310,21 @@ export async function run(options?: RunOptions): Promise<void> {
 			.map(assistantText)
 			.filter((text) => text.trim().length > 0);
 		crewRunReports.push({ summary: voiced[voiced.length - 1] });
+	};
+
+	// @planks("When Bonny embarks the crew from their own turn")
+	// @planks("Then the crew's real work, driven only by that one embark act, turns the failing target green")
+	state.embark = async () => {
+		await narrateCrewRun();
+		if (redTargetPath) {
+			await driveCrewLoopToCompletion();
+		} else {
+			await state.openCrewSession?.();
+		}
+		if (currentVerdict.allGreen || crewLoopAllGreen) {
+			crewRunEnded = true;
+		}
+		await reportCrewRun();
 	};
 
 	await openWithBonnyVoice(
@@ -1427,16 +1463,7 @@ export async function run(options?: RunOptions): Promise<void> {
 			{
 				name: "embark",
 				run: async () => {
-					await narrateCrewRun();
-					if (redTargetPath) {
-						await driveCrewLoopToCompletion();
-					} else {
-						await state.openCrewSession?.();
-					}
-					if (currentVerdict.allGreen || crewLoopAllGreen) {
-						crewRunEnded = true;
-					}
-					await reportCrewRun();
+					await state.embark?.();
 				},
 			},
 		],
