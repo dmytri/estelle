@@ -42,7 +42,7 @@ Procedure lives in the skills. Every role reads this on open.
 ## Perturbation
 
 - message: `PERTURBATION: consider current durable context; remove when fixed`
-- fail-fast: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`
+- perturb: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`
 
 ## Tiers
 

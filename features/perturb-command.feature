@@ -6,15 +6,15 @@ Feature: Captain perturbation command
 
   A perturbation reddens a seam that still passes every step but has fallen out
   of compliance with a changed durable requirement. The Captain adds only the
-  fail-fast statement from "RIGGING.md" at the seam. The Captain adds no step
+  perturbation statement from "RIGGING.md" at the seam. The Captain adds no step
   text, scenario name, or rationale, so the perturbation carries a defect signal
   and no hidden instruction. Only the Captain seat perturbs; the perturbation
   policy carries the reddening and removal mechanics.
 
-  Scenario: The Captain perturbs a seam with the fail-fast statement
+  Scenario: The Captain perturbs a seam with the perturbation statement
     Given the active seat is the Captain "Bonny"
     When Bonny perturbs a named production seam
-    Then the seam carries the fail-fast statement from "RIGGING.md"
+    Then the seam carries the perturbation statement from "RIGGING.md"
     And the perturbed seam carries no step text, scenario name, or rationale
 
   Scenario: An internal seat may not perturb
