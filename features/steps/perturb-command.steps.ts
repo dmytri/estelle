@@ -5,7 +5,7 @@ import { Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
 
 // The Captain-only perturbation seam the scenarios exercise. Estelle exposes a
-// perturb action on the running session: it stamps the RIGGING fail-fast
+// perturb action on the running session: it stamps the RIGGING perturbation
 // statement into a named production seam when the Captain acts, and blocks every
 // internal seat. The seam does not exist yet; the step definitions drive it as
 // the verification contract Crew satisfies.
@@ -19,12 +19,12 @@ type PerturbWorld = EstelleWorld & {
 	perturbResult?: { allowed: boolean; reason?: string };
 };
 
-// The fail-fast statement is durable configuration, read from RIGGING.md so the
-// assertion tracks the project value rather than a copy pinned in the test.
-function failFastStatement(root: string): string {
+// The perturbation statement is durable configuration, read from RIGGING.md so
+// the assertion tracks the project value rather than a copy pinned in the test.
+function perturbStatement(root: string): string {
 	const rigging = readFileSync(join(root, "RIGGING.md"), "utf8");
-	const match = rigging.match(/-\s*fail-fast:\s*`([^`]+)`/);
-	assert.ok(match, 'RIGGING.md "## Perturbation" carries no "fail-fast" value');
+	const match = rigging.match(/-\s*perturb:\s*`([^`]+)`/);
+	assert.ok(match, 'RIGGING.md "## Perturbation" carries no "perturb" value');
 	return match[1].trim();
 }
 
@@ -62,7 +62,7 @@ When(
 );
 
 Then(
-	"the seam carries the fail-fast statement from {string}",
+	"the seam carries the perturbation statement from {string}",
 	function (this: PerturbWorld, source: string) {
 		assert.equal(source, "RIGGING.md");
 		assert.equal(
@@ -70,11 +70,11 @@ Then(
 			true,
 			`the perturbation was blocked: ${this.perturbResult?.reason ?? ""}`,
 		);
-		const statement = failFastStatement(process.cwd());
+		const statement = perturbStatement(process.cwd());
 		const contents = readFileSync(this.perturbSeamPath!, "utf8");
 		assert.ok(
 			contents.includes(statement),
-			`the perturbed seam does not carry the fail-fast statement:\n${contents}`,
+			`the perturbed seam does not carry the perturbation statement:\n${contents}`,
 		);
 	},
 );
@@ -82,7 +82,7 @@ Then(
 Then(
 	"the perturbed seam carries no step text, scenario name, or rationale",
 	function (this: PerturbWorld) {
-		const statement = failFastStatement(process.cwd());
+		const statement = perturbStatement(process.cwd());
 		const original = new Set(
 			(this.perturbSeamOriginal ?? "").split("\n").map((line) => line.trim()),
 		);
@@ -93,7 +93,7 @@ Then(
 		assert.deepEqual(
 			added,
 			[statement],
-			`the perturbation added text beyond the bare fail-fast statement:\n${added.join(
+			`the perturbation added text beyond the bare perturbation statement:\n${added.join(
 				"\n",
 			)}`,
 		);

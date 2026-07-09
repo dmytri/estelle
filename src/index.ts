@@ -230,13 +230,13 @@ function relativeToCwd(cwd: string, path: string): string {
 }
 
 /**
- * The fail-fast statement is durable configuration under "## Perturbation" in
- * RIGGING.md, read from the project root so the stamped seam tracks the project
- * value.
+ * The perturbation statement is durable configuration under "## Perturbation"
+ * in RIGGING.md, read from the project root so the stamped seam tracks the
+ * project value.
  */
-function riggingFailFast(): string {
+function riggingPerturbStatement(): string {
 	const rigging = readFileSync(join(__dirname, "..", "RIGGING.md"), "utf8");
-	const match = rigging.match(/-\s*fail-fast:\s*`([^`]+)`/);
+	const match = rigging.match(/-\s*perturb:\s*`([^`]+)`/);
 	return match![1].trim();
 }
 
@@ -889,7 +889,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		/**
 		 * @planks("When Bonny perturbs a named production seam")
 		 * @planks("When Misson attempts to perturb a named production seam")
-		 * @planks("Then the seam carries the fail-fast statement from \"RIGGING.md\"")
+		 * @planks("Then the seam carries the perturbation statement from \"RIGGING.md\"")
 		 * @planks("Then the perturbed seam carries no step text, scenario name, or rationale")
 		 * @planks("Then Estelle blocks the perturbation")
 		 * @planks("Then Estelle reports that only the Captain perturbs")
@@ -901,7 +901,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 					reason: "only the Captain perturbs a seam",
 				};
 			}
-			const statement = riggingFailFast();
+			const statement = riggingPerturbStatement();
 			const absolute = resolve(cwd, relPath);
 			const original = readFileSync(absolute, "utf8");
 			writeFileSync(absolute, `${original}${statement}\n`, "utf8");
