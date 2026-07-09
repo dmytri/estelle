@@ -1386,6 +1386,9 @@ export async function run(options?: RunOptions): Promise<void> {
 						atRest: true,
 						sawActivity: crewSawActivity,
 					}),
+					// @planks("When the crew session runs a turn")
+					// @planks("Then the crew session received a live reply from the Quartermaster's model")
+					// @planks("Then the crew session's heartbeat reflected live activity during the run")
 					runTurn: async () => {
 						const crewSession = crewRuntime.session;
 						await new Promise<void>((resolve) => {
