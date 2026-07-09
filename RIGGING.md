@@ -30,10 +30,10 @@ Procedure lives in the skills. Every role reads this on open.
 
 - discover: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval and not @shipwright"`
 - focused: `pnpm exec cucumber-js --tags "not @captain and not @shipwright" --name "{scenario}"`
-- broad: `pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright"`
-- coverage: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright"`
+- broad: `pnpm exec cucumber-js --fail-fast --tags "not @captain and not @eval and not @shipwright"`
+- coverage: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --fail-fast --tags "not @captain and not @eval and not @shipwright"`
 - step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval and not @shipwright" --format usage-json`
-- eval: `pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright"`
+- eval: `pnpm exec cucumber-js --fail-fast --tags "@eval and not @captain and not @shipwright"`
 - plank-inventory: `rg -nI "@planks\(" -g 'src/**' -g 'bin/**' -g 'package.json' -g 'packages/*/src/**' -g 'packages/*/index.ts' -g 'packages/*/package.json' .`
 - typecheck: `pnpm exec tsc --noEmit`
 - lint: `pnpm exec biome check .`
@@ -54,7 +54,7 @@ Procedure lives in the skills. Every role reads this on open.
 
 - policy: Captain selects dependencies and records them here; Crew installs them from this section; Crew MUST NOT install unspecced dependencies
 - runtime: `@earendil-works/pi-coding-agent`, `pi-open-plugin-shim` (workspace)
-- dev: `@cucumber/cucumber`, `tsx`, `typescript`, `@biomejs/biome`, `gplint`, `c8`
+- dev: `@cucumber/cucumber`, `tsx`, `typescript`, `@biomejs/biome`, `gplint`, `c8`, `@types/node`
 
 ## Outbound
 
@@ -72,3 +72,4 @@ Procedure lives in the skills. Every role reads this on open.
 - c8 undercounts several `packages/pi-open-plugin-shim/src/index.ts` seams that genuinely run under `@logic`, including `checkWriteSync`, `checkReadSync`, `runSessionStart`, `runPostToolUse`, `reportCommands`, `reportAgents`, and the shared private `dispatch` behind `checkWrite`/`checkCommand`/`checkRead`; each has a passing `@logic` scenario driving the real production function against real fixtures or the real installed plugin, confirmed for the custody seams by the real plugin's denial text surfacing in assertions; a 0%-line report for these seams is a coverage-tooling gap under investigation, not a missing spec or dead code; QM should isolate the root cause, likely in how c8 attributes coverage through cucumber's dynamic `import()` of `packages/*/src` modules
 - `pi-command-passthrough.feature` runs `bin/estelle.js` as a real child process via `execFileSync`, so c8's parent-process instrumentation never sees the child's execution of `bin/estelle.js` or the `run()` argv branch in `src/index.ts`; a 0%-line report there is the same subprocess-coverage gap, not a missing spec
 - the `coverage` command excludes `@eval`, so `src/index.ts`'s live-crew internals (`reportCrewRun`, `narrateCrewRun`, `driveCrewLoopToCompletion`, the embark tool's `execute`/`session_start` registration, `handOffToCrew`'s live-voice branch, `configureRedTarget`, `assistantText`) show as uncovered under the default `coverage` run even though each is planked and exercised by `@eval`-tagged scenarios in `features/live-crew.feature`; a 0%-line report confined to these functions is the intended `@logic`/`@eval` split, not a missing spec
+- the same dynamic-`import()` coverage-attribution gap documented above for `packages/pi-open-plugin-shim/src/index.ts` also undercounts several `src/index.ts` seams loaded the same way by `features/steps/*.steps.ts`; observed on `evaluateWrite`, `evaluateRead`, the `tool_call` handler's read and bash branches, `createSkill`'s body past its opening line, and the back half of `installExtension`, resourceLoader reload, session recreation, and command merge; each of these is already planked and its owning scenario passes under `@logic` or `@sandbox`, for example `seat-write-scope.feature`, `captain-notes-privacy.feature`, `skill-authoring.feature`, and `extension-install.feature`; a 0%-line report confined to these already-planked segments is the same coverage-tooling gap, not a missing spec or dead code

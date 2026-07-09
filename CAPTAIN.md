@@ -4,6 +4,14 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
+## Harbour 2026-07-09: RIGGING.md refit, stop-on-first-failure and dependency backfill
+
+Shipwright harbour session refit `RIGGING.md`: added `--fail-fast` to `broad`, `coverage`, and `eval` commands per the stop-on-first-failure derivation rule, since those runs are confirmatory boundary checks, not discovery; and added `@types/node` to the recorded dev dependency list, already present in `package.json` but missing from the record. An intermediate step of the same session had renamed the `## Perturbation` key from `fail-fast` to `perturb` to match the generic Shipwright template; that broke `riggingFailFast()` in `src/index.ts`, which reads the literal `fail-fast:` key from `RIGGING.md` at runtime, and was caught and reverted before this commit. Flag for a future session: the runtime's hard dependency on that exact `RIGGING.md` key text is fragile; either the read contract's template key or the code should be reconciled, deliberately, not by an incidental docs rename.
+
+Verified across all three configured tiers before commit: `@logic`+default 131/131 scenarios green, `@sandbox` 6/6 green, `@eval` 13/13 green (fresh live-model run, 11m17s). `typecheck`, `lint` (4 pre-existing `noNonNullAssertion` warnings, not new), and `gplint` all clean.
+
+Also flagged, not fixed this session: `features/live-crew.feature` carries bare `#` narrative comments in 9 places, a Context bulkhead violation per the scenario-writing agreement. Needs a dedicated cleanup pass.
+
 ## Shipped 2026-07-08: @dk/estelle 0.1.18, no internal-role command switches seats
 
 The prior note's fix (`6c98bb9`) was incomplete: it moved `/bellamy`, `/johnson`, `/crew` off the seat-switch loop but left `/misson` on it, and never registered the `/quartermaster`, `/boatswain`, `/shipwright` aliases as pi commands at all, same "alias exists in a lookup table but never registered" defect `/captain` originally had. Caught by broadening `seat-composition.feature`'s alongside-dispatch outline from 4 to 8 examples (adding the alias commands) before publishing, rather than after. `SEAT_COMMANDS` is now `["/bonny", "/captain"]` only, `ALONGSIDE_COMMANDS` carries every internal-role command and alias. Commit `6edeb08`.
