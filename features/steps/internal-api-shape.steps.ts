@@ -1,9 +1,25 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import { After, Given, Then, When } from "@cucumber/cucumber";
+import { After, BeforeAll, Given, Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
+
+// Disposable conformance dirs are namespaced under the repo root so their
+// relative imports reach the real seams and the scantling. The per-scenario
+// After hook removes each one on the normal path. A crashed or killed run
+// cannot be trusted to tear down, so reclaim any leftover at suite start; this
+// is the primary safety net against a stray namespaced dir fouling the tree.
+const CONFORMANCE_PREFIX = ".estelle-conformance-";
+
+BeforeAll(() => {
+	const root = process.cwd();
+	for (const entry of readdirSync(root)) {
+		if (entry.startsWith(CONFORMANCE_PREFIX)) {
+			rmSync(resolve(root, entry), { recursive: true, force: true });
+		}
+	}
+});
 
 // Extra state this feature's one scenario carries between its steps. Kept off the
 // shared world; attached to the live world instance and read back structurally.
@@ -55,7 +71,7 @@ When(
 		// the two real seams together must provide every value export the contract
 		// declares, with assignable signatures. tsc is the verifier; a seam that
 		// drops or narrows a pinned member reddens it as a counterexample.
-		const tmpDir = mkdtempSync(resolve(root, ".estelle-conformance-"));
+		const tmpDir = mkdtempSync(resolve(root, CONFORMANCE_PREFIX));
 		this.shapeTempDir = tmpDir;
 
 		const contractSpec = scantlingSpecifier(root, tmpDir, scantlingPath);
