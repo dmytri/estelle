@@ -513,6 +513,7 @@ function createEstelleExtension(
 		 * @planks("Then the reset nudge's guidance is delivered into Bonny's session context")
 		 * @planks("When a non-outbound command runs in the started session")
 		 * @planks("Then no reset nudge guidance is delivered into Bonny's session context")
+		 * @planks("Then Bonny offers the operator a fresh context for the next batch")
 		 */
 		pi.on("tool_result", async (event) => {
 			if (event.toolName !== "bash") {
@@ -534,11 +535,25 @@ function createEstelleExtension(
 			if (!additionalContext) {
 				return;
 			}
-			await state.runtime?.session.sendCustomMessage({
-				customType: "shipshape-reset-nudge",
-				content: additionalContext,
-				display: true,
-			});
+			const session = state.runtime?.session;
+			if (!session) {
+				return;
+			}
+			// The nudge is about the next batch, so it belongs at the next turn
+			// boundary. While a turn is streaming, a default send steers the nudge
+			// into the middle of that in-flight turn, where the model buries it
+			// under the turn's own work; deliver it as next-turn context instead,
+			// so it reaches Bonny alongside the operator's next message and Bonny
+			// honours it. On an idle session, the plain append already lands it as
+			// the latest context for the next turn.
+			await session.sendCustomMessage(
+				{
+					customType: "shipshape-reset-nudge",
+					content: additionalContext,
+					display: true,
+				},
+				session.isStreaming ? { deliverAs: "nextTurn" } : undefined,
+			);
 		});
 	};
 }
@@ -1502,6 +1517,14 @@ export async function run(options?: RunOptions): Promise<void> {
 			let line = `${fromSeat.name} hands off to ${SEATS.crew.name}`;
 			if (captainModel) {
 				const bonnySession = runtime.session;
+				// Bonny's live opening turn floats past startup, so it can still be
+				// streaming when the handoff runs. The voiced line must be a real
+				// assistant message in Bonny's own session, and sending mid-stream
+				// throws instead of voicing, so interrupt the in-flight turn; the
+				// handoff narration is Bonny's next act.
+				if (bonnySession.isStreaming) {
+					await bonnySession.abort();
+				}
 				await bonnySession.sendUserMessage(
 					`Voice a single short line in your own voice narrating the handoff from the ${fromSeat.name} to the ${SEATS.crew.name}. Reply with plain text only. Do not read files. Do not call any tools.`,
 				);
