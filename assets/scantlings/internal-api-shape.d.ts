@@ -91,7 +91,9 @@ export interface EstelleSession {
 	dispose(): void;
 }
 
-export declare function launch(options?: LaunchOptions): Promise<EstelleSession>;
+export declare function launch(
+	options?: LaunchOptions,
+): Promise<EstelleSession>;
 export declare function run(options?: RunOptions): Promise<void>;
 
 // --- Shim seam: packages/pi-open-plugin-shim/src/index.ts ---

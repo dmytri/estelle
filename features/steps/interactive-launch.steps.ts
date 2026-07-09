@@ -157,15 +157,6 @@ When(
 );
 
 Then(
-	"the started session's active seat is the Quartermaster {string}",
-	function (this: EstelleWorld, name: string) {
-		const seat = this.interactiveSession!.seat();
-		assert.equal(seat.role, "quartermaster");
-		assert.equal(seat.name, name);
-	},
-);
-
-Then(
 	"the started session's active seat is the Captain {string}",
 	function (this: EstelleWorld, name: string) {
 		const seat = this.interactiveSession!.seat();
