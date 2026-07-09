@@ -344,6 +344,9 @@ function evaluateRead(
  * @planks("Then the started session's message history excludes the operator's message \"make the greeting warmer\"")
  * @planks("Then the started session stays seated as the Captain \"Bonny\"")
  * @planks("Then the started session carries no greeting before the operator speaks")
+ * @planks("Then Bonny embarks the crew rather than instructing the operator to run a role command")
+ * @planks("When Bonny embarks the crew as an ordinary act of their own turn, with no further step standing in for their decision")
+ * @planks("Then the crew's real work, driven only by that one embark act, turns the failing target green")
  */
 function createEstelleExtension(
 	state: EstelleState,
@@ -385,9 +388,6 @@ function createEstelleExtension(
 				await state.openCrewSession?.();
 			},
 		});
-		// @planks("Then Bonny embarks the crew rather than instructing the operator to run a role command")
-		// @planks("When Bonny embarks the crew as an ordinary act of their own turn, with no further step standing in for their decision")
-		// @planks("Then the crew's real work, driven only by that one embark act, turns the failing target green")
 		if (state.activeSeat.role === "captain") {
 			pi.registerTool({
 				name: "embark",
@@ -611,6 +611,7 @@ async function ensureShipshapePackage(options: {
  * @planks("Then Bonny begins their Captain opening turn before the operator speaks")
  * @planks("Then Bonny opens the session with the guidance \"Commodore, no model is rigged yet. Use /login, then /model.\"")
  * @planks("Then Bonny steers the operator to fit out with the Shipwright \"Johnson\"")
+ * @planks("When Bonny takes their next turn")
  */
 async function openWithBonnyVoice(
 	state: EstelleState,
@@ -657,7 +658,6 @@ async function openWithBonnyVoice(
 	// as a delivery failure, the same observable state sendToOperator keeps, so
 	// a failed opening turn surfaces in session state instead of an unhandled
 	// rejection outliving the session's owner.
-	// @planks("When Bonny takes their next turn")
 	state.pendingDeliveries.push(
 		session
 			.sendCustomMessage(

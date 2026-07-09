@@ -4,24 +4,48 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
+## Harbour 2026-07-09 complete, uncommitted
+
+Resumed the interrupted refit at base `f4b56fb` and completed the inventory. All-tier boundary check green: `@logic`+`@sandbox` 139/139, `@eval` 14/14, first weather record at `coverage/weather.json`. `RIGGING.md`/`AGENTS.md` refit to current shape, `README.md` Shipshape block added. Plank inventory sound: 273 planks, 217 unique step texts, zero stale against `@eval`-inclusive live steps. Zero `@captain` and zero `@shipwright` scenarios; nothing to promote or condemn.
+
+Harbour-scoped edits this session, uncommitted for Boatswain: `RIGGING.md` `plank-inventory` now `node scripts/plank-inventory.mjs` (TS compiler API, reads docblock and line-comment planks, escaped-quote-safe, seam-bound; retires the fragile `rg` lister); two below-seam fragment planks hoisted to their function docblocks (`createEstelleExtension`, `openWithBonnyVoice`); `scripts/plank-inventory.mjs` added.
+
+Removed the orphaned `packages/pi-shipshape/` residue: fitted out in `bd571bb`, tracked files struck in `3342dc0`, only ignored `node_modules` lingered. Layer-1 (packaging upstream Shipshape skills for plain pi) is realized at runtime per no-vendoring, not as a built package; the operator confirmed the residue is deletable, not a stub for a planned distributable.
+
+Next: Boatswain custody for the harbour-scoped commit, then the seat-pinning spec item below, then release per `## Outbound` with the registry boot-verify; outbound needs fresh operator approval in that session.
+
+## Upstream planking evidence, drafted for delivery
+
+Two planking-doctrine findings for `dmytri/shipshape`, drafted self-contained for the maintainer to read cold. Deliver as a GitHub issue on the upstream repo; `CAPTAIN.md` is private and search-excluded, so it is our record, never the channel. The draft (session scratchpad, `upstream-planking-findings.md`) may need re-generating if the scratchpad is gone; the two findings are:
+
+1. **Inventory guidance is self-defeating for line-comment planks.** Discovery-tools says prefer jsdoc/ts-morph, but `@planks` is plain-text-by-design and 65 of 273 planks here are `//` line comments. `getJSDocTags` reads only `/** */` and undercounts by a quarter. Fix: mandate docblock-on-declaration form, or drop the AST recommendation and read all comment ranges.
+2. **The hoisting rule ships with no executable placement check.** Two planks sat below their seam and passed QM and Boatswain to harbour, because the only plank check joins step *text* to live steps, never *placement* (Article 6). Fix: ship a reference "every plank annotates a declaration" check, or state that placement is harbour-only by design.
+
+Both share one root: `@planks` is specified free-placed plain text, yet the tooling guidance and hoisting rule assume declaration-anchored annotations.
+
+## Verification-economy findings, harbour audit
+
+From the weather record and step-def read. Routing noted per finding.
+
+- **Build-reuse debt (QM, speed).** `Given("the built Estelle package")` and `Given("the packaged Estelle artifact")` each run `pnpm build` (~4.8s) per scenario; four scenarios rebuild the same ambient `dist/` no scenario mutates, ~14s redundant, near 10% of the `@logic` run. Build once per run behind a marker or lock and reuse, per the Verification agreement's reuse rule. Verification debt for QM.
+- **Over-provisioned fixture (QM).** `"The package exposes the estelle launch command"` runs the build but asserts only `package.json` `bin` and the committed `bin/estelle.js` shebang, needing no build. Drop or split the build `Given` for it.
+- **GritQL-in-biome (rigging, robustness not speed).** The forbidden-double scan (`methodology-conformance.steps.ts` `FORBIDDEN_DOUBLE` line regexes) is real code AST: a biome GritQL plugin rule folds it into the `biome check` gate we already run. The hand-rolled `stripComments` + `extractStepRegistrations` balanced-paren parser (~150 lines) for the live-turn-timeout check is a stronger AST candidate: structural matching retires the fragile text-parsing. Neither speeds a fast check; both cut fragility. GritQL does not fit plank or placement checks: comment trivia stays on the compiler API.
+- **Plank-placement check (QM).** The `@property` "every plank annotates a declaration" check from the upstream note above is ours to add regardless; `scripts/plank-inventory.mjs` `bindSeam` already distinguishes the in-body case.
+- **Scantling form is sound.** `internal-api-shape` is already correct scantling-attestation form (tsc proof); its ~13s is inherent to a real type-proof, optionally narrowed by scoping its conformance tsconfig to the seams. `"ships runtime and withholds Captain notes"` genuinely needs real `npm pack` ignore-rule semantics, so it stays a behaviour scenario, not a scantling; only its build should be reused. No scenario is a false scantling.
+
 ## Voyage closed 2026-07-09: audit remediation
 
 All audit items landed: lint gate green under a binding lint-clean scenario; 7 promoted skeletons executable and green; six live-path production defects found and fixed through the `@eval` tier (thinking-level clamp, premature dispose, leaked floating-turn rejection, mid-stream hand-off guard, abort-and-voice for the crew-run summary, isolated-dispatch seat declaration); default tier 139/139. Watchbill struck. Boundary check deferred to harbour per Captain spend directive; the confirmatory `@eval` pass runs there.
 
 Immediate post-harbour spec work: pin the isolated-dispatch declaration for every internal seat, not only the QM seat, in `seat-composition.feature`'s alongside outline; Boatswain flagged the code as broader than its pinned scenario. Written after harbour so the boundary check meets no undefined steps.
 
-## Standing Estelle deltas, apply at next harbour refit
+## Standing Estelle deltas, open follow-ups
 
-Upstream is now `0.10.1`; `/shipwright` re-derives to current shape and drops superseded slots:
+The 0.10.1 Rigging reshape landed this harbour (Outbound, Dependencies, Tiers policy/weather, mode lines, scantlings). Still open:
 
-- `## Outbound` reshapes to `outbound` / `ship` / `verify` lines per target.
-- `## Dependencies` reshapes to one `dependency:` line per name; the `runtime:`/`dev:` keys are superseded.
-- `## Tiers` moves per-tier policy to `policy:` lines and gains an optional `weather:` path for the wake's weather record; Estelle is the named weather-record pilot, and per-scenario duration lands there during the boundary check.
-- `## Known false-failure modes` reshapes to `mode:` lines, and the entries must drop procedure ("QM should isolate...") to stay values-only.
-- Declare `scantlings:` under `## Directories` for `assets/scantlings/` (`internal-api-shape.d.ts` is live and undeclared).
 - Derive a discovery-shaped eval variant without `--fail-fast`, alongside the confirmatory `eval` command: enumerating an unknown live-failure set through a fail-fast command re-runs unchanged-behaviour scenarios on paid model turns once per newly revealed red, observed live this voyage.
-- 0.10.1 also changed hook behaviour Estelle consumes live: planks-check scopes to crew/shipwright, dispatch-guard binds a spawned Captain and measures the prompt, feature-quality exempts `# language:` and doc-string hashes. The shim's custody assertions must be re-proven against these.
-- Open follow-up: the shim consuming the `rules/` component is now safer to pilot; 0.10.1 rewrote the rules as faithful cited checklists under test.
+- 0.10.1 changed hook behaviour Estelle consumes live: planks-check scopes to crew/shipwright, dispatch-guard binds a spawned Captain and measures the prompt, feature-quality exempts `# language:` and doc-string hashes. The shim's custody assertions must be re-proven against these.
+- The shim consuming the `rules/` component is now safer to pilot; 0.10.1 rewrote the rules as faithful cited checklists under test.
 
 ## What Estelle is (reoriented 2026-07-04)
 
