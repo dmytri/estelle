@@ -12,6 +12,10 @@ Verified across all three configured tiers before commit: `@logic`+default 131/1
 
 Also flagged, not fixed this session: `features/live-crew.feature` carries bare `#` narrative comments in 9 places, a Context bulkhead violation per the scenario-writing agreement. Needs a dedicated cleanup pass.
 
+## Blocker resolved 2026-07-09: live-crew.feature bare-comment cleanup
+
+Boatswain-flagged blocker closed. All 9 bare `#` comment blocks in `features/live-crew.feature` converted to `Rule:` prose per the scenario-writing agreement: durable non-requirement context now sits in a named `Rule:` heading directly above the scenarios it introduces, instead of a comment reaching every role. No scenario text, tag, or step changed; scenario count unchanged at 28. One mechanical snag: a `Rule:` description line that starts with a literal `@logic`/`@eval` token is parsed by the Gherkin lexer as a malformed tag line, not prose; reworded those two spots to "the fast tier" / "the live-eval tier" instead of the literal tag. Verified: full `discover` 131/131 parseable (0 failures), `gplint` clean on the file and the full glob, working tree shows only this file changed. Ready for Boatswain custody and commit.
+
 ## Shipped 2026-07-08: @dk/estelle 0.1.18, no internal-role command switches seats
 
 The prior note's fix (`6c98bb9`) was incomplete: it moved `/bellamy`, `/johnson`, `/crew` off the seat-switch loop but left `/misson` on it, and never registered the `/quartermaster`, `/boatswain`, `/shipwright` aliases as pi commands at all, same "alias exists in a lookup table but never registered" defect `/captain` originally had. Caught by broadening `seat-composition.feature`'s alongside-dispatch outline from 4 to 8 examples (adding the alias commands) before publishing, rather than after. `SEAT_COMMANDS` is now `["/bonny", "/captain"]` only, `ALONGSIDE_COMMANDS` carries every internal-role command and alias. Commit `6edeb08`.
