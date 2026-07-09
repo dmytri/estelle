@@ -30,6 +30,7 @@ type MethWorld = EstelleWorld & {
 	methWatchbillPath?: string;
 	methTempDirs?: string[];
 	methLiveTurnSteps?: StepRegistration[];
+	methImplementationPaths?: string[];
 };
 
 function collectFiles(
@@ -355,6 +356,63 @@ Then("the gherkin linter reports no violation", function (this: MethWorld) {
 		result.status,
 		0,
 		`the gherkin linter reported a violation or could not run:\n${
+			result.stdout || ""
+		}${result.stderr || ""}${result.error ? String(result.error) : ""}`,
+	);
+});
+
+// Scenario: The implementation passes the project code lint.
+
+// The implementation paths the RIGGING "implementation" directories name,
+// repo-root-relative so the linter reports readable paths: root src, bin, and
+// package.json, plus each workspace package's src, index.ts, and package.json.
+function implementationPaths(root: string): string[] {
+	const out: string[] = [];
+	for (const candidate of ["src", "bin", "package.json"]) {
+		if (existsSync(join(root, candidate))) {
+			out.push(candidate);
+		}
+	}
+	for (const pkg of packageDirs(root)) {
+		for (const candidate of ["src", "index.ts", "package.json"]) {
+			if (existsSync(join(pkg, candidate))) {
+				out.push(join("packages", basename(pkg), candidate));
+			}
+		}
+	}
+	return out;
+}
+
+Given(
+	"the project's implementation directories and the code lint configuration",
+	function (this: MethWorld) {
+		const paths = implementationPaths(process.cwd());
+		assert.ok(paths.length > 0, "no implementation paths were found to lint");
+		assert.ok(
+			existsSync(join(process.cwd(), "biome.json")),
+			'the code lint configuration "biome.json" is absent',
+		);
+		this.methImplementationPaths = paths;
+	},
+);
+
+Then("the code linter reports no violation", function (this: MethWorld) {
+	// "No violation" means no diagnostic at all: biome exits zero while still
+	// reporting warnings, and a reported warning is a reported violation, so
+	// the run escalates warnings to the exit code.
+	const paths = this.methImplementationPaths ?? [];
+	const result = spawnSync(
+		"pnpm",
+		["exec", "biome", "check", "--error-on-warnings", ...paths],
+		{
+			cwd: process.cwd(),
+			encoding: "utf8",
+		},
+	);
+	assert.equal(
+		result.status,
+		0,
+		`the code linter reported a violation or could not run:\n${
 			result.stdout || ""
 		}${result.stderr || ""}${result.error ? String(result.error) : ""}`,
 	);

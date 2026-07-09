@@ -67,6 +67,16 @@ When(
 	},
 );
 
+When(
+	"a write to {string} is synchronously attempted",
+	function (this: ShimWorld, path: string) {
+		// The synchronous seam: the shim runs the same real hook executable and
+		// honours its real exit code, blocking until the decision returns.
+		assert.ok(this.shim, "no shim loaded");
+		this.decision = this.shim.checkWriteSync(this.role, path);
+	},
+);
+
 Then("the shim blocks the write", function (this: ShimWorld) {
 	assert.ok(this.decision, "no write was attempted");
 	assert.equal(

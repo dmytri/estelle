@@ -25,6 +25,7 @@ interface ReadShimWorld {
 			role: string | undefined,
 			path: string,
 		): Promise<ReadCustodyDecision>;
+		checkReadSync(role: string | undefined, path: string): ReadCustodyDecision;
 	};
 	role?: string;
 	decision?: ReadCustodyDecision;
@@ -62,6 +63,16 @@ When(
 	async function (this: ReadShimWorld, path: string) {
 		assert.ok(this.shim, "no shim loaded");
 		this.decision = await this.shim.checkRead(this.role, path);
+	},
+);
+
+When(
+	"a read tool call synchronously opens {string}",
+	function (this: ReadShimWorld, path: string) {
+		// The synchronous seam: the shim runs the same real hook executable and
+		// honours its real exit code, blocking until the decision returns.
+		assert.ok(this.shim, "no shim loaded");
+		this.decision = this.shim.checkReadSync(this.role, path);
 	},
 );
 

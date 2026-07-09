@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
@@ -11,6 +11,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Given, Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
+
+// The observed run of the estelle command when its launch rejects: exit
+// status and stderr, carried between the When and its Then assertions.
+type RunnableWorld = EstelleWorld & {
+	commandRun?: { status: number | null; stderr: string };
+};
 
 Given("the built Estelle package", function (this: EstelleWorld) {
 	// Verify the artifact operators run, not the source tree. Run the real
@@ -88,6 +94,57 @@ When(
 			builtEntry
 		)) as typeof import("../../src/index.js");
 		this.launched = await launch({ cwd: this.workspaceDir });
+	},
+);
+
+When(
+	"the operator runs the {string} command in a directory whose launch rejects",
+	{ timeout: 60000 },
+	function (this: RunnableWorld, name: string) {
+		// A directory whose launch rejects: its agent dir carries a malformed
+		// "estelle.json", so the launch path throws while reading the recorded
+		// seat models, before any session opens. The operator-real path is the
+		// executable bin declared in package.json, run as a real child process
+		// exactly as npx runs it. The disposable agent dir travels through pi's
+		// own PI_CODING_AGENT_DIR environment seam, so the host's real ~/.pi is
+		// never touched. The spawn timeout is a failure ceiling: a launch that
+		// wrongly proceeds into the interactive session is killed and surfaces
+		// as a missing exit status.
+		this.workspaceDir = mkdtempSync(join(tmpdir(), "estelle-launch-reject-"));
+		const agentDir = this.prepareAgentDir({ "estelle.json": "{ not json" });
+		const pkg = JSON.parse(
+			readFileSync(join(process.cwd(), "package.json"), "utf8"),
+		) as { bin?: Record<string, string> };
+		const binRel = pkg.bin?.[name];
+		assert.ok(binRel, `package.json declares no bin "${name}"`);
+		const result = spawnSync(process.execPath, [join(process.cwd(), binRel)], {
+			cwd: this.workspaceDir,
+			env: { ...process.env, PI_CODING_AGENT_DIR: agentDir },
+			encoding: "utf8",
+			timeout: 30000,
+		});
+		this.commandRun = { status: result.status, stderr: result.stderr ?? "" };
+	},
+);
+
+Then("the command exits with a nonzero status", function (this: RunnableWorld) {
+	assert.ok(this.commandRun, "no command was run");
+	assert.ok(
+		this.commandRun.status !== null && this.commandRun.status !== 0,
+		`command did not exit with a nonzero status: ${String(
+			this.commandRun.status,
+		)}; stderr: ${this.commandRun.stderr}`,
+	);
+});
+
+Then(
+	"the command prints the launch error to stderr",
+	function (this: RunnableWorld) {
+		assert.ok(this.commandRun, "no command was run");
+		assert.ok(
+			this.commandRun.stderr.includes("JSON"),
+			`stderr carries no launch error naming the malformed configuration: ${this.commandRun.stderr}`,
+		);
 	},
 );
 

@@ -236,8 +236,13 @@ function relativeToCwd(cwd: string, path: string): string {
  */
 function riggingPerturbStatement(): string {
 	const rigging = readFileSync(join(__dirname, "..", "RIGGING.md"), "utf8");
-	const match = rigging.match(/-\s*perturb:\s*`([^`]+)`/);
-	return match![1].trim();
+	const statement = rigging.match(/-\s*perturb:\s*`([^`]+)`/)?.[1];
+	if (statement === undefined) {
+		throw new Error(
+			"RIGGING.md carries no perturb value under ## Perturbation",
+		);
+	}
+	return statement.trim();
 }
 
 /**
@@ -623,14 +628,28 @@ async function openWithBonnyVoice(
 	const requestDispatched = new Promise<void>((resolve) => {
 		state.onProviderRequest = resolve;
 	});
-	void session.sendCustomMessage(
-		{
-			customType: "estelle-opening",
-			content:
-				"Begin your Captain opening turn now, before the operator speaks.",
-			display: false,
-		},
-		{ triggerTurn: true },
+	// The opening turn floats past startup by design. Its failure is recorded
+	// as a delivery failure, the same observable state sendToOperator keeps, so
+	// a failed opening turn surfaces in session state instead of an unhandled
+	// rejection outliving the session's owner.
+	// @planks("When Bonny takes their next turn")
+	state.pendingDeliveries.push(
+		session
+			.sendCustomMessage(
+				{
+					customType: "estelle-opening",
+					content:
+						"Begin your Captain opening turn now, before the operator speaks.",
+					display: false,
+				},
+				{ triggerTurn: true },
+			)
+			.then(
+				() => {},
+				() => {
+					state.deliveryFailures += 1;
+				},
+			),
 	);
 	await requestDispatched;
 }
@@ -1091,6 +1110,12 @@ export async function run(options?: RunOptions): Promise<void> {
 		seatSystemPrompt("", seat, runtimeCwd, {
 			[seat.skill]: join(shipshapePluginDir, "skills", seat.skill, "SKILL.md"),
 		});
+	// Seat sessions run with thinking off. pi's default thinking level clamps
+	// upward on reasoning models whose lower levels are unsupported, and a
+	// reasoning-heavy live turn can land its reply in the thinking channel,
+	// leaving no visible assistant text for the operator.
+	// @planks("When Bonny takes their next turn")
+	// @planks("Then Bonny offers the operator a fresh context for the next batch")
 	const buildRuntime = (runtimeState: EstelleState) =>
 		createAgentSessionRuntime(
 			async ({ cwd: runtimeCwd, sessionManager, sessionStartEvent }) => {
@@ -1132,6 +1157,7 @@ export async function run(options?: RunOptions): Promise<void> {
 						sessionManager,
 						sessionStartEvent,
 						model: seatModel,
+						thinkingLevel: "off",
 					})),
 					services,
 					diagnostics: services.diagnostics,
@@ -1263,7 +1289,10 @@ export async function run(options?: RunOptions): Promise<void> {
 	// @planks("Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target")
 	// @planks("Then the failing target passes the project's verification after the run")
 	const driveCrewLoopToCompletion = async () => {
-		const targetPath = redTargetPath!;
+		const targetPath = redTargetPath;
+		if (targetPath === undefined) {
+			throw new Error("crew loop cannot run without a configured red target");
+		}
 		const targetGreen = () =>
 			existsSync(targetPath) &&
 			readFileSync(targetPath, "utf8").trim().length > 0;
@@ -1364,11 +1393,18 @@ export async function run(options?: RunOptions): Promise<void> {
 		cwd,
 	);
 
+	// The interactive owner holds the session's lifetime. The default terminal
+	// mode disposes when the operator exits; an injected interactive seam keeps
+	// the started session live after run() returns, so Bonny's opening turn and
+	// later turns run to completion on a connected session.
+	// @planks("When Bonny takes their next turn")
+	// @planks("Then Bonny offers the operator a fresh context for the next batch")
 	const interactive =
 		options?.interactive ??
 		(async (handle: InteractiveHandle) => {
 			const mode = new InteractiveMode(handle.runtime);
 			await mode.run();
+			handle.runtime.session.dispose();
 		});
 
 	await interactive({
@@ -1519,13 +1555,21 @@ export async function run(options?: RunOptions): Promise<void> {
 				crewRunEnded = true;
 				return;
 			}
-			crewDispatches.push({ target: currentVerdict.failingTarget! });
+			const { failingTarget } = currentVerdict;
+			if (failingTarget === undefined) {
+				throw new Error("crew loop advanced without a reported failing target");
+			}
+			crewDispatches.push({ target: failingTarget });
 		},
 		// @planks("When Estelle advances the crew loop through the Crew to the Boatswain")
 		// @planks("Then the crew session is seated as the Boatswain \"Bellamy\"")
 		// @planks("Then the crew session's message history excludes the Crew's context")
 		advanceCrewLoopThroughToBoatswain: async () => {
-			crewDispatches.push({ target: currentVerdict.failingTarget! });
+			const { failingTarget } = currentVerdict;
+			if (failingTarget === undefined) {
+				throw new Error("crew loop advanced without a reported failing target");
+			}
+			crewDispatches.push({ target: failingTarget });
 			const boatswainState: EstelleState = {
 				providerRequestCount: 0,
 				activeSeat: SEATS.bellamy,
@@ -1559,6 +1603,4 @@ export async function run(options?: RunOptions): Promise<void> {
 		// @planks("Then Bonny begins their Captain opening turn before the operator speaks")
 		providerRequestCount: () => state.providerRequestCount,
 	});
-
-	runtime.session.dispose();
 }

@@ -768,6 +768,20 @@ Then(
 );
 
 Then(
+	"the crew session blocks a Crew hand from committing",
+	function (this: EstelleWorld) {
+		const result = crewSession(this).commit();
+		assert.equal(
+			result.allowed,
+			false,
+			`crew session allowed the seated Crew hand's commit but commit custody should block it: ${
+				result.reason ?? ""
+			}`,
+		);
+	},
+);
+
+Then(
 	"the crew session lets only the Boatswain commit",
 	function (this: EstelleWorld) {
 		const result = crewSession(this).commit();

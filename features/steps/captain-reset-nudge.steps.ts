@@ -192,6 +192,14 @@ Given(
 	},
 );
 
+// The next turn's own observed output and event trail, so the assertion reads
+// only the turn under test and a silent turn failure surfaces with the last
+// observed state.
+type NextTurnWorld = EstelleWorld & {
+	nextTurnReplies?: string[];
+	nextTurnEvents?: string[];
+};
+
 // Bonny takes their next turn off the context already in their session. This step
 // is shared with the live-crew feature, so it injects no operator-visible content:
 // each scenario's own prior steps establish what Bonny decides from. Here the
@@ -202,33 +210,95 @@ Given(
 When(
 	"Bonny takes their next turn",
 	{ timeout: 600000 },
-	async function (this: EstelleWorld) {
+	async function (this: NextTurnWorld) {
 		const session = startedSession(this);
-		// Settle Bonny's live opening turn before triggering their next turn, so the
-		// trigger does not collide with a turn already in flight.
-		if (session.isStreaming) {
-			await session.abort();
+		// Settle Bonny's live opening turn on its observed signal before triggering
+		// the next turn: poll until the opening reply has landed and the stream is
+		// idle, bounded by a deadline. Aborting a turn here would kill the opening
+		// reply mid-flight or leave a queued opening turn to interleave with the
+		// turn under test.
+		const settleDeadline = Date.now() + 120000;
+		while (Date.now() < settleDeadline) {
+			const opened = session.messages.some(
+				(message) =>
+					message.role === "assistant" &&
+					messageText(message).trim().length > 0,
+			);
+			if (opened && !session.isStreaming) {
+				break;
+			}
+			await new Promise((resolve) => setTimeout(resolve, 250));
 		}
+		// Record the observed event trail and the pre-turn message boundary, so
+		// the assertion reads only what this turn produced.
+		const events: string[] = [];
+		const recordUnsubscribe = session.subscribe((event) => {
+			events.push(
+				`${event.type}${
+					event.willRetry === undefined ? "" : ` willRetry=${event.willRetry}`
+				}`,
+			);
+		});
+		const before = session.messages.length;
 		// Trigger Bonny's turn with a neutral operator line that dictates no action
 		// and names no reset. Each scenario's own prior context decides what Bonny
 		// does: honour the reset nudge here, embark from confirmed intent in
-		// live-crew. sendUserMessage resolves once the turn completes.
-		await session.sendUserMessage("Please carry on.");
+		// live-crew. The wait ends on the turn's own end signal, agent_end with no
+		// retry pending; a resolved sendUserMessage alone is a fallback with a
+		// short drain, since a turn that fails silently resolves it with no reply.
+		try {
+			await new Promise<void>((resolve, reject) => {
+				let done = false;
+				const finish = (error?: unknown) => {
+					if (done) {
+						return;
+					}
+					done = true;
+					endUnsubscribe();
+					if (error) {
+						reject(error as Error);
+					} else {
+						resolve();
+					}
+				};
+				const endUnsubscribe = session.subscribe((event) => {
+					if (event.type === "agent_end" && event.willRetry === false) {
+						finish();
+					}
+				});
+				session.sendUserMessage("Please carry on.").then(() => {
+					// Fallback: the send resolved without an observed agent_end. Give
+					// the end signal a short drain, then settle with what was observed.
+					setTimeout(finish, 5000);
+				}, finish);
+			});
+		} finally {
+			recordUnsubscribe();
+		}
+		this.nextTurnReplies = session.messages
+			.slice(before)
+			.filter((message) => message.role === "assistant")
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		this.nextTurnEvents = events;
 	},
 );
 
 Then(
 	"Bonny offers the operator a fresh context for the next batch",
-	function (this: EstelleWorld) {
-		const replies = startedSession(this)
-			.messages.filter((message) => message.role === "assistant")
-			.map(messageText)
-			.filter((text) => text.trim().length > 0);
+	function (this: NextTurnWorld) {
+		const replies = this.nextTurnReplies ?? [];
 		assert.ok(
 			replies.length > 0,
-			"Bonny produced no live assistant reply on their next turn",
+			`Bonny produced no live assistant reply on their next turn; observed turn events: ${JSON.stringify(
+				this.nextTurnEvents ?? [],
+			)}; all session replies: ${JSON.stringify(
+				startedSession(this)
+					.messages.filter((message) => message.role === "assistant")
+					.map(messageText),
+			)}`,
 		);
-		const reply = replies[replies.length - 1];
+		const reply = replies.join("\n");
 		const offersFresh =
 			/fresh context|fresh session|fresh start|start fresh|start anew|clean slate|new context|new session|reset (the |your |our |this )?(context|session)|clear (the |your |our )?context/i.test(
 				reply,
