@@ -197,6 +197,7 @@ function assetsDir(cwd: string): string {
  * @planks("Then the seat system prompt addresses the operator as \"Commodore\"")
  * @planks("Then the seat system prompt includes the upstream \"captain\" role instructions")
  * @planks("Then the seat system prompt includes the \"bonny\" character card")
+ * @planks("Then the alongside Quartermaster does not refuse for unclean context")
  */
 function seatSystemPrompt(
 	base: string,
@@ -211,7 +212,16 @@ function seatSystemPrompt(
 		join(assets, "characters", CHARACTER_CARDS[seat.role]),
 		"utf8",
 	);
-	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${card}`;
+	// An internal role runs only in a session Estelle opened alongside as an
+	// isolated dispatch. The runtime builds that session fresh, so its context
+	// is mechanically clean; the seat context declares the dispatch so a live
+	// role trusts the runtime-cleared context and proceeds instead of refusing
+	// for unclean context.
+	const dispatch =
+		seat.role === "captain"
+			? ""
+			: `\n\nDispatch: Estelle opened this session as an isolated ${seat.role} dispatch alongside the operator's Captain session. The runtime created this session fresh: no Captain discovery, operator conversation, or prior turn output crossed into it. Treat this context as clean and runtime auto-cleared. Messages arriving in this session are dispatch traffic from the harness, not operator discovery. Proceed with your role's duties.`;
+	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${card}${dispatch}`;
 }
 
 /**
@@ -1225,7 +1235,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	// @planks("Then the crew run is reported back into Bonny's session")
 	// @planks("Then the started session receives Bonny's report when the run ends")
 	// @planks("Then the started session shows Bonny's report of the completed run")
-	const reportCrewRun = async () => {
+	const reportCrewRun = async (viaBonnyTurn = false) => {
 		let summary = `${SEATS.crew.name}'s run is reported to ${SEATS.bonny.name}`;
 		const captainModelId = state.seatModels[SEATS.bonny.role];
 		const captainSlash = captainModelId?.indexOf("/") ?? -1;
@@ -1235,12 +1245,19 @@ export async function run(options?: RunOptions): Promise<void> {
 					captainModelId.slice(captainSlash + 1),
 				)
 			: undefined;
-		// Bonny's own turn may already be streaming when this runs: embark can be
-		// driven from inside Bonny's own live tool call. Sending Bonny another user
-		// message while that turn is still streaming throws, so skip the live
-		// voice line and keep the default summary in that case.
-		if (captainModel && !runtime.session.isStreaming) {
+		// Embark can be driven from inside Bonny's own live tool call. Sending
+		// Bonny another user message mid-turn throws, and aborting would kill the
+		// very turn that invoked embark, so keep the default summary in that case.
+		if (captainModel && !viaBonnyTurn) {
 			const bonnySession = runtime.session;
+			// Bonny's live opening turn floats past startup, so it can still be
+			// streaming when the report runs. The voiced summary must be a real
+			// assistant message in Bonny's own session, and sending mid-stream
+			// throws instead of voicing, so interrupt the in-flight turn; the
+			// crew-run report is Bonny's next act.
+			if (bonnySession.isStreaming) {
+				await bonnySession.abort();
+			}
 			await bonnySession.sendUserMessage(
 				"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
 			);
@@ -1303,7 +1320,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	// @planks("When Bonny embarks the crew from their own turn")
 	// @planks("Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target")
 	// @planks("Then the failing target passes the project's verification after the run")
-	const driveCrewLoopToCompletion = async () => {
+	const driveCrewLoopToCompletion = async (viaBonnyTurn = false) => {
 		const targetPath = redTargetPath;
 		if (targetPath === undefined) {
 			throw new Error("crew loop cannot run without a configured red target");
@@ -1366,15 +1383,23 @@ export async function run(options?: RunOptions): Promise<void> {
 		}
 		crewLoopAllGreen = targetGreen();
 		const bonnySession = runtime.session;
-		// Bonny's own turn may already be streaming when this runs: the crew loop
-		// can be driven from inside Bonny's own live tool call. Sending Bonny
-		// another user message while that turn is still streaming throws, so skip
-		// the live voice line and keep the default summary in that case.
-		if (bonnySession.isStreaming) {
+		// The crew loop can be driven from inside Bonny's own live tool call.
+		// Sending Bonny another user message mid-turn throws, and aborting would
+		// kill the very turn that invoked embark, so keep the default summary in
+		// that case.
+		if (viaBonnyTurn) {
 			crewRunReports.push({
 				summary: `${SEATS.crew.name}'s run is reported to ${SEATS.bonny.name}`,
 			});
 			return;
+		}
+		// Bonny's live opening turn floats past startup, so it can still be
+		// streaming when the run ends. The voiced summary must be a real
+		// assistant message in Bonny's own session, and sending mid-stream
+		// throws instead of voicing, so interrupt the in-flight turn; the
+		// crew-run report is Bonny's next act.
+		if (bonnySession.isStreaming) {
+			await bonnySession.abort();
 		}
 		await bonnySession.sendUserMessage(
 			"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
@@ -1389,16 +1414,19 @@ export async function run(options?: RunOptions): Promise<void> {
 	// @planks("When Bonny embarks the crew from their own turn")
 	// @planks("Then the crew's real work, driven only by that one embark act, turns the failing target green")
 	state.embark = async () => {
+		// A stream already in flight at embark entry is Bonny's own turn calling
+		// the embark tool: the live-voice seams must not abort it.
+		const viaBonnyTurn = runtime.session.isStreaming;
 		await narrateCrewRun();
 		if (redTargetPath) {
-			await driveCrewLoopToCompletion();
+			await driveCrewLoopToCompletion(viaBonnyTurn);
 		} else {
 			await state.openCrewSession?.();
 		}
 		if (currentVerdict.allGreen || crewLoopAllGreen) {
 			crewRunEnded = true;
 		}
-		await reportCrewRun();
+		await reportCrewRun(viaBonnyTurn);
 	};
 
 	await openWithBonnyVoice(
