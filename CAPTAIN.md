@@ -4,9 +4,11 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
-## Current voyage 2026-07-09: audit remediation
+## Voyage closed 2026-07-09: audit remediation
 
-Upstream audit found: lint gate red (4 `noNonNullAssertion` in `src/index.ts`, now a binding lint-clean scenario in `methodology-conformance.feature`), 7 `@captain` skeletons (all promoted by the operator, the live-crew one tagged `@eval`), `@eval` tier unconfirmed against upstream 0.10.1 (a mis-scoped run saw 4 failures including a `spawn ENOENT` on the upstream shipshape clone's `bash-custody.sh`; needs live triage), and the standing refit deltas below. `@logic` proper confirmed green, 126/126 in 56s.
+All audit items landed: lint gate green under a binding lint-clean scenario; 7 promoted skeletons executable and green; six live-path production defects found and fixed through the `@eval` tier (thinking-level clamp, premature dispose, leaked floating-turn rejection, mid-stream hand-off guard, abort-and-voice for the crew-run summary, isolated-dispatch seat declaration); default tier 139/139. Watchbill struck. Boundary check deferred to harbour per Captain spend directive; the confirmatory `@eval` pass runs there.
+
+Immediate post-harbour spec work: pin the isolated-dispatch declaration for every internal seat, not only the QM seat, in `seat-composition.feature`'s alongside outline; Boatswain flagged the code as broader than its pinned scenario. Written after harbour so the boundary check meets no undefined steps.
 
 ## Standing Estelle deltas, apply at next harbour refit
 
@@ -17,6 +19,7 @@ Upstream is now `0.10.1`; `/shipwright` re-derives to current shape and drops su
 - `## Tiers` moves per-tier policy to `policy:` lines and gains an optional `weather:` path for the wake's weather record; Estelle is the named weather-record pilot, and per-scenario duration lands there during the boundary check.
 - `## Known false-failure modes` reshapes to `mode:` lines, and the entries must drop procedure ("QM should isolate...") to stay values-only.
 - Declare `scantlings:` under `## Directories` for `assets/scantlings/` (`internal-api-shape.d.ts` is live and undeclared).
+- Derive a discovery-shaped eval variant without `--fail-fast`, alongside the confirmatory `eval` command: enumerating an unknown live-failure set through a fail-fast command re-runs unchanged-behaviour scenarios on paid model turns once per newly revealed red, observed live this voyage.
 - 0.10.1 also changed hook behaviour Estelle consumes live: planks-check scopes to crew/shipwright, dispatch-guard binds a spawned Captain and measures the prompt, feature-quality exempts `# language:` and doc-string hashes. The shim's custody assertions must be re-proven against these.
 - Open follow-up: the shim consuming the `rules/` component is now safer to pilot; 0.10.1 rewrote the rules as faithful cited checklists under test.
 
