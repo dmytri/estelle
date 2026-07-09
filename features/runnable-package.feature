@@ -34,7 +34,6 @@ Feature: Estelle runnable package
     And the artifact withholds "CAPTAIN.md"
     And the artifact withholds "src/index.ts"
 
-  @captain
   Scenario: The estelle command reports a launch failure to the operator
     Given the built Estelle package
     When the operator runs the "estelle" command in a directory whose launch rejects

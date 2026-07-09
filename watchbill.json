@@ -1,0 +1,16 @@
+{
+  "watch1": {
+    "scenarios": [
+      "features/methodology-conformance.feature:The implementation passes the project code lint",
+      "features/runnable-package.feature:The estelle command reports a launch failure to the operator",
+      "features/seat-write-scope.feature:The Captain may write a specification",
+      "packages/pi-open-plugin-shim/features/write-custody.feature:The shim synchronously blocks a write the hook denies",
+      "packages/pi-open-plugin-shim/features/write-custody.feature:The shim synchronously allows a write the hook permits",
+      "packages/pi-open-plugin-shim/features/read-custody.feature:The shim synchronously blocks a read the hook denies",
+      "packages/pi-open-plugin-shim/features/read-custody.feature:The shim synchronously allows a read the hook permits"
+    ]
+  },
+  "watch2": {
+    "scenarios": ["@eval"]
+  }
+}

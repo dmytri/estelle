@@ -31,6 +31,10 @@ Feature: Methodology conformance
     Given a "watchbill.json" file is present in the project
     Then it contains only ordered watch objects with scenario references
 
+  Scenario: The implementation passes the project code lint
+    Given the project's implementation directories and the code lint configuration
+    Then the code linter reports no violation
+
   Scenario: Every live crew-session step carries a live-step timeout budget
     Given the project's step definitions that await a live crew-session turn
     Then each one declares an explicit timeout at least as long as the live-step budget

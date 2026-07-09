@@ -23,14 +23,12 @@ Feature: Enforcing an open-plugin's write custody on pi
     When a write to "features/login.feature" is attempted
     Then the shim allows the write
 
-  @captain
   Scenario: The shim synchronously blocks a write the hook denies
     Given the host acts as the role "crew"
     When a write to "features/login.feature" is synchronously attempted
     Then the shim blocks the write
     And the block reason carries the hook's denial message
 
-  @captain
   Scenario: The shim synchronously allows a write the hook permits
     Given the host acts as the role "crew"
     When a write to "src/login.ts" is synchronously attempted
