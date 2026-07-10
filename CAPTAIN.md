@@ -4,15 +4,17 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
-## Refit to Shipshape 0.11.1 — voyage landed, awaiting Boatswain commit of the spec trim
+## Refit to Shipshape 0.11.1 — voyage complete, all tiers green
 
-Last fitted to `0.10.1` doctrine (harbour `82e6b46`); installed workflow now `0.11.1`. Harbour returned a clean bill (all tiers green, fitting already at `0.11.1` shape); operator chose the **Comprehensive** remediation scope.
+Last fitted to `0.10.1` doctrine (harbour `82e6b46`); installed workflow now `0.11.1`. Harbour returned a clean bill (all tiers green, fitting already at `0.11.1` shape); operator chose the **Comprehensive** remediation scope. Voyage committed `9c6346c` (relocation + plank hoist) and `fe0b8fa` (spec trim + note).
 
-**Outcome (QM voyage committed `9c6346c`):**
+**All-tier boundary check (QM, base `fe0b8fa`, tier-tag watchbill):** `@logic` 152 green, `@sandbox` 6 green (real npm installs), `@eval` 13/14 — the one miss (`live-crew.feature:235`, Bonny embark-vs-role-command) passed 2/2 on isolated rerun, ruled live-model stochastic variance, not a product or harness defect. This voyage did not touch that logic; embark copy relocated byte-identically. Watchbill struck as spent.
+
+**Outcome (QM voyage committed `9c6346c`, `fe0b8fa`):**
 - **0.11.1 plank-form gap closed** — all 65 line-comment planks hoisted to docblocks, inventory 273/273 docblock.
 - **Four new `@property` invariants green:** docblock plank-form (M1), registration uniqueness / one-impl-per-name (M2), shim↛flagship boundary (M3), catalogued-copy-not-duplicated (M4).
 - **Content-catalog relocation done** — M4 drove Crew to source all six agent-prompt strings (embark description/snippet/guidelines, opening-turn, crew-run summary/narration) from `assets/agent-prompts.json`; the embark presentation is pinned green by `content-catalog.feature` C1 (`@logic`).
-- **Content-catalog resolution (this Captain turn):** removed the three opening-turn/voicing equality scenarios. They asserted copy emitted only through a live provider turn, unobservable under file-level `@logic`; their sourcing is already proven by M4 and their live behaviour by the `@eval` live-crew scenarios; and per the Asset policy the exact prompt wording is craft, not a behaviour to pin. Retagging `@eval` (paid runs to pin craft copy) and a testability refactor were both rejected as over-specification. Spec trim is uncommitted, awaiting Boatswain.
+- **Content-catalog resolution (this Captain turn):** removed the three opening-turn/voicing equality scenarios. They asserted copy emitted only through a live provider turn, unobservable under file-level `@logic`; their sourcing is already proven by M4 and their live behaviour by the `@eval` live-crew scenarios; and per the Asset policy the exact prompt wording is craft, not a behaviour to pin. Retagging `@eval` (paid runs to pin craft copy) and a testability refactor were both rejected as over-specification. Spec trim committed in `fe0b8fa`.
 
 GritQL, dependency-cruiser, Knip all declined/deferred (see rationale below, retained for the record until next harbour). Economy build-reuse routed to QM as verification debt.
 
@@ -20,7 +22,8 @@ GritQL, dependency-cruiser, Knip all declined/deferred (see rationale below, ret
 - Seat-pinning spec item: pin the isolated-dispatch declaration for every internal seat, not only the QM seat, in `seat-composition.feature`'s alongside outline (Boatswain earlier flagged the code as broader than its pinned scenario).
 - Release per `## Outbound`: publish the shim first, then `@dk/estelle`, each with the registry boot-verify per `AGENTS.md`; needs fresh operator approval in the main session.
 - Economy debt (from this harbour, QM to address when touching support): `runnable-package` build-reuse (~48s), `pi-command-passthrough` subprocess cost, `internal-api-shape` 13s attestation cadence.
-- Rigging papercut: `step-usage` filters `not @eval`, so a manual stale-plank audit false-flags 23 `@eval`-only planks; candidate `## Known false-failure modes` note (shipped check unaffected). Route to Shipwright next harbour.
+- Rigging papercut: `step-usage` filters `not @eval`, so a manual stale-plank audit false-flags the `@eval`-only live-crew step defs; candidate `## Known false-failure modes` note (shipped check unaffected). Route to Shipwright next harbour.
+- Rigging finding (Boatswain, this voyage): the `## Commands` `gherkin-lint` glob `features/**/*.feature` matches zero top-level `features/*.feature` files under gplint's globber, so the convenience command lints nothing. The binding `methodology-conformance.feature` gherkin-lint scenario is unaffected (its `featureFiles()` helper walks recursively). Route the glob fix to Shipwright next harbour.
 
 ### The findings, and how each routes
 
