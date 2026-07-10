@@ -6,7 +6,14 @@
       "Once the operator has confirmed what they want built and tells you to proceed, embark the crew immediately by calling the embark tool. Do not keep surveying the workspace, do not ask further questions, and never tell the operator to run a role command or switch seats. Calling embark is how you hand the confirmed batch to the crew."
     ]
   },
+  "embarkComplete": "Crew embarked. Misson is seated and the crew is working alongside.",
   "openingTurn": "Begin your Captain opening turn now, before the operator speaks.",
   "crewRunSummary": "Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
-  "crewRunNarration": "Voice a single short line in your own voice narrating that the crew is now running the batch for the operator. Reply with plain text only. Do not read files. Do not call any tools."
+  "crewRunNarration": "Voice a single short line in your own voice narrating that the crew is now running the batch for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
+  "crewLoopPrompts": {
+    "quartermaster": "You are the Quartermaster. Reply with a single short line of plain text naming the failing target. Do not read files. Do not call any tools.",
+    "crew": "You are the Crew. Reply with a single short line of plain text recording your fix for the target. Do not read files. Do not call any tools.",
+    "boatswain": "You are the Boatswain. Reply with a single short line of plain text confirming you commit the fix. Do not read files. Do not call any tools.",
+    "crewReady": "Reply with a single short line of plain text confirming you are ready. Do not read files. Do not call any tools."
+  }
 }

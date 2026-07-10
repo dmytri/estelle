@@ -389,17 +389,17 @@ function createEstelleExtension(
 			},
 		});
 		if (state.activeSeat.role === "captain") {
-			const embarkPrompts = (
-				JSON.parse(
-					readFileSync(join(assetsDir(cwd), "agent-prompts.json"), "utf8"),
-				) as {
-					embark: {
-						description: string;
-						promptSnippet: string;
-						promptGuidelines: string[];
-					};
-				}
-			).embark;
+			const embarkCatalog = JSON.parse(
+				readFileSync(join(assetsDir(cwd), "agent-prompts.json"), "utf8"),
+			) as {
+				embark: {
+					description: string;
+					promptSnippet: string;
+					promptGuidelines: string[];
+				};
+				embarkComplete: string;
+			};
+			const embarkPrompts = embarkCatalog.embark;
 			pi.registerTool({
 				name: "embark",
 				label: "Embark the crew",
@@ -417,7 +417,7 @@ function createEstelleExtension(
 						content: [
 							{
 								type: "text",
-								text: "Crew embarked. Misson is seated and the crew is working alongside.",
+								text: embarkCatalog.embarkComplete,
 							},
 						],
 						details: undefined,
@@ -1092,7 +1092,16 @@ export async function run(options?: RunOptions): Promise<void> {
 	const cwd = options?.cwd ?? process.cwd();
 	const crewRunPrompts = JSON.parse(
 		readFileSync(join(assetsDir(cwd), "agent-prompts.json"), "utf8"),
-	) as { crewRunSummary: string; crewRunNarration: string };
+	) as {
+		crewRunSummary: string;
+		crewRunNarration: string;
+		crewLoopPrompts: {
+			quartermaster: string;
+			crew: string;
+			boatswain: string;
+			crewReady: string;
+		};
+	};
 	const state: EstelleState = {
 		providerRequestCount: 0,
 		activeSeat: SEATS.bonny,
@@ -1376,14 +1385,14 @@ export async function run(options?: RunOptions): Promise<void> {
 		while (!targetGreen()) {
 			const qmReply = await runSeatTurn(
 				SEATS.misson,
-				"You are the Quartermaster. Reply with a single short line of plain text naming the failing target. Do not read files. Do not call any tools.",
+				crewRunPrompts.crewLoopPrompts.quartermaster,
 			);
 			if (qmReply) {
 				crewLoopSeats.quartermaster = true;
 			}
 			const crewReply = await runSeatTurn(
 				SEATS.crew,
-				"You are the Crew. Reply with a single short line of plain text recording your fix for the target. Do not read files. Do not call any tools.",
+				crewRunPrompts.crewLoopPrompts.crew,
 			);
 			if (crewReply) {
 				crewLoopSeats.crew = true;
@@ -1395,7 +1404,7 @@ export async function run(options?: RunOptions): Promise<void> {
 			}
 			const boatswainReply = await runSeatTurn(
 				SEATS.bellamy,
-				"You are the Boatswain. Reply with a single short line of plain text confirming you commit the fix. Do not read files. Do not call any tools.",
+				crewRunPrompts.crewLoopPrompts.boatswain,
 			);
 			if (boatswainReply) {
 				crewLoopSeats.boatswain = true;
@@ -1508,7 +1517,7 @@ export async function run(options?: RunOptions): Promise<void> {
 								}
 							});
 							void crewSession.sendUserMessage(
-								"Reply with a single short line of plain text confirming you are ready. Do not read files. Do not call any tools.",
+								crewRunPrompts.crewLoopPrompts.crewReady,
 							);
 						});
 						await crewSession.abort();
