@@ -4,61 +4,58 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
-## Refit to Shipshape 0.11.1 — resumed, harbour entered
+## Refit to Shipshape 0.11.1 — voyage landed, awaiting Boatswain commit of the spec trim
 
-Active voyage. The project was last fitted to Shipshape `0.10.1` doctrine (harbour commit `82e6b46`, `CAPTAIN.md`/`RIGGING.md`/`AGENTS.md`); the installed workflow is now `0.11.1`, confirmed from the plugin manifest this session. Estelle pilots Shipshape, so a workflow-version bump is doubly material: its custody assertions and hook consumption were last proven against `0.10.1` (see "Standing Estelle deltas" below).
+Last fitted to `0.10.1` doctrine (harbour `82e6b46`); installed workflow now `0.11.1`. Harbour returned a clean bill (all tiers green, fitting already at `0.11.1` shape); operator chose the **Comprehensive** remediation scope.
 
-State at resume: committed tree synced with `origin/main` at `82e6b46` (the pending harbour commit was pushed last session — `f4b56fb..82e6b46`, now `0/0`). The only working-tree change was this `CAPTAIN.md` note flush itself — work in flight ordering the refit voyage — handed to Boatswain to commit so the tree is clean for harbour entry. Zero `@captain`, zero `@shipwright`.
+**Outcome (QM voyage committed `9c6346c`):**
+- **0.11.1 plank-form gap closed** — all 65 line-comment planks hoisted to docblocks, inventory 273/273 docblock.
+- **Four new `@property` invariants green:** docblock plank-form (M1), registration uniqueness / one-impl-per-name (M2), shim↛flagship boundary (M3), catalogued-copy-not-duplicated (M4).
+- **Content-catalog relocation done** — M4 drove Crew to source all six agent-prompt strings (embark description/snippet/guidelines, opening-turn, crew-run summary/narration) from `assets/agent-prompts.json`; the embark presentation is pinned green by `content-catalog.feature` C1 (`@logic`).
+- **Content-catalog resolution (this Captain turn):** removed the three opening-turn/voicing equality scenarios. They asserted copy emitted only through a live provider turn, unobservable under file-level `@logic`; their sourcing is already proven by M4 and their live behaviour by the `@eval` live-crew scenarios; and per the Asset policy the exact prompt wording is craft, not a behaviour to pin. Retagging `@eval` (paid runs to pin craft copy) and a testability refactor were both rejected as over-specification. Spec trim is uncommitted, awaiting Boatswain.
 
-The earlier pause was because the session had loaded `0.11.0` skills, not `0.11.1`. That is resolved: both Captain and Shipwright now run on `0.11.1`, the doctrine we refit toward.
+GritQL, dependency-cruiser, Knip all declined/deferred (see rationale below, retained for the record until next harbour). Economy build-reuse routed to QM as verification debt.
 
-Harbour plan, in flight: Shipwright dispatched (isolated) for the full inventory and fitting-refresh against `0.11.1` — re-derive `RIGGING.md`/`AGENTS.md`, re-run plank inventory and the verification-economy audit, write `@captain` skeletons for any behaviour/policy drift, and run the full-tier boundary check. Then review each skeleton with the operator.
+**Open follow-ups queued behind this voyage:**
+- Seat-pinning spec item: pin the isolated-dispatch declaration for every internal seat, not only the QM seat, in `seat-composition.feature`'s alongside outline (Boatswain earlier flagged the code as broader than its pinned scenario).
+- Release per `## Outbound`: publish the shim first, then `@dk/estelle`, each with the registry boot-verify per `AGENTS.md`; needs fresh operator approval in the main session.
+- Economy debt (from this harbour, QM to address when touching support): `runnable-package` build-reuse (~48s), `pi-command-passthrough` subprocess cost, `internal-api-shape` 13s attestation cadence.
+- Rigging papercut: `step-usage` filters `not @eval`, so a manual stale-plank audit false-flags 23 `@eval`-only planks; candidate `## Known false-failure modes` note (shipped check unaffected). Route to Shipwright next harbour.
 
-### Harbour discovery tooling — trial candidates, stack-local examples
+### The findings, and how each routes
 
-Tooling stays stack-local, so these name two tool-classes to fit out this harbour (or stack-appropriate equivalents), never canon:
+- **Plank-form conformance (the real 0.11.1 gap).** 65 `//` line-comment planks on `const` arrow-function seams in `src/index.ts`; `0.11.1` mandates docblock (`/** */`) form and calls line-comment planks malformed. Fix: hoist the 65 to docblocks (Shipwright, in-harbour `@planks` work) and add a ts-morph-backed plank-form `@property` scenario (Captain spec + QM check, Article-6 negative-tested, born green post-hoist). Stays on the compiler API, off-AST for GritQL.
+- **GritQL-in-biome (adopt, recommended).** biome 2.5.1 supports `.grit` plugin rules; negative test passed. Fold `FORBIDDEN_DOUBLE` into the `biome check` gate (~7-9 clean AST patterns; the `/\.invalid\b/` substring needs a string-literal predicate or stays regex) and retire the ~150-line `stripComments`+`extractStepRegistrations` parser (live-turn-timeout check). Rigging (.grit rules + biome plugin config) is Shipwright; re-backing the step-def support is QM. MUST keep the `methodology-conformance.feature` scenario — re-back its support, do not drop it.
+- **Boundary check (adopt, via GritQL — no new dep).** Shim never imports flagship — a one-directional layer boundary with no enforcing check. It is a single direct rule ("shim source must not import the flagship"), not a transitive multi-layer constraint, so a GritQL/biome rule discharges it on the gate we already run; dependency-cruiser is not warranted and is declined. Captain writes the attestation scenario; the `.grit` boundary rule is laid with the GritQL rigging.
+- **One-impl-per-registered-name checker.** Seats/commands/tools register by name (`SEAT_BY_COMMAND`, `registerCommand`, `registerTool`) with no check asserting one implementation per name. Bespoke conformance checker (structural, no off-the-shelf tool) = QM verification support; Captain writes the `@property` attestation scenario.
+- **Content-catalog relocation.** Agent-facing prompt copy hardcoded inline while `assets/` catalog exists: embark `description`/`promptSnippet`/`promptGuidelines` (`src/index.ts:396-400`), opening-turn instruction (`:667`), crew-run voicing prompts (`:1262`, `:1297`). Captain moves the copy into assets and writes scenarios asserting each seam sources its agent text from the catalog; Crew wires the seams to read from it.
+- **Economy outliers → QM verification debt.** From the weather record: `runnable-package` four scenarios ~12s each (build amortizable to once-per-run), `pi-command-passthrough` subprocess cost (23s/14s), `internal-api-shape` 13s scantling attestation cadence. QM addresses as verification-support quality when it touches support.
+- **Declined: Knip.** Viable only with `includeEntryExports:true` on the single-file packages; yielded one low-value finding (`ReportedAgent` — see type-dup below). New dev dep not worth the payoff on this code shape.
+- **Report-only papercuts.** `step-usage` filters `not @eval`, so a manual stale-plank audit false-flags 23 `@eval`-only planks (candidate `## Known false-failure modes` note; the shipped check is unaffected). `ReportedAgent` re-declared locally in two step files instead of imported (verification-support hygiene → QM/Boatswain).
 
-- **Unused / dead-code detection** (import-graph absence), e.g. Knip. Fills a gap plank-inventory and c8 both miss: a seam can be planked and covered yet export something nothing imports. Needs entry points declared or it false-positives here — `bin/estelle.js`, `features/steps` + `support`, the `.plugin/` hooks, workspace `exports`; the dynamic-`import()` attribution gap in `## Known false-failure modes` bites it too. A doctrine bump is when code serving old hook shapes goes dead, so this harbour is its moment. New dependency.
-- **Structural code-pattern conformance** (AST match), e.g. GritQL — native to biome (`biome search` + `.grit` plugin rules), zero new dependency, rides the `biome check` gate already run. Retires two fragile hand-rolled parsers in verification support: the `FORBIDDEN_DOUBLE` line-regex scan and the ~150-line `stripComments`+`extractStepRegistrations` parser. Robustness, not speed. Confirm the installed biome version supports the plugin-rule form before the gate-folded path.
+### Execution — one voyage, no harbour re-entry
 
-Boundaries: findings route as ordinary harbour findings — dead code removed or deferred; unused dependency to Boatswain hygiene or a Captain dependency call. Plank/placement checks stay on the tsc/ts-morph compiler API: `@planks` is comment trivia, off-AST for GritQL. Any methodology check keeps its Article-6 negative test wherever it lands, and folding `FORBIDDEN_DOUBLE` into the biome gate MUST NOT silently drop its `methodology-conformance.feature` scenario — keep the scenario with GritQL-backed support, or retire it deliberately.
+Harbour is closed (clean bill delivered). The remediation runs as a normal Captain→QM→Crew→Boatswain voyage over a work-in-flight tree; no clean-tree guard, no Shipwright rigging pass, no new dependency, no biome.json rigging edit. The `.grit` rules are Captain-owned scantlings (a policy ruleset discharged by biome, the static analyzer), invoked from step-def support via `biome search`/`.grit`, so nothing folds into the lint gate and no rigging changes.
 
-Custody: Shipwright does not read `CAPTAIN.md`, so this is Captain's steering note — raise it with Shipwright in-harbour. A tool that earns its keep gets fitted into `AGENTS.md`/`RIGGING.md` by Shipwright, not recorded here.
+Ownership map:
+- **Captain `@property` scenarios (bespoke checker, QM support), all in `methodology-conformance.feature`:** plank-form (ts-morph, compiler API, off-AST for GritQL — `@planks` is comment trivia); one-impl-per-registered-name (keys on `SEAT_BY_COMMAND`/`registerCommand`/`registerTool`); shim↛flagship boundary (scan shim source imports for the flagship package).
+- **Captain assets + scenarios:** `assets/agent-prompts.json` catalog holds the four prompts (embark description/snippet/guidelines, opening-turn, crew-run summary, crew-run narration). `content-catalog.feature` pins each seam to its catalogued copy. The driver is a `@property` "catalogued copy is not duplicated inline" check in `methodology-conformance.feature` — it reddens while the strings sit in `src`, forcing Crew to wire the catalog read. **No perturbation** (superseded — the perturbation approach the operator first picked verified two seams through paid `@eval`; the not-duplicated-inline driver + `@logic` equality scenarios relocate all four seams and verify entirely in `@logic`, strictly cheaper, same result).
+- **QM support:** build the plank-form ts-morph check (Article-6 negative-tested, born green post-hoist), the one-impl checker, the boundary import scan, and the not-duplicated-inline scan; wire the four content-catalog equality scenarios (assert the seam's catalog-sourced prompt without a live model); apply `runnable-package` build-reuse (economy).
+- **Crew production:** hoist the 65 line-comment planks to docblocks (driven by the failing plank-form check); wire the content-catalog seams to read prompts from `assets/agent-prompts.json`, extracting each into a `@logic`-assertable seam.
+- **Boatswain:** commit the whole voyage.
 
-## Harbour 2026-07-09 complete, committed and shipped (`82e6b46`)
+**GritQL is out of Captain scope entirely — no Captain-authored `.grit` scantlings.** Two grounds, both verified this session: (1) the shim↛flagship boundary is not cleanly GritQL-expressible — `biome search '`import $c from "@dk/estelle"`'` matched *any* import (even a nonexistent package name), so a correct rule needs `where`-predicate string matching, which is verifier R&D belonging to QM; the constraint is thus a bespoke checker (QM), not a policy-engine scantling. (2) The two existing green checks resist clean GritQL too: live-turn-timeout asserts `timeout >= budget` (a numeric threshold GritQL cannot express) and forbidden-double's `/\.invalid\b/` is a fragile substring. Adopting GritQL for the *parsing* inside those checks is QM verification-support latitude, decided on QM's judgment; it is not a durable Captain artifact and does not change the behavioural scenarios. Knip stays declined; dependency-cruiser declined (no new dep).
 
-Resumed the interrupted refit at base `f4b56fb` and completed the inventory. All-tier boundary check green: `@logic`+`@sandbox` 139/139, `@eval` 14/14, first weather record at `coverage/weather.json`. `RIGGING.md`/`AGENTS.md` refit to current shape, `README.md` Shipshape block added. Plank inventory sound: 273 planks, 217 unique step texts, zero stale against `@eval`-inclusive live steps. Zero `@captain` and zero `@shipwright` scenarios; nothing to promote or condemn.
+Custody: Shipwright does not read `CAPTAIN.md`; steering to it happens in-harbour via direct message. Tooling stays stack-local, fitted into `RIGGING.md` by Shipwright, never recorded as canon here.
 
-Harbour-scoped edits this session, uncommitted for Boatswain: `RIGGING.md` `plank-inventory` now `node scripts/plank-inventory.mjs` (TS compiler API, reads docblock and line-comment planks, escaped-quote-safe, seam-bound; retires the fragile `rg` lister); two below-seam fragment planks hoisted to their function docblocks (`createEstelleExtension`, `openWithBonnyVoice`); `scripts/plank-inventory.mjs` added.
+## Upstream planking findings — resolved in 0.11.1, converted to local conformance
 
-Removed the orphaned `packages/pi-shipshape/` residue: fitted out in `bd571bb`, tracked files struck in `3342dc0`, only ignored `node_modules` lingered. Layer-1 (packaging upstream Shipshape skills for plain pi) is realized at runtime per no-vendoring, not as a built package; the operator confirmed the residue is deletable, not a stub for a planned distributable.
+Both standing findings for `dmytri/shipshape` are fixed in the `0.11.1` doctrine loaded this harbour, so neither ships upstream. They convert to the local plank-form conformance work in the refit section above.
 
-Boatswain custody landed and shipped as `82e6b46`. Remaining follow-ups, now queued behind the 0.11.1 refit above: the seat-pinning spec item below, then release per `## Outbound` with the registry boot-verify; outbound needs fresh operator approval in that session.
+1. **Inventory guidance self-defeating for line-comment planks** — RESOLVED. The Traceability policy now mandates docblock form and calls a line-comment/in-body plank malformed and correctable.
+2. **Hoisting rule shipped no executable placement check** — RESOLVED. The Shipwright derivation notes now prescribe a plank-form check where every `@planks` token resolves to a docblock tag on a declaration so a line-comment or in-body plank reddens.
 
-## Upstream planking evidence, drafted for delivery
-
-Two planking-doctrine findings for `dmytri/shipshape`, drafted self-contained for the maintainer to read cold. Deliver as a GitHub issue on the upstream repo; `CAPTAIN.md` is private and search-excluded, so it is our record, never the channel. The draft (session scratchpad, `upstream-planking-findings.md`) may need re-generating if the scratchpad is gone; the two findings are:
-
-1. **Inventory guidance is self-defeating for line-comment planks.** Discovery-tools says prefer jsdoc/ts-morph, but `@planks` is plain-text-by-design and 65 of 273 planks here are `//` line comments. `getJSDocTags` reads only `/** */` and undercounts by a quarter. Fix: mandate docblock-on-declaration form, or drop the AST recommendation and read all comment ranges.
-2. **The hoisting rule ships with no executable placement check.** Two planks sat below their seam and passed QM and Boatswain to harbour, because the only plank check joins step *text* to live steps, never *placement* (Article 6). Fix: ship a reference "every plank annotates a declaration" check, or state that placement is harbour-only by design.
-
-Both share one root: `@planks` is specified free-placed plain text, yet the tooling guidance and hoisting rule assume declaration-anchored annotations.
-
-## Verification-economy findings, harbour audit
-
-From the weather record and step-def read. Routing noted per finding.
-
-- **Build-reuse debt (QM, speed).** `Given("the built Estelle package")` and `Given("the packaged Estelle artifact")` each run `pnpm build` (~4.8s) per scenario; four scenarios rebuild the same ambient `dist/` no scenario mutates, ~14s redundant, near 10% of the `@logic` run. Build once per run behind a marker or lock and reuse, per the Verification agreement's reuse rule. Verification debt for QM.
-- **Over-provisioned fixture (QM).** `"The package exposes the estelle launch command"` runs the build but asserts only `package.json` `bin` and the committed `bin/estelle.js` shebang, needing no build. Drop or split the build `Given` for it.
-- **GritQL-in-biome (rigging, robustness not speed).** The forbidden-double scan (`methodology-conformance.steps.ts` `FORBIDDEN_DOUBLE` line regexes) is real code AST: a biome GritQL plugin rule folds it into the `biome check` gate we already run. The hand-rolled `stripComments` + `extractStepRegistrations` balanced-paren parser (~150 lines) for the live-turn-timeout check is a stronger AST candidate: structural matching retires the fragile text-parsing. Neither speeds a fast check; both cut fragility. GritQL does not fit plank or placement checks: comment trivia stays on the compiler API.
-- **Plank-placement check (QM).** The `@property` "every plank annotates a declaration" check from the upstream note above is ours to add regardless; `scripts/plank-inventory.mjs` `bindSeam` already distinguishes the in-body case.
-- **Scantling form is sound.** `internal-api-shape` is already correct scantling-attestation form (tsc proof); its ~13s is inherent to a real type-proof, optionally narrowed by scoping its conformance tsconfig to the seams. `"ships runtime and withholds Captain notes"` genuinely needs real `npm pack` ignore-rule semantics, so it stays a behaviour scenario, not a scantling; only its build should be reused. No scenario is a false scantling.
-
-## Voyage closed 2026-07-09: audit remediation
-
-All audit items landed: lint gate green under a binding lint-clean scenario; 7 promoted skeletons executable and green; six live-path production defects found and fixed through the `@eval` tier (thinking-level clamp, premature dispose, leaked floating-turn rejection, mid-stream hand-off guard, abort-and-voice for the crew-run summary, isolated-dispatch seat declaration); default tier 139/139. Watchbill struck. Boundary check deferred to harbour per Captain spend directive; the confirmatory `@eval` pass runs there.
-
-Immediate post-harbour spec work: pin the isolated-dispatch declaration for every internal seat, not only the QM seat, in `seat-composition.feature`'s alongside outline; Boatswain flagged the code as broader than its pinned scenario. Written after harbour so the boundary check meets no undefined steps.
+Local consequence: this project's 65 line-comment planks and absent plank-form check now diverge from `0.11.1`. Remediation is the plank-form item in the refit section. The scratchpad draft `upstream-planking-findings.md` is obsolete.
 
 ## Standing Estelle deltas, open follow-ups
 
