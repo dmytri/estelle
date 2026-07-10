@@ -10,8 +10,9 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { After, Given, Then } from "@cucumber/cucumber";
+import ts from "typescript";
 import type { EstelleWorld } from "../support/world.js";
 
 // This scanner names the very tokens it hunts, so its own file carries every
@@ -31,6 +32,10 @@ type MethWorld = EstelleWorld & {
 	methTempDirs?: string[];
 	methLiveTurnSteps?: StepRegistration[];
 	methImplementationPaths?: string[];
+	methPlankPlacements?: PlankPlacement[];
+	methRegistrations?: Registration[];
+	methShimImports?: ImportSpecifier[];
+	methCatalogTexts?: string[];
 };
 
 function collectFiles(
@@ -692,6 +697,387 @@ Then(
 			`step definition awaits a live crew-session turn without the live-step budget:\n${violations
 				.map((v) => `  ${v.file}:${v.line}`)
 				.join("\n")}`,
+		);
+	},
+);
+
+// Scenario: Every plank annotates a seam declaration in docblock form.
+
+interface PlankPlacement {
+	file: string;
+	line: number;
+	text: string;
+	docblock: boolean;
+	attached: boolean;
+}
+
+// Declarations that can own a seam, the same set the plank inventory binds to.
+function seamDeclarations(sf: ts.SourceFile): { start: number; end: number }[] {
+	const decls: { start: number; end: number }[] = [];
+	function visit(node: ts.Node) {
+		if (
+			ts.isFunctionDeclaration(node) ||
+			ts.isMethodDeclaration(node) ||
+			ts.isPropertyAssignment(node) ||
+			ts.isVariableDeclaration(node) ||
+			ts.isClassDeclaration(node)
+		) {
+			decls.push({ start: node.getStart(sf), end: node.getEnd() });
+		}
+		ts.forEachChild(node, visit);
+	}
+	ts.forEachChild(sf, visit);
+	return decls;
+}
+
+// Read every @planks annotation with the comment kind that carries it and
+// whether it leads a seam declaration. A docblock is a MultiLineCommentTrivia;
+// a leading docblock is attached when a seam declaration begins right after it,
+// the same 400-character binding the plank inventory uses.
+function collectPlankPlacements(files: string[]): PlankPlacement[] {
+	const out: PlankPlacement[] = [];
+	for (const file of files) {
+		const src = readFileSync(file, "utf8");
+		const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+		const decls = seamDeclarations(sf);
+		const seen = new Set<string>();
+		function scan(node: ts.Node) {
+			const ranges = [
+				...(ts.getLeadingCommentRanges(src, node.getFullStart()) ?? []),
+				...(ts.getTrailingCommentRanges(src, node.getEnd()) ?? []),
+			];
+			for (const range of ranges) {
+				const key = `${range.pos}:${range.end}`;
+				if (seen.has(key)) {
+					continue;
+				}
+				seen.add(key);
+				const text = src.slice(range.pos, range.end);
+				PLANK.lastIndex = 0;
+				let match = PLANK.exec(text);
+				if (match === null) {
+					continue;
+				}
+				const docblock = range.kind === ts.SyntaxKind.MultiLineCommentTrivia;
+				const attached = decls.some(
+					(d) => d.start >= range.end && d.start - range.end < 400,
+				);
+				const line = sf.getLineAndCharacterOfPosition(range.pos).line + 1;
+				while (match !== null) {
+					const t = match[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+					out.push({ file, line, text: t, docblock, attached });
+					match = PLANK.exec(text);
+				}
+			}
+		}
+		function walk(node: ts.Node) {
+			scan(node);
+			ts.forEachChild(node, walk);
+		}
+		walk(sf);
+	}
+	return out;
+}
+
+function tsProductionFiles(root: string): string[] {
+	return productionFiles(root).filter(
+		(f) => f.endsWith(".ts") || f.endsWith(".js"),
+	);
+}
+
+Given(
+	"the project's plank annotations and their placement",
+	function (this: MethWorld) {
+		this.methPlankPlacements = collectPlankPlacements(
+			tsProductionFiles(process.cwd()),
+		);
+		assert.ok(
+			this.methPlankPlacements.length > 0,
+			"no plank annotations were found in the production code",
+		);
+	},
+);
+
+Then(
+	"every plank is a docblock tag attached to a seam declaration",
+	function (this: MethWorld) {
+		const violations = (this.methPlankPlacements ?? []).filter(
+			(p) => !p.docblock || !p.attached,
+		);
+		assert.equal(
+			violations.length,
+			0,
+			`plank is not a docblock tag on a seam declaration:\n${violations
+				.map(
+					(v) =>
+						`  ${v.file}:${v.line}: ${
+							v.docblock
+								? "docblock not leading a declaration"
+								: "line-comment plank"
+						}: ${v.text}`,
+				)
+				.join("\n")}`,
+		);
+	},
+);
+
+// Scenario: Every registered command, seat, and tool name has one implementation.
+
+interface Registration {
+	registry: "command" | "tool" | "seat";
+	name: string;
+}
+
+// Names from a repeated array literal such as SEAT_COMMANDS, with the leading
+// slash the loop strips before registering.
+function arrayLiteralNames(src: string, constName: string): string[] {
+	const match = src.match(
+		new RegExp(`const ${constName}\\s*=\\s*\\[([^\\]]*)\\]`),
+	);
+	if (!match) {
+		return [];
+	}
+	return [...match[1].matchAll(/"([^"]+)"/g)].map((m) =>
+		m[1].replace(/^\//, ""),
+	);
+}
+
+// The named-registration mechanism the flagship uses: slash commands and the
+// model tool are registered in createEstelleExtension; seats are the SEATS map.
+// A name registered twice in one registry resolves ambiguously. The command and
+// tool registries are distinct namespaces, so a name may name both a command and
+// a tool without conflict; the check runs per registry.
+function collectRegistrations(root: string): Registration[] {
+	const src = readFileSync(join(root, "src", "index.ts"), "utf8");
+	const out: Registration[] = [];
+	for (const name of arrayLiteralNames(src, "SEAT_COMMANDS")) {
+		out.push({ registry: "command", name });
+	}
+	for (const name of arrayLiteralNames(src, "ALONGSIDE_COMMANDS")) {
+		out.push({ registry: "command", name });
+	}
+	for (const m of src.matchAll(/registerCommand\(\s*"([^"]+)"/g)) {
+		out.push({ registry: "command", name: m[1] });
+	}
+	for (const m of src.matchAll(
+		/registerTool\(\s*\{[\s\S]*?name:\s*"([^"]+)"/g,
+	)) {
+		out.push({ registry: "tool", name: m[1] });
+	}
+	const seatsBlock = src.match(/const SEATS[\s\S]*?\n\};/);
+	if (seatsBlock) {
+		for (const m of seatsBlock[0].matchAll(/id:\s*"([^"]+)"/g)) {
+			out.push({ registry: "seat", name: m[1] });
+		}
+	}
+	return out;
+}
+
+Given(
+	"the project's command, seat, and tool registrations",
+	function (this: MethWorld) {
+		this.methRegistrations = collectRegistrations(process.cwd());
+		assert.ok(
+			this.methRegistrations.length > 0,
+			"no command, seat, or tool registrations were found",
+		);
+	},
+);
+
+Then(
+	"each registered name resolves to exactly one implementation",
+	function (this: MethWorld) {
+		const byRegistry = new Map<string, Map<string, number>>();
+		for (const reg of this.methRegistrations ?? []) {
+			const counts = byRegistry.get(reg.registry) ?? new Map<string, number>();
+			counts.set(reg.name, (counts.get(reg.name) ?? 0) + 1);
+			byRegistry.set(reg.registry, counts);
+		}
+		const duplicates: string[] = [];
+		for (const [registry, counts] of byRegistry) {
+			for (const [name, count] of counts) {
+				if (count > 1) {
+					duplicates.push(`  ${registry} "${name}" registered ${count} times`);
+				}
+			}
+		}
+		assert.equal(
+			duplicates.length,
+			0,
+			`registered name resolves to more than one implementation:\n${duplicates.join(
+				"\n",
+			)}`,
+		);
+	},
+);
+
+// Scenario: The shim seam does not import the flagship.
+
+interface ImportSpecifier {
+	file: string;
+	line: number;
+	specifier: string;
+}
+
+function shimSourceFiles(root: string): string[] {
+	const out: string[] = [];
+	collectFiles(
+		join(root, "packages", "pi-open-plugin-shim", "src"),
+		(p) => p.endsWith(".ts"),
+		out,
+	);
+	return out;
+}
+
+// Every module specifier the shim source imports: static import, side-effect
+// import, dynamic import(), and require().
+function extractImports(file: string): ImportSpecifier[] {
+	const src = readFileSync(file, "utf8");
+	const out: ImportSpecifier[] = [];
+	const patterns = [
+		/import\s[^"';]*?from\s*["']([^"']+)["']/g,
+		/import\s*["']([^"']+)["']/g,
+		/import\s*\(\s*["']([^"']+)["']\s*\)/g,
+		/require\s*\(\s*["']([^"']+)["']\s*\)/g,
+	];
+	for (const pattern of patterns) {
+		for (const m of src.matchAll(pattern)) {
+			const line = src.slice(0, m.index ?? 0).split("\n").length;
+			out.push({ file, line, specifier: m[1] });
+		}
+	}
+	return out;
+}
+
+function flagshipPackageName(root: string): string {
+	return (
+		JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+			name: string;
+		}
+	).name;
+}
+
+// A specifier resolves to the flagship when it names the flagship package, a
+// subpath of it, or a relative path that climbs out of the shim package into the
+// flagship source tree.
+function resolvesToFlagship(
+	spec: ImportSpecifier,
+	root: string,
+	flagship: string,
+): boolean {
+	if (
+		spec.specifier === flagship ||
+		spec.specifier.startsWith(`${flagship}/`)
+	) {
+		return true;
+	}
+	if (spec.specifier.startsWith(".")) {
+		const resolved = resolve(dirname(spec.file), spec.specifier);
+		const flagshipSrc = resolve(root, "src");
+		const shimRoot = resolve(root, "packages", "pi-open-plugin-shim");
+		if (
+			(resolved === flagshipSrc || resolved.startsWith(`${flagshipSrc}/`)) &&
+			!resolved.startsWith(`${shimRoot}/`)
+		) {
+			return true;
+		}
+	}
+	return false;
+}
+
+Given("the shim's source imports", function (this: MethWorld) {
+	const files = shimSourceFiles(process.cwd());
+	assert.ok(files.length > 0, "no shim source files were found");
+	this.methShimImports = files.flatMap((f) => extractImports(f));
+	assert.ok(
+		this.methShimImports.length > 0,
+		"the shim source declares no imports",
+	);
+});
+
+Then(
+	"none of them resolves to the flagship package",
+	function (this: MethWorld) {
+		const root = process.cwd();
+		const flagship = flagshipPackageName(root);
+		const violations = (this.methShimImports ?? []).filter((spec) =>
+			resolvesToFlagship(spec, root, flagship),
+		);
+		assert.equal(
+			violations.length,
+			0,
+			`shim source imports the flagship package "${flagship}":\n${violations
+				.map((v) => `  ${v.file}:${v.line}: ${v.specifier}`)
+				.join("\n")}`,
+		);
+	},
+);
+
+// Scenario: Catalogued agent-prompt copy is not duplicated in the implementation.
+
+// Every string value in the agent-prompt catalog, flattened. The catalog holds
+// the agent-facing copy the seams present; none of it may also appear as a
+// string literal in the implementation, or the copy is duplicated rather than
+// sourced.
+function catalogTexts(root: string): string[] {
+	const raw = JSON.parse(
+		readFileSync(join(root, "assets", "agent-prompts.json"), "utf8"),
+	);
+	const out: string[] = [];
+	function walk(value: unknown) {
+		if (typeof value === "string") {
+			out.push(value);
+		} else if (Array.isArray(value)) {
+			value.forEach(walk);
+		} else if (value && typeof value === "object") {
+			for (const nested of Object.values(value)) {
+				walk(nested);
+			}
+		}
+	}
+	walk(raw);
+	return out;
+}
+
+Given(
+	"the agent-prompt catalog and the project's implementation",
+	function (this: MethWorld) {
+		this.methCatalogTexts = catalogTexts(process.cwd());
+		assert.ok(
+			this.methCatalogTexts.length > 0,
+			"the agent-prompt catalog carries no copy",
+		);
+		this.methProductionFiles = productionFiles(process.cwd());
+		assert.ok(
+			this.methProductionFiles.length > 0,
+			"no implementation files were found to scan",
+		);
+	},
+);
+
+Then(
+	"no catalogued prompt text appears as a string literal in the implementation",
+	function (this: MethWorld) {
+		const texts = this.methCatalogTexts ?? [];
+		const violations: string[] = [];
+		for (const file of this.methProductionFiles ?? []) {
+			const contents = readFileSync(file, "utf8");
+			for (const text of texts) {
+				if (contents.includes(text)) {
+					violations.push(
+						`  ${file}: catalogued copy embedded: ${JSON.stringify(
+							`${text.slice(0, 60)}...`,
+						)}`,
+					);
+				}
+			}
+		}
+		assert.equal(
+			violations.length,
+			0,
+			`catalogued prompt copy is duplicated in the implementation:\n${violations.join(
+				"\n",
+			)}`,
 		);
 	},
 );

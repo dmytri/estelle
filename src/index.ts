@@ -389,16 +389,23 @@ function createEstelleExtension(
 			},
 		});
 		if (state.activeSeat.role === "captain") {
+			const embarkPrompts = (
+				JSON.parse(
+					readFileSync(join(assetsDir(cwd), "agent-prompts.json"), "utf8"),
+				) as {
+					embark: {
+						description: string;
+						promptSnippet: string;
+						promptGuidelines: string[];
+					};
+				}
+			).embark;
 			pi.registerTool({
 				name: "embark",
 				label: "Embark the crew",
-				description:
-					"Embark the batch: open a crew session alongside seated as the Quartermaster Misson and set the Quartermaster, Crew, and Boatswain working while you stay with the operator. Call this yourself once the operator's intent is confirmed, rather than asking the operator to run a role command.",
-				promptSnippet:
-					"embark: set the crew working on the confirmed batch in a session alongside",
-				promptGuidelines: [
-					"Once the operator has confirmed what they want built and tells you to proceed, embark the crew immediately by calling the embark tool. Do not keep surveying the workspace, do not ask further questions, and never tell the operator to run a role command or switch seats. Calling embark is how you hand the confirmed batch to the crew.",
-				],
+				description: embarkPrompts.description,
+				promptSnippet: embarkPrompts.promptSnippet,
+				promptGuidelines: embarkPrompts.promptGuidelines,
 				parameters: {
 					type: "object",
 					properties: {},
@@ -658,13 +665,17 @@ async function openWithBonnyVoice(
 	// as a delivery failure, the same observable state sendToOperator keeps, so
 	// a failed opening turn surfaces in session state instead of an unhandled
 	// rejection outliving the session's owner.
+	const openingTurn = (
+		JSON.parse(
+			readFileSync(join(assetsDir(cwd), "agent-prompts.json"), "utf8"),
+		) as { openingTurn: string }
+	).openingTurn;
 	state.pendingDeliveries.push(
 		session
 			.sendCustomMessage(
 				{
 					customType: "estelle-opening",
-					content:
-						"Begin your Captain opening turn now, before the operator speaks.",
+					content: openingTurn,
 					display: false,
 				},
 				{ triggerTurn: true },
@@ -1079,6 +1090,9 @@ export async function run(options?: RunOptions): Promise<void> {
 		return;
 	}
 	const cwd = options?.cwd ?? process.cwd();
+	const crewRunPrompts = JSON.parse(
+		readFileSync(join(assetsDir(cwd), "agent-prompts.json"), "utf8"),
+	) as { crewRunSummary: string; crewRunNarration: string };
 	const state: EstelleState = {
 		providerRequestCount: 0,
 		activeSeat: SEATS.bonny,
@@ -1139,8 +1153,10 @@ export async function run(options?: RunOptions): Promise<void> {
 	// upward on reasoning models whose lower levels are unsupported, and a
 	// reasoning-heavy live turn can land its reply in the thinking channel,
 	// leaving no visible assistant text for the operator.
-	// @planks("When Bonny takes their next turn")
-	// @planks("Then Bonny offers the operator a fresh context for the next batch")
+	/**
+	 * @planks("When Bonny takes their next turn")
+	 * @planks("Then Bonny offers the operator a fresh context for the next batch")
+	 */
 	const buildRuntime = (runtimeState: EstelleState) =>
 		createAgentSessionRuntime(
 			async ({ cwd: runtimeCwd, sessionManager, sessionStartEvent }) => {
@@ -1208,11 +1224,13 @@ export async function run(options?: RunOptions): Promise<void> {
 	const crewLoopSeats = { quartermaster: false, crew: false, boatswain: false };
 	let crewLoopAllGreen = false;
 	let redTargetPath: string | undefined;
-	// @planks("Then a crew session opens alongside the started session")
-	// @planks("Then the crew session opens alongside the started session")
-	// @planks("Then the crew session is seated as the Boatswain \"Bellamy\"")
-	// @planks("Then the crew session is seated as the Shipwright \"Johnson\"")
-	// @planks("Then the crew session is seated as a Crew hand")
+	/**
+	 * @planks("Then a crew session opens alongside the started session")
+	 * @planks("Then the crew session opens alongside the started session")
+	 * @planks("Then the crew session is seated as the Boatswain \"Bellamy\"")
+	 * @planks("Then the crew session is seated as the Shipwright \"Johnson\"")
+	 * @planks("Then the crew session is seated as a Crew hand")
+	 */
 	state.openCrewSession = async (seat: Seat = SEATS.misson) => {
 		const crewState: EstelleState = {
 			providerRequestCount: 0,
@@ -1228,13 +1246,15 @@ export async function run(options?: RunOptions): Promise<void> {
 		state.crewRuntime = await buildRuntime(crewState);
 	};
 
-	// @planks("When Estelle reports the crew's run back to Bonny")
-	// @planks("Then the started session records a crew-run report")
-	// @planks("Then the started session's history excludes the crew's raw message \"greeting.md warmer; three planks green\"")
-	// @planks("Then Bonny's crew-run report carries a live summary of the crew's work")
-	// @planks("Then the crew run is reported back into Bonny's session")
-	// @planks("Then the started session receives Bonny's report when the run ends")
-	// @planks("Then the started session shows Bonny's report of the completed run")
+	/**
+	 * @planks("When Estelle reports the crew's run back to Bonny")
+	 * @planks("Then the started session records a crew-run report")
+	 * @planks("Then the started session's history excludes the crew's raw message \"greeting.md warmer; three planks green\"")
+	 * @planks("Then Bonny's crew-run report carries a live summary of the crew's work")
+	 * @planks("Then the crew run is reported back into Bonny's session")
+	 * @planks("Then the started session receives Bonny's report when the run ends")
+	 * @planks("Then the started session shows Bonny's report of the completed run")
+	 */
 	const reportCrewRun = async (viaBonnyTurn = false) => {
 		let summary = `${SEATS.crew.name}'s run is reported to ${SEATS.bonny.name}`;
 		const captainModelId = state.seatModels[SEATS.bonny.role];
@@ -1258,9 +1278,7 @@ export async function run(options?: RunOptions): Promise<void> {
 			if (bonnySession.isStreaming) {
 				await bonnySession.abort();
 			}
-			await bonnySession.sendUserMessage(
-				"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
-			);
+			await bonnySession.sendUserMessage(crewRunPrompts.crewRunSummary);
 			const voiced = bonnySession.messages
 				.filter((message) => message.role === "assistant")
 				.map(assistantText)
@@ -1275,8 +1293,10 @@ export async function run(options?: RunOptions): Promise<void> {
 		});
 	};
 
-	// @planks("Then the started session receives the crew's narration as the crew runs")
-	// @planks("Then the started session shows live narration of the crew's run")
+	/**
+	 * @planks("Then the started session receives the crew's narration as the crew runs")
+	 * @planks("Then the started session shows live narration of the crew's run")
+	 */
 	const narrateCrewRun = async () => {
 		let line = `${SEATS.misson.name} sets the crew to work`;
 		const captainModelId = state.seatModels[SEATS.bonny.role];
@@ -1293,9 +1313,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		// voice line and keep the default narration in that case.
 		if (captainModel && !runtime.session.isStreaming) {
 			const bonnySession = runtime.session;
-			await bonnySession.sendUserMessage(
-				"Voice a single short line in your own voice narrating that the crew is now running the batch for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
-			);
+			await bonnySession.sendUserMessage(crewRunPrompts.crewRunNarration);
 			const voiced = bonnySession.messages
 				.filter((message) => message.role === "assistant")
 				.map(assistantText)
@@ -1313,13 +1331,15 @@ export async function run(options?: RunOptions): Promise<void> {
 		.getExtensions()
 		.extensions.map((e) => extensionName(e.path, e.resolvedPath));
 
-	// @planks("When Estelle runs the crew loop to completion")
-	// @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
-	// @planks("Then the crew loop ended with every target green")
-	// @planks("Then Bonny's crew-run report carries a live summary of the run")
-	// @planks("When Bonny embarks the crew from their own turn")
-	// @planks("Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target")
-	// @planks("Then the failing target passes the project's verification after the run")
+	/**
+	 * @planks("When Estelle runs the crew loop to completion")
+	 * @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
+	 * @planks("Then the crew loop ended with every target green")
+	 * @planks("Then Bonny's crew-run report carries a live summary of the run")
+	 * @planks("When Bonny embarks the crew from their own turn")
+	 * @planks("Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target")
+	 * @planks("Then the failing target passes the project's verification after the run")
+	 */
 	const driveCrewLoopToCompletion = async (viaBonnyTurn = false) => {
 		const targetPath = redTargetPath;
 		if (targetPath === undefined) {
@@ -1401,9 +1421,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		if (bonnySession.isStreaming) {
 			await bonnySession.abort();
 		}
-		await bonnySession.sendUserMessage(
-			"Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
-		);
+		await bonnySession.sendUserMessage(crewRunPrompts.crewRunSummary);
 		const voiced = bonnySession.messages
 			.filter((message) => message.role === "assistant")
 			.map(assistantText)
@@ -1411,8 +1429,10 @@ export async function run(options?: RunOptions): Promise<void> {
 		crewRunReports.push({ summary: voiced[voiced.length - 1] });
 	};
 
-	// @planks("When Bonny embarks the crew from their own turn")
-	// @planks("Then the crew's real work, driven only by that one embark act, turns the failing target green")
+	/**
+	 * @planks("When Bonny embarks the crew from their own turn")
+	 * @planks("Then the crew's real work, driven only by that one embark act, turns the failing target green")
+	 */
 	state.embark = async () => {
 		// A stream already in flight at embark entry is Bonny's own turn calling
 		// the embark tool: the live-voice seams must not abort it.
@@ -1440,8 +1460,10 @@ export async function run(options?: RunOptions): Promise<void> {
 	// mode disposes when the operator exits; an injected interactive seam keeps
 	// the started session live after run() returns, so Bonny's opening turn and
 	// later turns run to completion on a connected session.
-	// @planks("When Bonny takes their next turn")
-	// @planks("Then Bonny offers the operator a fresh context for the next batch")
+	/**
+	 * @planks("When Bonny takes their next turn")
+	 * @planks("Then Bonny offers the operator a fresh context for the next batch")
+	 */
 	const interactive =
 		options?.interactive ??
 		(async (handle: InteractiveHandle) => {
@@ -1465,9 +1487,11 @@ export async function run(options?: RunOptions): Promise<void> {
 						atRest: true,
 						sawActivity: crewSawActivity,
 					}),
-					// @planks("When the crew session runs a turn")
-					// @planks("Then the crew session received a live reply from the Quartermaster's model")
-					// @planks("Then the crew session's heartbeat reflected live activity during the run")
+					/**
+					 * @planks("When the crew session runs a turn")
+					 * @planks("Then the crew session received a live reply from the Quartermaster's model")
+					 * @planks("Then the crew session's heartbeat reflected live activity during the run")
+					 */
 					runTurn: async () => {
 						const crewSession = crewRuntime.session;
 						await new Promise<void>((resolve) => {
@@ -1489,8 +1513,10 @@ export async function run(options?: RunOptions): Promise<void> {
 						});
 						await crewSession.abort();
 					},
-					// @planks("Then the crew session allows a Crew hand to write \"src/handoff.ts\"")
-					// @planks("Then the crew session blocks a Crew hand from writing \"features/new.feature\"")
+					/**
+					 * @planks("Then the crew session allows a Crew hand to write \"src/handoff.ts\"")
+					 * @planks("Then the crew session blocks a Crew hand from writing \"features/new.feature\"")
+					 */
 					write: (path: string, contents: string) => {
 						const relPath = relativeToCwd(cwd, path);
 						const decision = evaluateWrite(crewSeat.role, relPath);
@@ -1502,8 +1528,10 @@ export async function run(options?: RunOptions): Promise<void> {
 						writeFileSync(absolute, contents, "utf8");
 						return { allowed: true };
 					},
-					// @planks("Then the crew session lets only the Boatswain commit")
-					// @planks("Then the crew session blocks a Crew hand from committing")
+					/**
+					 * @planks("Then the crew session lets only the Boatswain commit")
+					 * @planks("Then the crew session blocks a Crew hand from committing")
+					 */
 					commit: () => {
 						if (crewSeat.role !== "boatswain") {
 							return {
@@ -1516,11 +1544,13 @@ export async function run(options?: RunOptions): Promise<void> {
 				}
 			);
 		},
-		// @planks("When Estelle hands the crew off from the Quartermaster to the Crew")
-		// @planks("Then the crew session is seated as a Crew hand")
-		// @planks("Then the crew session's message history excludes the Quartermaster's message \"target greeting.md is red\"")
-		// @planks("Then Bonny's narration log records a handoff from the Quartermaster to the Crew")
-		// @planks("Then Bonny's narration for the handoff carries a live line in their voice")
+		/**
+		 * @planks("When Estelle hands the crew off from the Quartermaster to the Crew")
+		 * @planks("Then the crew session is seated as a Crew hand")
+		 * @planks("Then the crew session's message history excludes the Quartermaster's message \"target greeting.md is red\"")
+		 * @planks("Then Bonny's narration log records a handoff from the Quartermaster to the Crew")
+		 * @planks("Then Bonny's narration for the handoff carries a live line in their voice")
+		 */
 		handOffToCrew: async () => {
 			const fromSeat = crewSeat;
 			const crewState: EstelleState = {
@@ -1571,14 +1601,16 @@ export async function run(options?: RunOptions): Promise<void> {
 		},
 		narrationLog: () => narrationLog,
 		reportCrewRun,
-		// @planks("When Bonny embarks the batch from their turn")
-		// @planks("Then Estelle runs the crew loop to completion without a further operator step")
-		// @planks("Then the started session receives the crew's narration as the crew runs")
-		// @planks("Then the started session receives Bonny's report when the run ends")
-		// @planks("When Bonny embarks the crew from their own turn")
-		// @planks("Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target")
-		// @planks("Then the failing target passes the project's verification after the run")
-		// @planks("Then the started session receives the crew's narration and Bonny's completed-run report")
+		/**
+		 * @planks("When Bonny embarks the batch from their turn")
+		 * @planks("Then Estelle runs the crew loop to completion without a further operator step")
+		 * @planks("Then the started session receives the crew's narration as the crew runs")
+		 * @planks("Then the started session receives Bonny's report when the run ends")
+		 * @planks("When Bonny embarks the crew from their own turn")
+		 * @planks("Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target")
+		 * @planks("Then the failing target passes the project's verification after the run")
+		 * @planks("Then the started session receives the crew's narration and Bonny's completed-run report")
+		 */
 		captainTools: () => [
 			{
 				name: "embark",
@@ -1588,19 +1620,25 @@ export async function run(options?: RunOptions): Promise<void> {
 			},
 		],
 		crewRunReports: () => crewRunReports,
-		// @planks("When the Quartermaster reports the failing target \"greeting.md\"")
+		/**
+		 * @planks("When the Quartermaster reports the failing target \"greeting.md\"")
+		 */
 		reportFailingTarget: (target: string) => {
 			currentVerdict = { failingTarget: target };
 		},
-		// @planks("When the Quartermaster reports all targets green")
+		/**
+		 * @planks("When the Quartermaster reports all targets green")
+		 */
 		reportAllGreen: () => {
 			currentVerdict = { allGreen: true };
 		},
-		// @planks("When Estelle advances the crew loop")
-		// @planks("Then Estelle sends the Crew to the target \"greeting.md\"")
-		// @planks("Then the crew run ends without sending the Crew")
-		// @planks("Then Estelle sent the Crew exactly once")
-		// @planks("Then the crew run ends")
+		/**
+		 * @planks("When Estelle advances the crew loop")
+		 * @planks("Then Estelle sends the Crew to the target \"greeting.md\"")
+		 * @planks("Then the crew run ends without sending the Crew")
+		 * @planks("Then Estelle sent the Crew exactly once")
+		 * @planks("Then the crew run ends")
+		 */
 		advanceCrewLoop: async () => {
 			if (currentVerdict.allGreen) {
 				crewRunEnded = true;
@@ -1612,9 +1650,11 @@ export async function run(options?: RunOptions): Promise<void> {
 			}
 			crewDispatches.push({ target: failingTarget });
 		},
-		// @planks("When Estelle advances the crew loop through the Crew to the Boatswain")
-		// @planks("Then the crew session is seated as the Boatswain \"Bellamy\"")
-		// @planks("Then the crew session's message history excludes the Crew's context")
+		/**
+		 * @planks("When Estelle advances the crew loop through the Crew to the Boatswain")
+		 * @planks("Then the crew session is seated as the Boatswain \"Bellamy\"")
+		 * @planks("Then the crew session's message history excludes the Crew's context")
+		 */
 		advanceCrewLoopThroughToBoatswain: async () => {
 			const { failingTarget } = currentVerdict;
 			if (failingTarget === undefined) {
@@ -1636,22 +1676,32 @@ export async function run(options?: RunOptions): Promise<void> {
 		},
 		crewDispatches: () => crewDispatches,
 		crewRunEnded: () => crewRunEnded,
-		// @planks("Given a target that is red until the Crew fixes it")
+		/**
+		 * @planks("Given a target that is red until the Crew fixes it")
+		 */
 		configureRedTarget: () => {
 			redTargetPath = resolve(cwd, join("src", "estelle-live-target.md"));
 			mkdirSync(dirname(redTargetPath), { recursive: true });
 			writeFileSync(redTargetPath, "", "utf8");
 		},
-		// @planks("When Estelle runs the crew loop to completion")
-		// @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
-		// @planks("Then the crew loop ended with every target green")
-		// @planks("Then Bonny's crew-run report carries a live summary of the run")
+		/**
+		 * @planks("When Estelle runs the crew loop to completion")
+		 * @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
+		 * @planks("Then the crew loop ended with every target green")
+		 * @planks("Then Bonny's crew-run report carries a live summary of the run")
+		 */
 		runCrewLoopToCompletion: driveCrewLoopToCompletion,
-		// @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
+		/**
+		 * @planks("Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live")
+		 */
 		crewLoopSeatsRanLive: () => crewLoopSeats,
-		// @planks("Then the crew loop ended with every target green")
+		/**
+		 * @planks("Then the crew loop ended with every target green")
+		 */
 		crewLoopTargetsAllGreen: () => crewLoopAllGreen,
-		// @planks("Then Bonny begins their Captain opening turn before the operator speaks")
+		/**
+		 * @planks("Then Bonny begins their Captain opening turn before the operator speaks")
+		 */
 		providerRequestCount: () => state.providerRequestCount,
 	});
 }

@@ -19,6 +19,22 @@ Feature: Methodology conformance
     Given the project's plank annotations and the feature step text
     Then every plank's step text matches a live feature step
 
+  Scenario: Every plank annotates a seam declaration in docblock form
+    Given the project's plank annotations and their placement
+    Then every plank is a docblock tag attached to a seam declaration
+
+  Scenario: Every registered command, seat, and tool name has one implementation
+    Given the project's command, seat, and tool registrations
+    Then each registered name resolves to exactly one implementation
+
+  Scenario: The shim seam does not import the flagship
+    Given the shim's source imports
+    Then none of them resolves to the flagship package
+
+  Scenario: Catalogued agent-prompt copy is not duplicated in the implementation
+    Given the agent-prompt catalog and the project's implementation
+    Then no catalogued prompt text appears as a string literal in the implementation
+
   Scenario: The feature files pass the project gherkin lint
     Given the project's feature files and the gherkin lint configuration
     Then the gherkin linter reports no violation

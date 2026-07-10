@@ -1,0 +1,12 @@
+{
+  "embark": {
+    "description": "Embark the batch: open a crew session alongside seated as the Quartermaster Misson and set the Quartermaster, Crew, and Boatswain working while you stay with the operator. Call this yourself once the operator's intent is confirmed, rather than asking the operator to run a role command.",
+    "promptSnippet": "embark: set the crew working on the confirmed batch in a session alongside",
+    "promptGuidelines": [
+      "Once the operator has confirmed what they want built and tells you to proceed, embark the crew immediately by calling the embark tool. Do not keep surveying the workspace, do not ask further questions, and never tell the operator to run a role command or switch seats. Calling embark is how you hand the confirmed batch to the crew."
+    ]
+  },
+  "openingTurn": "Begin your Captain opening turn now, before the operator speaks.",
+  "crewRunSummary": "Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
+  "crewRunNarration": "Voice a single short line in your own voice narrating that the crew is now running the batch for the operator. Reply with plain text only. Do not read files. Do not call any tools."
+}
