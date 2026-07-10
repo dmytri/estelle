@@ -4,7 +4,28 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
-## Harbour 2026-07-09 complete, uncommitted
+## Refit to Shipshape 0.11.1 — resumed, harbour entered
+
+Active voyage. The project was last fitted to Shipshape `0.10.1` doctrine (harbour commit `82e6b46`, `CAPTAIN.md`/`RIGGING.md`/`AGENTS.md`); the installed workflow is now `0.11.1`, confirmed from the plugin manifest this session. Estelle pilots Shipshape, so a workflow-version bump is doubly material: its custody assertions and hook consumption were last proven against `0.10.1` (see "Standing Estelle deltas" below).
+
+State at resume: committed tree synced with `origin/main` at `82e6b46` (the pending harbour commit was pushed last session — `f4b56fb..82e6b46`, now `0/0`). The only working-tree change was this `CAPTAIN.md` note flush itself — work in flight ordering the refit voyage — handed to Boatswain to commit so the tree is clean for harbour entry. Zero `@captain`, zero `@shipwright`.
+
+The earlier pause was because the session had loaded `0.11.0` skills, not `0.11.1`. That is resolved: both Captain and Shipwright now run on `0.11.1`, the doctrine we refit toward.
+
+Harbour plan, in flight: Shipwright dispatched (isolated) for the full inventory and fitting-refresh against `0.11.1` — re-derive `RIGGING.md`/`AGENTS.md`, re-run plank inventory and the verification-economy audit, write `@captain` skeletons for any behaviour/policy drift, and run the full-tier boundary check. Then review each skeleton with the operator.
+
+### Harbour discovery tooling — trial candidates, stack-local examples
+
+Tooling stays stack-local, so these name two tool-classes to fit out this harbour (or stack-appropriate equivalents), never canon:
+
+- **Unused / dead-code detection** (import-graph absence), e.g. Knip. Fills a gap plank-inventory and c8 both miss: a seam can be planked and covered yet export something nothing imports. Needs entry points declared or it false-positives here — `bin/estelle.js`, `features/steps` + `support`, the `.plugin/` hooks, workspace `exports`; the dynamic-`import()` attribution gap in `## Known false-failure modes` bites it too. A doctrine bump is when code serving old hook shapes goes dead, so this harbour is its moment. New dependency.
+- **Structural code-pattern conformance** (AST match), e.g. GritQL — native to biome (`biome search` + `.grit` plugin rules), zero new dependency, rides the `biome check` gate already run. Retires two fragile hand-rolled parsers in verification support: the `FORBIDDEN_DOUBLE` line-regex scan and the ~150-line `stripComments`+`extractStepRegistrations` parser. Robustness, not speed. Confirm the installed biome version supports the plugin-rule form before the gate-folded path.
+
+Boundaries: findings route as ordinary harbour findings — dead code removed or deferred; unused dependency to Boatswain hygiene or a Captain dependency call. Plank/placement checks stay on the tsc/ts-morph compiler API: `@planks` is comment trivia, off-AST for GritQL. Any methodology check keeps its Article-6 negative test wherever it lands, and folding `FORBIDDEN_DOUBLE` into the biome gate MUST NOT silently drop its `methodology-conformance.feature` scenario — keep the scenario with GritQL-backed support, or retire it deliberately.
+
+Custody: Shipwright does not read `CAPTAIN.md`, so this is Captain's steering note — raise it with Shipwright in-harbour. A tool that earns its keep gets fitted into `AGENTS.md`/`RIGGING.md` by Shipwright, not recorded here.
+
+## Harbour 2026-07-09 complete, committed and shipped (`82e6b46`)
 
 Resumed the interrupted refit at base `f4b56fb` and completed the inventory. All-tier boundary check green: `@logic`+`@sandbox` 139/139, `@eval` 14/14, first weather record at `coverage/weather.json`. `RIGGING.md`/`AGENTS.md` refit to current shape, `README.md` Shipshape block added. Plank inventory sound: 273 planks, 217 unique step texts, zero stale against `@eval`-inclusive live steps. Zero `@captain` and zero `@shipwright` scenarios; nothing to promote or condemn.
 
@@ -12,7 +33,7 @@ Harbour-scoped edits this session, uncommitted for Boatswain: `RIGGING.md` `plan
 
 Removed the orphaned `packages/pi-shipshape/` residue: fitted out in `bd571bb`, tracked files struck in `3342dc0`, only ignored `node_modules` lingered. Layer-1 (packaging upstream Shipshape skills for plain pi) is realized at runtime per no-vendoring, not as a built package; the operator confirmed the residue is deletable, not a stub for a planned distributable.
 
-Next: Boatswain custody for the harbour-scoped commit, then the seat-pinning spec item below, then release per `## Outbound` with the registry boot-verify; outbound needs fresh operator approval in that session.
+Boatswain custody landed and shipped as `82e6b46`. Remaining follow-ups, now queued behind the 0.11.1 refit above: the seat-pinning spec item below, then release per `## Outbound` with the registry boot-verify; outbound needs fresh operator approval in that session.
 
 ## Upstream planking evidence, drafted for delivery
 
