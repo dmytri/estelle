@@ -198,6 +198,7 @@ function assetsDir(cwd: string): string {
  * @planks("Then the seat system prompt includes the upstream \"captain\" role instructions")
  * @planks("Then the seat system prompt includes the \"bonny\" character card")
  * @planks("Then the alongside Quartermaster does not refuse for unclean context")
+ * @planks("Then Bonny embarks the crew rather than instructing the operator to run a role command")
  */
 function seatSystemPrompt(
 	base: string,
@@ -221,7 +222,21 @@ function seatSystemPrompt(
 		seat.role === "captain"
 			? ""
 			: `\n\nDispatch: Estelle opened this session as an isolated ${seat.role} dispatch alongside the operator's Captain session. The runtime created this session fresh: no Captain discovery, operator conversation, or prior turn output crossed into it. Treat this context as clean and runtime auto-cleared. Messages arriving in this session are dispatch traffic from the harness, not operator discovery. Proceed with your role's duties.`;
-	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${card}${dispatch}`;
+	// The Captain seat prompt ends on the catalogued embark guidance. The base
+	// prompt's Guidelines section carries the same guidance, but it sits far
+	// from the end of a long seat prompt. The seat prompt is applied last on
+	// the turn, so anchoring the catalogued copy here keeps embark the
+	// Captain's next act once the operator confirms. The copy is read from the
+	// catalog at runtime and stays owned as product material.
+	const embarkSteer =
+		seat.role === "captain"
+			? `\n\n${(
+					JSON.parse(
+						readFileSync(join(assets, "agent-prompts.json"), "utf8"),
+					) as { embark: { promptGuidelines: string[] } }
+				).embark.promptGuidelines.join("\n")}`
+			: "";
+	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${card}${dispatch}${embarkSteer}`;
 }
 
 /**
