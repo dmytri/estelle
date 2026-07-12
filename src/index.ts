@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import type {
 	AgentSession,
@@ -99,6 +106,7 @@ interface EstelleState {
 	pendingDeliveries: Promise<void>[];
 	deliveryFailures: number;
 	pi?: ExtensionAPI;
+	getSession?: () => AgentSession;
 	runtime?: AgentSessionRuntime;
 	crewRuntime?: AgentSessionRuntime;
 	openCrewSession?: (seat?: Seat) => Promise<void>;
@@ -199,16 +207,37 @@ function assetsDir(cwd: string): string {
  * @planks("Then the seat system prompt includes the \"bonny\" character card")
  * @planks("Then the alongside Quartermaster does not refuse for unclean context")
  * @planks("Then Bonny embarks the crew rather than instructing the operator to run a role command")
+ * @planks("Then the seat system prompt includes the plugin's \"captain\" rule")
+ * @planks("Then the seat system prompt includes the plugin's always-apply \"shipshape\" rule")
+ * @planks("Then the seat system prompt includes the plugin's \"qm\" rule")
+ * @planks("Then the seat system prompt excludes the plugin's \"captain\" rule")
  */
 function seatSystemPrompt(
 	base: string,
 	seat: Seat,
 	cwd: string,
 	skillPaths: Record<string, string>,
+	pluginDir: string,
 ): string {
 	const assets = assetsDir(cwd);
 	const houseRules = readFileSync(join(assets, "system-prompt.md"), "utf8");
 	const roleInstructions = readFileSync(skillPaths[seat.skill], "utf8");
+	// The installed plugin ships "rules/*.mdc", one checklist per role plus
+	// always-apply checklists. The acting seat carries its own role rule and
+	// every always-apply rule; other roles' rules stay out.
+	const rulesDir = join(pluginDir, "rules");
+	const pluginRules = readdirSync(rulesDir)
+		.filter((entry) => entry.endsWith(".mdc"))
+		.map((entry) => basename(entry, ".mdc"))
+		.filter(
+			(name) =>
+				name === seat.skill ||
+				/^\s*alwaysApply:\s*true\s*$/m.test(
+					readFileSync(join(rulesDir, `${name}.mdc`), "utf8"),
+				),
+		)
+		.map((name) => readFileSync(join(rulesDir, `${name}.mdc`), "utf8"))
+		.join("\n\n");
 	const card = readFileSync(
 		join(assets, "characters", CHARACTER_CARDS[seat.role]),
 		"utf8",
@@ -236,7 +265,7 @@ function seatSystemPrompt(
 					) as { embark: { promptGuidelines: string[] } }
 				).embark.promptGuidelines.join("\n")}`
 			: "";
-	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${card}${dispatch}${embarkSteer}`;
+	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${pluginRules}\n\n${card}${dispatch}${embarkSteer}`;
 }
 
 /**
@@ -367,6 +396,7 @@ function createEstelleExtension(
 	state: EstelleState,
 	cwd: string,
 	custody: OpenPluginShim,
+	pluginDir: string,
 ) {
 	return (pi: ExtensionAPI) => {
 		state.pi = pi;
@@ -459,6 +489,22 @@ function createEstelleExtension(
 			state.onProviderRequest?.();
 		});
 		/**
+		 * @planks("When a new Bonny session starts")
+		 * @planks("Then the plugin's SessionStart orientation is delivered into the session context")
+		 * @planks("Then the orientation carries the plugin's rigging-validation output")
+		 * @planks("When a new Bonny session starts and a SessionStart hook exits non-zero")
+		 * @planks("Then the session still opens as the Captain \"Bonny\"")
+		 */
+		pi.on("session_start", async () => {
+			const { output } = await custody.runSessionStart(cwd);
+			const session = state.getSession?.() ?? state.runtime?.session;
+			await session?.sendCustomMessage({
+				customType: "shipshape-session-start",
+				content: output,
+				display: false,
+			});
+		});
+		/**
 		 * @planks("Then the system prompt applied to the turn names the Captain \"Bonny\", the Quartermaster \"Misson\", the Crew, the Boatswain \"Bellamy\", and the Shipwright \"Johnson\"")
 		 * @planks("Then the system prompt applied to the turn includes the \"bonny\" character card")
 		 * @planks("Then the system prompt applied to the turn includes the upstream \"captain\" role instructions")
@@ -471,6 +517,7 @@ function createEstelleExtension(
 					state.activeSeat,
 					cwd,
 					state.skillPaths,
+					pluginDir,
 				),
 			};
 		});
@@ -479,12 +526,26 @@ function createEstelleExtension(
 		 * @planks("When Misson writes \"src/pay.ts\" in the running session")
 		 * @planks("When Misson writes \"watchbill.json\" in the running session")
 		 * @planks("When Bonny writes \"src/sneaky.ts\" in the running session")
+		 * @planks("When Bonny writes \"src/pay.ts\" in the running session")
 		 * @planks("Then the running session allows the write")
 		 * @planks("Then the running session blocks the write")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain writes specs\"")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Production code belongs to Crew\"")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain-custodied or configuration artifact\"")
 		 * @planks("Then the block reason names the Captain's write scope")
+		 * @planks("When Bonny writes \"features/steps/pay.steps.ts\" in the running session")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial for the Captain writing verification support")
+		 * @planks("When Bonny addresses the operator with \"Batch confirmed, Commodore.\" in the running session")
+		 * @planks("Then the operator receives the message \"Batch confirmed, Commodore.\" in the running session")
+		 * @planks("When Misson attempts to address the operator in the running session")
+		 * @planks("Then the running session blocks the operator address")
+		 * @planks("Then Estelle reports that only the Captain addresses the operator")
+		 * @planks("When Bonny runs the \"/perturb\" command on the seam \"src/pay.ts\" in the running session")
+		 * @planks("Then the seam \"src/pay.ts\" carries the perturbation statement from \"RIGGING.md\"")
+		 * @planks("Then the perturbed seam carries no step text, scenario name, or rationale")
+		 * @planks("When Misson runs the \"/perturb\" command on the seam \"src/pay.ts\" in the running session")
+		 * @planks("Then the running session blocks the perturbation")
+		 * @planks("Then the seam \"src/pay.ts\" is unchanged")
 		 * @planks("When Bonny reads \"CAPTAIN.md\" in the running session")
 		 * @planks("When Bellamy reads \"CAPTAIN.md\" in the running session")
 		 * @planks("When Misson reads \"CAPTAIN.md\" in the running session")
@@ -502,15 +563,37 @@ function createEstelleExtension(
 		 */
 		pi.on("tool_call", async (event) => {
 			const seat = `shipshape:${state.activeSeat.skill}`;
+			if (event.toolName === "address-operator") {
+				if (state.activeSeat.role !== "captain") {
+					return {
+						block: true,
+						reason: "only the Captain addresses the operator",
+					};
+				}
+				const session = state.getSession?.() ?? state.runtime?.session;
+				await session?.sendCustomMessage({
+					customType: "estelle-operator-address",
+					content: (event.input as { message: string }).message,
+					display: true,
+				});
+				return;
+			}
+			if (event.toolName === "perturb") {
+				if (state.activeSeat.role !== "captain") {
+					return { block: true, reason: "only the Captain perturbs a seam" };
+				}
+				const statement = riggingPerturbStatement();
+				const absolute = resolve(cwd, (event.input as { path: string }).path);
+				const original = readFileSync(absolute, "utf8");
+				writeFileSync(absolute, `${original}${statement}\n`, "utf8");
+				return;
+			}
 			if (event.toolName === "write" || event.toolName === "edit") {
 				const relPath = relativeToCwd(
 					cwd,
 					(event.input as { path: string }).path,
 				);
-				const decision =
-					state.activeSeat.role === "captain"
-						? evaluateWrite(state.activeSeat.role, relPath)
-						: custody.checkWriteSync(seat, relPath, process.cwd());
+				const decision = custody.checkWriteSync(seat, relPath, process.cwd());
 				if (!decision.allowed) {
 					return { block: true, reason: decision.reason };
 				}
@@ -546,8 +629,32 @@ function createEstelleExtension(
 		 * @planks("When a non-outbound command runs in the started session")
 		 * @planks("Then no reset nudge guidance is delivered into Bonny's session context")
 		 * @planks("Then Bonny offers the operator a fresh context for the next batch")
+		 * @planks("When Bonny's write tool call to \"features/login.feature\" completes in the running session")
+		 * @planks("When Bonny's edit tool call to \"features/login.feature\" completes in the running session")
+		 * @planks("Then the plugin's PostToolUse feature-quality output is delivered into the session context")
 		 */
 		pi.on("tool_result", async (event) => {
+			if (event.toolName === "write" || event.toolName === "edit") {
+				const { output } = await custody.runPostToolUse(
+					event.toolName,
+					event.input as Record<string, string>,
+					cwd,
+				);
+				const trimmed = output.trim();
+				if (trimmed.length === 0) {
+					return;
+				}
+				const session = state.getSession?.() ?? state.runtime?.session;
+				if (!session) {
+					return;
+				}
+				await session.sendCustomMessage({
+					customType: "shipshape-feature-quality",
+					content: trimmed,
+					display: true,
+				});
+				return;
+			}
 			if (event.toolName !== "bash") {
 				return;
 			}
@@ -773,7 +880,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 	);
 	const shipshapeCustody = loadOpenPlugin(shipshapePluginDir);
 	const extensionFactories = [
-		createEstelleExtension(state, cwd, shipshapeCustody),
+		createEstelleExtension(state, cwd, shipshapeCustody, shipshapePluginDir),
 	];
 	const skillsRoot = join(assetsDir(cwd), "skills");
 	const additionalSkillPaths = [
@@ -802,6 +909,11 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			modelRegistry,
 		})
 	).session;
+	// The extension's tool_call seam runs after this session exists and reaches
+	// it through this closure over the live binding, so a later session swap is
+	// reflected without rewiring. The launch path sets no runtime, so the seam
+	// resolves the running session here rather than through state.runtime.
+	state.getSession = () => session;
 
 	const extensions = resourceLoader
 		.getExtensions()
@@ -1060,6 +1172,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 				state.activeSeat,
 				cwd,
 				state.skillPaths,
+				shipshapePluginDir,
 			),
 		/**
 		 * @planks("When the pending deliveries settle")
@@ -1170,9 +1283,20 @@ export async function run(options?: RunOptions): Promise<void> {
 	];
 
 	const seatBaseAppend = (seat: Seat, runtimeCwd: string): string =>
-		seatSystemPrompt("", seat, runtimeCwd, {
-			[seat.skill]: join(shipshapePluginDir, "skills", seat.skill, "SKILL.md"),
-		});
+		seatSystemPrompt(
+			"",
+			seat,
+			runtimeCwd,
+			{
+				[seat.skill]: join(
+					shipshapePluginDir,
+					"skills",
+					seat.skill,
+					"SKILL.md",
+				),
+			},
+			shipshapePluginDir,
+		);
 	// Seat sessions run with thinking off. pi's default thinking level clamps
 	// upward on reasoning models whose lower levels are unsupported, and a
 	// reasoning-heavy live turn can land its reply in the thinking channel,
@@ -1194,6 +1318,7 @@ export async function run(options?: RunOptions): Promise<void> {
 								runtimeState,
 								runtimeCwd,
 								shipshapeCustody,
+								shipshapePluginDir,
 							),
 						],
 						additionalSkillPaths,
@@ -1369,9 +1494,14 @@ export async function run(options?: RunOptions): Promise<void> {
 		if (targetPath === undefined) {
 			throw new Error("crew loop cannot run without a configured red target");
 		}
-		const targetGreen = () =>
-			existsSync(targetPath) &&
-			readFileSync(targetPath, "utf8").trim().length > 0;
+		const targetGreen = () => {
+			const verification = spawnSync(
+				"pnpm",
+				["exec", "cucumber-js", "--tags", "not @captain and not @shipwright"],
+				{ cwd, encoding: "utf8" },
+			);
+			return verification.status === 0;
+		};
 		const liveModelId =
 			state.seatModels[SEATS.misson.role] ?? state.seatModels[SEATS.bonny.role];
 		const runSeatTurn = async (seat: Seat, prompt: string) => {

@@ -11,14 +11,16 @@ Feature: Captain perturbation command
   and no hidden instruction. Only the Captain seat perturbs; the perturbation
   policy carries the reddening and removal mechanics.
 
-  Scenario: The Captain perturbs a seam with the perturbation statement
-    Given the active seat is the Captain "Bonny"
-    When Bonny perturbs a named production seam
-    Then the seam carries the perturbation statement from "RIGGING.md"
+  Scenario: The Captain perturbs a seam through a running-session command
+    Given a started Estelle session with the Shipshape plugin installed
+    And the active seat is the Captain "Bonny"
+    When Bonny runs the "/perturb" command on the seam "src/pay.ts" in the running session
+    Then the seam "src/pay.ts" carries the perturbation statement from "RIGGING.md"
     And the perturbed seam carries no step text, scenario name, or rationale
 
-  Scenario: An internal seat may not perturb
-    Given the active seat is the Quartermaster "Misson"
-    When Misson attempts to perturb a named production seam
-    Then Estelle blocks the perturbation
-    And Estelle reports that only the Captain perturbs
+  Scenario: An internal seat's perturb command is blocked in the running session
+    Given a started Estelle session with the Shipshape plugin installed
+    And the active seat is the Quartermaster "Misson"
+    When Misson runs the "/perturb" command on the seam "src/pay.ts" in the running session
+    Then the running session blocks the perturbation
+    And the seam "src/pay.ts" is unchanged

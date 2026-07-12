@@ -72,16 +72,12 @@ Then(
 );
 
 Then(
-	"the block reason names the Captain's write scope",
+	"the block reason carries the Shipshape plugin's denial for the Captain writing verification support",
 	function (this: EstelleWorld) {
 		const reason = this.result?.reason ?? "";
 		assert.ok(
-			reason.includes("Captain"),
-			`reason did not name the Captain: ${reason}`,
-		);
-		assert.ok(
-			/specif|assets|CAPTAIN\.md|watchbill/.test(reason),
-			`reason did not name the Captain's write scope: ${reason}`,
+			reason.includes("MUST NOT write production code or verification"),
+			`reason did not carry the plugin's verification-support denial: ${reason}`,
 		);
 	},
 );

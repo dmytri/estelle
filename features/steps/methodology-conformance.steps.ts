@@ -1088,3 +1088,120 @@ After(function (this: MethWorld) {
 	}
 	this.methTempDirs = undefined;
 });
+
+// Scenario: The crew loop decides green by the project's real verification.
+//
+// The crew-loop driver is the production seam that repeats the QM, Crew, and
+// Boatswain seat turns until its target is green. The scenario pins how that
+// green is decided: by running the project's real verification command, never by
+// treating a written file's existence or contents as proof. These steps scan the
+// implementation for the driver and inspect its green-decision, name-agnostically
+// so the check survives a rebuild of the loop under a different identifier.
+
+type CrewLoopWorld = MethWorld & {
+	methCrewLoopDrivers?: { file: string; source: string }[];
+};
+
+// Brace-matched function/arrow bodies in a source file. Depth counting keeps a
+// nested inner function whole inside its enclosing body, so the driver body is
+// captured entire rather than truncated at the first inner close.
+function functionBodies(contents: string): string[] {
+	const header =
+		/(?:const|let|var)\s+[A-Za-z0-9_$]+\s*=\s*(?:async\s*)?\([^)]*\)\s*(?::[^=]+)?=>\s*\{|(?:async\s+)?function\s+[A-Za-z0-9_$]+\s*\([^)]*\)\s*\{/g;
+	const bodies: string[] = [];
+	let match = header.exec(contents);
+	while (match !== null) {
+		const braceStart = match.index + match[0].length - 1;
+		let depth = 0;
+		let end = braceStart;
+		for (let i = braceStart; i < contents.length; i += 1) {
+			const ch = contents[i];
+			if (ch === "{") {
+				depth += 1;
+			} else if (ch === "}") {
+				depth -= 1;
+				if (depth === 0) {
+					end = i + 1;
+					break;
+				}
+			}
+		}
+		bodies.push(contents.slice(braceStart, end));
+		match = header.exec(contents);
+	}
+	return bodies;
+}
+
+// A crew-loop driver drives seat turns in a loop gated on a target-green decision.
+// Detected by a loop whose continuation is decided by a "green" gate, the stable
+// shape of "keep running the crew until the target is green".
+function isCrewLoopDriver(body: string): boolean {
+	return /\b(?:while|for)\s*\([^;{]*[Gg]reen/.test(body);
+}
+
+// The green gate derives its truth from reading the target file itself: an
+// existsSync or readFileSync feeding a "green" predicate. This is the
+// file-contents-as-proof shape the scenario forbids.
+function greenReadsTargetFile(body: string): boolean {
+	return /[A-Za-z0-9_$]*[Gg]reen[A-Za-z0-9_$]*\s*=\s*(?:async\s*)?\([^)]*\)\s*=>[^;]*(?:existsSync|readFileSync)\s*\(/.test(
+		body,
+	);
+}
+
+// The green decision runs the project's real verification runner: a child-process
+// execution of cucumber, the runner every RIGGING verification command invokes.
+function greenRunsVerification(body: string): boolean {
+	return (
+		/(?:spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(/.test(body) &&
+		/cucumber/i.test(body)
+	);
+}
+
+Given(
+	"the crew-loop driver in the implementation",
+	function (this: CrewLoopWorld) {
+		const drivers: { file: string; source: string }[] = [];
+		for (const file of productionFiles(process.cwd())) {
+			for (const body of functionBodies(readFileSync(file, "utf8"))) {
+				if (isCrewLoopDriver(body)) {
+					drivers.push({ file, source: body });
+				}
+			}
+		}
+		assert.ok(
+			drivers.length > 0,
+			"no crew-loop driver was found in the implementation",
+		);
+		this.methCrewLoopDrivers = drivers;
+	},
+);
+
+Then(
+	"the loop decides a target green by running the project's verification command",
+	function (this: CrewLoopWorld) {
+		const drivers = this.methCrewLoopDrivers ?? [];
+		const deciding = drivers.filter((d) => greenRunsVerification(d.source));
+		assert.ok(
+			deciding.length > 0,
+			`no crew-loop driver decides a target green by running the project's verification command:\n${drivers
+				.map((d) => `  ${d.file}`)
+				.join("\n")}`,
+		);
+	},
+);
+
+Then(
+	"no crew-loop seam treats a written file's contents as proof of a target green",
+	function (this: CrewLoopWorld) {
+		const violations = (this.methCrewLoopDrivers ?? []).filter((d) =>
+			greenReadsTargetFile(d.source),
+		);
+		assert.equal(
+			violations.length,
+			0,
+			`crew-loop seam decides green from a written file's contents:\n${violations
+				.map((d) => `  ${d.file}`)
+				.join("\n")}`,
+		);
+	},
+);

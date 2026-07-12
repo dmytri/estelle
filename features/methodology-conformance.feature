@@ -15,6 +15,11 @@ Feature: Methodology conformance
     Given the project's step definitions and test support
     Then none of them uses a forbidden verification double
 
+  Scenario: The crew loop decides green by the project's real verification
+    Given the crew-loop driver in the implementation
+    Then the loop decides a target green by running the project's verification command
+    And no crew-loop seam treats a written file's contents as proof of a target green
+
   Scenario: Every plank traces to a live feature step
     Given the project's plank annotations and the feature step text
     Then every plank's step text matches a live feature step

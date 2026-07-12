@@ -42,6 +42,7 @@ Feature: Embarking runs the crew alongside Bonny
       And the crew session runs a turn
       Then the crew session received a live reply from the Quartermaster's model
       And the crew session's heartbeat reflected live activity during the run
+      And the crew session's heartbeat shows the crew is no longer at rest during the run
 
   Rule: Estelle drives the Quartermaster to Crew handoff
     After the Quartermaster's turn, Estelle opens a fresh, context-isolated Crew session, so
@@ -160,24 +161,6 @@ Feature: Embarking runs the crew alongside Bonny
       And the crew session lets only the Boatswain commit
       And the crew session's message history excludes the Crew's context
 
-    @eval
-    Scenario: The crew session blocks a Crew hand from committing
-      Given a started Estelle session seated as the Captain "Bonny"
-      When the operator runs the "/embark" command in the started session
-      And Estelle hands the crew off from the Quartermaster to the Crew
-      Then the crew session blocks a Crew hand from committing
-
-    @eval
-    Scenario: A live embark runs the crew loop through every seat to green
-      Given a started Estelle session seated as the Captain "Bonny"
-      And a live eval model is configured for the crew and Bonny
-      And a target that is red until the Crew fixes it
-      When the operator runs the "/embark" command in the started session
-      And Estelle runs the crew loop to completion
-      Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live
-      And the crew loop ended with every target green
-      And Bonny's crew-run report carries a live summary of the run
-
   Rule: Bonny embarks the batch from their own turn and drives the whole loop
     The operator's real run must drive the loop from embark itself, and Bonny must embark
     from their own turn rather than the operator typing /embark. The conversation with Bonny
@@ -197,17 +180,6 @@ Feature: Embarking runs the crew alongside Bonny
       Then Estelle runs the crew loop to completion without a further operator step
       And the crew run is reported back into Bonny's session
 
-    @eval
-    Scenario: A live Bonny embark runs the crew loop to green from their own turn
-      Given a started Estelle session seated as the Captain "Bonny"
-      And a live eval model is configured for the crew and Bonny
-      And a target that is red until the Crew fixes it
-      When Bonny embarks the batch from their turn
-      And Estelle runs the crew loop to completion
-      Then the crew loop ran the Quartermaster, the Crew, and the Boatswain live
-      And the crew loop ended with every target green
-      And Bonny's crew-run report carries a live summary of the run
-
   Rule: The loop-driving, narration, and report-back reach the operator's own session
     These behaviours live in Estelle's core, triggered by embark, so they reach the
     operator's own session on the real run and not only through a test-supplied interactive
@@ -221,15 +193,6 @@ Feature: Embarking runs the crew alongside Bonny
       Then the started session receives the crew's narration as the crew runs
       And the started session receives Bonny's report when the run ends
       And the started session stays seated as the Captain "Bonny"
-
-    @eval
-    Scenario: A live embark narrates the crew's run to the operator
-      Given a started Estelle session seated as the Captain "Bonny"
-      And a live eval model is configured for the crew and Bonny
-      And a target that is red until the Crew fixes it
-      When Bonny embarks the batch from their turn
-      Then the started session shows live narration of the crew's run
-      And the started session shows Bonny's report of the completed run
 
     @eval
     Scenario: Bonny embarks the crew instead of sending the operator to a role command
@@ -261,30 +224,20 @@ Feature: Embarking runs the crew alongside Bonny
       And the alongside Quartermaster takes a turn
       Then the alongside Quartermaster does not refuse for unclean context
 
-  Rule: Embarking drives the real crew, proven where it cannot be faked
-    The shipped live run only opens an idle, invisible crew session unless embark drives it,
-    so /embark and /qm must do something the operator can see. This Rule pins the registered
-    embark tool the live model calls, and asserts an outcome only real crew work produces: a
-    genuinely failing project target passes the project's real verification after the run,
-    and the run surfaces into the operator's own session.
+  Rule: Embark drives the real crew to green, proven against the project's own verification
+    On a real project the crew reads the durable artifacts, edits real production code, and the
+    project's own verification command decides green. The proof runs the whole loop from Bonny's
+    own live turn against a genuinely failing scenario in a real Shipshape project, so no test
+    stand-in and no non-empty-file proxy can satisfy it. This tier requires the live model
+    credential as fitting-out and assumes it present.
 
     @eval
-    Scenario: Embarking drives the real crew to turn a failing target green
-      Given a started Estelle session seated as the Captain "Bonny"
+    Scenario: Embark turns a genuinely failing project scenario green through real crew work
+      Given a scratch Shipshape project whose scenario "adds two numbers" fails its own verification command
+      And a started Estelle session seated as the Captain "Bonny" on the scratch project
       And a live eval model is configured for the crew and Bonny
-      And the project carries a verification target that is failing
-      When Bonny embarks the crew from their own turn
-      Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target
-      And the failing target passes the project's verification after the run
+      And the operator tells Bonny to embark the crew on the failing scenario
+      When Bonny embarks the crew as an ordinary act of their own turn
+      Then the crew edits production code in the scratch project during the run
+      And the scratch project's own verification command reports the scenario "adds two numbers" green
       And the started session receives the crew's narration and Bonny's completed-run report
-
-    @eval
-    Scenario: The operator's own embark act, not a test shortcut, is what turns the failing target green
-      Given a started Estelle session seated as the Captain "Bonny"
-      And a live eval model is configured for the crew and Bonny
-      And the project carries a verification target that is failing
-      When the operator tells Bonny to embark the crew on the failing target
-      And Bonny embarks the crew as an ordinary act of their own turn, with no further step standing in for their decision
-      Then the crew's real work, driven only by that one embark act, turns the failing target green
-      And the started session receives the crew's narration and Bonny's completed-run report
-      And no test-only stand-in for embark was needed to reach this outcome

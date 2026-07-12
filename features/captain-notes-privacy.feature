@@ -21,10 +21,11 @@ Feature: Captain notes privacy
     Then the running session allows the read
     And the contents of "CAPTAIN.md" are returned
 
-  Scenario: The Boatswain may read the Captain notes for hygiene
+  Scenario: The Boatswain may not read the Captain notes
     Given the active seat is the Boatswain "Bellamy"
     When Bellamy reads "CAPTAIN.md" in the running session
-    Then the running session allows the read
+    Then the running session blocks the read
+    And the block reason carries the Shipshape plugin's denial "MUST NOT read CAPTAIN.md"
 
   Scenario: The Quartermaster may not read the Captain notes
     Given the active seat is the Quartermaster "Misson"

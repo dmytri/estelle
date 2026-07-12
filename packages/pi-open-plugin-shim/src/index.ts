@@ -26,6 +26,7 @@ export interface OpenPluginShim {
 		role: string | undefined,
 		path: string,
 	): Promise<WriteCustodyDecision>;
+	runSessionStart(projectDir?: string): Promise<{ output: string }>;
 	runPostToolUse(
 		toolName: string,
 		toolInput: Record<string, string>,
@@ -38,6 +39,7 @@ export interface OpenPluginShim {
 	): WriteCustodyDecision;
 	reportCommands(): string[];
 	reportAgents(): ReportedAgent[];
+	reportRules(): string[];
 }
 
 export interface ReportedAgent {
@@ -137,17 +139,20 @@ class WriteCustodyShim implements OpenPluginShim {
 	 * @planks("Then the SessionStart hook output carries \"validate\"")
 	 * @planks("Then the session is not blocked")
 	 */
-	async runSessionStart(): Promise<{ output: string }> {
+	async runSessionStart(projectDir?: string): Promise<{ output: string }> {
+		const payload = JSON.stringify({ cwd: projectDir });
+		const cwd = projectDir ?? this.pluginDir;
 		let output = "";
 		for (const entry of this.sessionStart) {
 			for (const hook of entry.hooks) {
 				// biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token the shim replaces with the plugin root at runtime
 				const resolved = hook.command.replace("${PLUGIN_ROOT}", this.pluginDir);
+				const unquoted = resolved.replace(/^"(.*)"$/, "$1");
 				const hookPath =
-					resolved === hook.command
+					unquoted === hook.command
 						? join(this.pluginDir, hook.command)
-						: resolved;
-				const { stdout } = await runHook(hookPath, this.pluginDir, "");
+						: unquoted;
+				const { stdout } = await runHook(hookPath, cwd, payload);
 				output += stdout;
 			}
 		}
@@ -160,6 +165,7 @@ class WriteCustodyShim implements OpenPluginShim {
 	 * @planks("Then the plugin's PostToolUse hook output carries \"batch shipped\"")
 	 * @planks("Then the tool call is not blocked")
 	 * @planks("Then no PostToolUse hook runs")
+	 * @planks("Then the plugin's PostToolUse feature-quality output is delivered into the session context")
 	 */
 	async runPostToolUse(
 		toolName: string,
@@ -188,8 +194,8 @@ class WriteCustodyShim implements OpenPluginShim {
 					unquoted === hook.command
 						? join(this.pluginDir, hook.command)
 						: unquoted;
-				const { stdout } = await runHook(hookPath, cwd, payload);
-				output += stdout;
+				const { stdout, stderr } = await runHook(hookPath, cwd, payload);
+				output += stdout + stderr;
 			}
 		}
 		return { output };
@@ -342,6 +348,19 @@ class WriteCustodyShim implements OpenPluginShim {
 		return readdirSync(commandsDir)
 			.filter((entry) => entry.endsWith(".md"))
 			.map((entry) => basename(entry, ".md"));
+	}
+
+	/**
+	 * @planks("When the shim reports the plugin's rules")
+	 */
+	reportRules(): string[] {
+		const rulesDir = join(this.pluginDir, "rules");
+		if (!existsSync(rulesDir)) {
+			return [];
+		}
+		return readdirSync(rulesDir)
+			.filter((entry) => entry.endsWith(".mdc"))
+			.map((entry) => basename(entry, ".mdc"));
 	}
 
 	/**
