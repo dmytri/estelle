@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Given, Then, When } from "@cucumber/cucumber";
@@ -371,6 +378,24 @@ Then(
 			beat.atRest,
 			true,
 			`crew heartbeat is not at rest: ${JSON.stringify(beat)}`,
+		);
+	},
+);
+
+Then(
+	"the crew session's heartbeat shows the crew is no longer at rest during the run",
+	function (this: EstelleWorld) {
+		// The resting sign clears once the live run drives the beat off the crew
+		// session's real event stream. At rest before the run, atRest is true; a
+		// live turn moves the crew, so atRest reads false. A run that never reached
+		// the model leaves the beat resting, so this fails rather than passing green.
+		const beat = crewSession(this).heartbeat();
+		assert.equal(
+			beat.atRest,
+			false,
+			`crew heartbeat is still at rest after the live run: ${JSON.stringify(
+				beat,
+			)}`,
 		);
 	},
 );
@@ -1506,6 +1531,241 @@ Then(
 		assert.ok(
 			!usedShortcut,
 			"this scenario's own steps called the test-only captainTools().run() stand-in instead of driving embark from a real live turn",
+		);
+	},
+);
+
+// The real-project capstone: embark drives the crew to green a genuinely failing
+// scenario in a real, self-contained Shipshape project, proven by that project's
+// OWN verification command, not the harness verdict. No configureRedTarget arms
+// the target and no proxy file stands in: the crew must edit real production code
+// and the project's own cucumber must report the scenario green. The scratch
+// project is a real cucumber project seeded with a wrong "add", disposable and
+// namespaced in a temp dir. It shares the repo's installed toolchain through a
+// node_modules symlink so its own "pnpm exec cucumber-js" resolves the real
+// runner, the same command the production crew loop runs to decide green.
+
+interface ScratchProject {
+	dir: string;
+	productionPath: string;
+	seededProduction: string;
+}
+
+function scratch(world: EstelleWorld): ScratchProject {
+	const project = (world as unknown as { scratchProject?: ScratchProject })
+		.scratchProject;
+	assert.ok(
+		project,
+		"no scratch Shipshape project was set up for this scenario",
+	);
+	return project;
+}
+
+// Run the scratch project's own verification command over the named scenario, the
+// real "pnpm exec cucumber-js" the production crew loop runs to decide green. A
+// zero exit is the project reporting the scenario green.
+function runScratchVerification(
+	dir: string,
+	scenarioName: string,
+): { green: boolean; output: string } {
+	const result = spawnSync(
+		"pnpm",
+		["exec", "cucumber-js", "--name", scenarioName],
+		{ cwd: dir, encoding: "utf8" },
+	);
+	return {
+		green: result.status === 0,
+		output: `${result.stdout ?? ""}${result.stderr ?? ""}`,
+	};
+}
+
+Given(
+	"a scratch Shipshape project whose scenario {string} fails its own verification command",
+	{ timeout: 120000 },
+	function (this: EstelleWorld, scenarioName: string) {
+		const dir = mkdtempSync(join(tmpdir(), "estelle-scratch-proj-"));
+		// Share the repo's installed toolchain so the scratch project's own
+		// "pnpm exec cucumber-js" resolves the real cucumber and tsx binaries.
+		symlinkSync(join(process.cwd(), "node_modules"), join(dir, "node_modules"));
+		writeFileSync(
+			join(dir, "package.json"),
+			JSON.stringify({ name: "estelle-scratch-project", version: "0.0.0" }),
+			"utf8",
+		);
+		writeFileSync(
+			join(dir, "cucumber.cjs"),
+			[
+				'require("tsx/esm/api").register();',
+				"module.exports = {",
+				"\tdefault: {",
+				'\t\trequireModule: ["tsx/cjs"],',
+				'\t\trequire: ["features/steps/**/*.ts"],',
+				'\t\tpaths: ["features/**/*.feature"],',
+				'\t\tformat: ["progress"],',
+				"\t},",
+				"};",
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		// A fitted Shipshape project: RIGGING.md present so Bonny embarks the crew
+		// rather than steering the operator to fitting out.
+		writeFileSync(
+			join(dir, "RIGGING.md"),
+			[
+				"# Rigging",
+				"",
+				"## Stack",
+				"",
+				"- language: typescript",
+				"",
+				"## Directories",
+				"",
+				"- implementation: src",
+				"- specs: features",
+				"",
+				"## Commands",
+				"",
+				'- focused: `pnpm exec cucumber-js --name "{scenario}"`',
+				"",
+				"## Perturbation",
+				"",
+				"- message: `PERTURBATION: consider current durable context; remove when fixed`",
+				'- perturb: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`',
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		mkdirSync(join(dir, "features", "steps"), { recursive: true });
+		mkdirSync(join(dir, "src"), { recursive: true });
+		writeFileSync(
+			join(dir, "features", "adding.feature"),
+			[
+				"@logic",
+				"Feature: Adding numbers",
+				"",
+				`  Scenario: ${scenarioName}`,
+				"    When 2 and 2 are added",
+				"    Then the sum is 4",
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		writeFileSync(
+			join(dir, "features", "steps", "adding.steps.ts"),
+			[
+				'import assert from "node:assert/strict";',
+				'import { Then, When } from "@cucumber/cucumber";',
+				'import { add } from "../../src/add.js";',
+				"",
+				"let sum: number;",
+				'When("2 and 2 are added", function () {',
+				"\tsum = add(2, 2);",
+				"});",
+				'Then("the sum is 4", function () {',
+				"\tassert.equal(sum, 4);",
+				"});",
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		// The seeded production is wrong: add subtracts, so the scenario is red until
+		// real crew work corrects it. A behaviour-bearing plank ties the seam to the
+		// scenario's action step.
+		const seededProduction = [
+			"/**",
+			' * @planks("When 2 and 2 are added")',
+			" */",
+			"export function add(a: number, b: number): number {",
+			"\treturn a - b;",
+			"}",
+			"",
+		].join("\n");
+		const productionPath = join(dir, "src", "add.ts");
+		writeFileSync(productionPath, seededProduction, "utf8");
+		(this as unknown as { scratchProject?: ScratchProject }).scratchProject = {
+			dir,
+			productionPath,
+			seededProduction,
+		};
+		// The Estelle session under test launches against this project, so teardown
+		// disposes it with the workspace. rmSync unlinks the node_modules symlink
+		// itself rather than traversing into the shared install.
+		this.workspaceDir = dir;
+		const probe = runScratchVerification(dir, scenarioName);
+		assert.equal(
+			probe.green,
+			false,
+			`scratch project's own verification already reports ${JSON.stringify(
+				scenarioName,
+			)} green before any crew work: ${probe.output}`,
+		);
+	},
+);
+
+Given(
+	"a started Estelle session seated as the Captain {string} on the scratch project",
+	async function (this: EstelleWorld, name: string) {
+		// Reuse the scratch project as the session's workspace: startSession honours
+		// an already-set workspaceDir, so Bonny surveys the real failing project.
+		scratch(this);
+		await startSession(this);
+		const seat = this.interactiveSession!.seat();
+		assert.equal(seat.role, "captain");
+		assert.equal(seat.name, name);
+	},
+);
+
+Given(
+	"the operator tells Bonny to embark the crew on the failing scenario",
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		const session = operatorSession(this);
+		await settleOperatorTurn(session);
+		await session.sendUserMessage(
+			"The failing scenario is confirmed. Please embark the crew now to fix it.",
+			{ triggerTurn: false },
+		);
+	},
+);
+
+When(
+	"Bonny embarks the crew as an ordinary act of their own turn",
+	// Triggers Bonny's real turn on the live model. Whichever tool the live model
+	// calls from this turn is the real path; no captainTools().run() stand-in
+	// drives embark for it.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		const session = operatorSession(this);
+		await session.sendUserMessage("Please carry on.");
+	},
+);
+
+Then(
+	"the crew edits production code in the scratch project during the run",
+	function (this: EstelleWorld) {
+		const project = scratch(this);
+		const current = readFileSync(project.productionPath, "utf8");
+		assert.notEqual(
+			current,
+			project.seededProduction,
+			"the crew left the scratch project's production code untouched; embark drove no real crew edit",
+		);
+	},
+);
+
+Then(
+	"the scratch project's own verification command reports the scenario {string} green",
+	{ timeout: 120000 },
+	function (this: EstelleWorld, scenarioName: string) {
+		const project = scratch(this);
+		const result = runScratchVerification(project.dir, scenarioName);
+		assert.equal(
+			result.green,
+			true,
+			`the scratch project's own verification still reports ${JSON.stringify(
+				scenarioName,
+			)} red after the run: ${result.output}`,
 		);
 	},
 );

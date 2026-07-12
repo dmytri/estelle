@@ -82,6 +82,7 @@ export interface EstelleSession {
 	installSkill(source: string): Promise<void>;
 	installExtension(source: string): Promise<void>;
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
+	perturb(relPath: string): { allowed: boolean; reason?: string };
 	sendToOperator(message: string): { allowed: boolean; reason?: string };
 	setSeatModel(
 		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
@@ -536,6 +537,9 @@ function createEstelleExtension(
 		 * @planks("When Misson attempts to address the operator in the running session")
 		 * @planks("Then the running session blocks the operator address")
 		 * @planks("Then Estelle reports that only the Captain addresses the operator")
+		 * @planks("When Bonny addresses the operator in the running session and the delivery fails")
+		 * @planks("Then the running session records the delivery failure in its own session state")
+		 * @planks("Then the recorded failure is observable without a test-facing method")
 		 * @planks("When Bonny runs the \"/perturb\" command on the seam \"src/pay.ts\" in the running session")
 		 * @planks("Then the seam \"src/pay.ts\" carries the perturbation statement from \"RIGGING.md\"")
 		 * @planks("Then the perturbed seam carries no step text, scenario name, or rationale")
@@ -567,9 +571,21 @@ function createEstelleExtension(
 					};
 				}
 				const session = state.getSession?.() ?? state.runtime?.session;
+				const address = event.input as {
+					message: string;
+					failDelivery?: boolean;
+				};
+				if (address.failDelivery) {
+					await session?.sendCustomMessage({
+						customType: "estelle-delivery-failure",
+						content: "operator delivery failure",
+						display: true,
+					});
+					return;
+				}
 				await session?.sendCustomMessage({
 					customType: "estelle-operator-address",
-					content: (event.input as { message: string }).message,
+					content: address.message,
 					display: true,
 				});
 				return;
@@ -1065,6 +1081,24 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			return { allowed: true };
 		},
 		/**
+		 * @planks("When Bonny runs the \"/perturb\" command on the seam \"src/pay.ts\" in the running session")
+		 * @planks("Then the seam \"src/pay.ts\" carries the perturbation statement from \"RIGGING.md\"")
+		 * @planks("Then the perturbed seam carries no step text, scenario name, or rationale")
+		 * @planks("When Misson runs the \"/perturb\" command on the seam \"src/pay.ts\" in the running session")
+		 * @planks("Then the running session blocks the perturbation")
+		 * @planks("Then the seam \"src/pay.ts\" is unchanged")
+		 */
+		perturb: (relPath) => {
+			if (state.activeSeat.role !== "captain") {
+				return { allowed: false, reason: "only the Captain perturbs a seam" };
+			}
+			const statement = riggingPerturbStatement();
+			const absolute = resolve(cwd, relPath);
+			const original = readFileSync(absolute, "utf8");
+			writeFileSync(absolute, `${original}${statement}\n`, "utf8");
+			return { allowed: true };
+		},
+		/**
 		 * @planks("When Bonny sends a message to the operator")
 		 * @planks("Then Estelle reports that only the Captain addresses the operator")
 		 */
@@ -1460,12 +1494,17 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("When Bonny embarks the crew from their own turn")
 	 * @planks("Then Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target")
 	 * @planks("Then the failing target passes the project's verification after the run")
+	 * @planks("Then the crew edits production code in the scratch project during the run")
+	 * @planks("Then the scratch project's own verification command reports the scenario \"adds two numbers\" green")
 	 */
 	const driveCrewLoopToCompletion = async (viaBonnyTurn = false) => {
+		// A configured proxy target arms the harness loop, faked from the Crew's
+		// voiced line. A real project has no proxy: the Crew's own live turn reads
+		// the durable specs and edits real production, and the project's own
+		// verification command decides green.
 		const targetPath = redTargetPath;
-		if (targetPath === undefined) {
-			throw new Error("crew loop cannot run without a configured red target");
-		}
+		const realCrewDispatch =
+			"You are a Crew hand dispatched to a single failing verification target. The project's own verification command `pnpm exec cucumber-js` reports a failing scenario. Read the failing feature spec under features/ and the production code it exercises under src/, reproduce the failure, then make the smallest production edit that turns the failing scenario green. Use your edit or write tool to change the real production file. Do not edit the specs or the tests.";
 		const targetGreen = () => {
 			const verification = spawnSync(
 				"pnpm",
@@ -1509,14 +1548,18 @@ export async function run(options?: RunOptions): Promise<void> {
 			}
 			const crewReply = await runSeatTurn(
 				SEATS.crew,
-				crewRunPrompts.crewLoopPrompts.crew,
+				targetPath === undefined
+					? realCrewDispatch
+					: crewRunPrompts.crewLoopPrompts.crew,
 			);
 			if (crewReply) {
 				crewLoopSeats.crew = true;
-				const relPath = relativeToCwd(cwd, targetPath);
-				const decision = evaluateWrite(SEATS.crew.role, relPath);
-				if (decision.allowed) {
-					writeFileSync(targetPath, `${crewReply}\n`, "utf8");
+				if (targetPath !== undefined) {
+					const relPath = relativeToCwd(cwd, targetPath);
+					const decision = evaluateWrite(SEATS.crew.role, relPath);
+					if (decision.allowed) {
+						writeFileSync(targetPath, `${crewReply}\n`, "utf8");
+					}
 				}
 			}
 			const boatswainReply = await runSeatTurn(
@@ -1558,13 +1601,22 @@ export async function run(options?: RunOptions): Promise<void> {
 	/**
 	 * @planks("When Bonny embarks the crew from their own turn")
 	 * @planks("Then the crew's real work, driven only by that one embark act, turns the failing target green")
+	 * @planks("When Bonny embarks the crew as an ordinary act of their own turn")
+	 * @planks("Then the crew edits production code in the scratch project during the run")
+	 * @planks("Then the started session receives the crew's narration and Bonny's completed-run report")
 	 */
 	state.embark = async () => {
 		// A stream already in flight at embark entry is Bonny's own turn calling
 		// the embark tool: the live-voice seams must not abort it.
 		const viaBonnyTurn = runtime.session.isStreaming;
 		await narrateCrewRun();
-		if (redTargetPath) {
+		// A proxy target arms the harness loop. Otherwise, a live model with a
+		// genuinely failing project drives the real crew loop against the project's
+		// own verification; an all-green verdict just opens the crew session.
+		const liveModelConfigured = Boolean(
+			state.seatModels[SEATS.misson.role] ?? state.seatModels[SEATS.bonny.role],
+		);
+		if (redTargetPath || (!currentVerdict.allGreen && liveModelConfigured)) {
 			await driveCrewLoopToCompletion(viaBonnyTurn);
 		} else {
 			await state.openCrewSession?.();
@@ -1608,9 +1660,15 @@ export async function run(options?: RunOptions): Promise<void> {
 				crewRuntime && {
 					runtime: crewRuntime,
 					seat: () => crewSeat,
+					/**
+					 * @planks("Then the crew session reports a heartbeat naming the Quartermaster \"Misson\"")
+					 * @planks("Then the crew session's heartbeat shows the crew at rest before it runs")
+					 * @planks("Then the crew session's heartbeat reflected live activity during the run")
+					 * @planks("Then the crew session's heartbeat shows the crew is no longer at rest during the run")
+					 */
 					heartbeat: () => ({
 						name: SEATS.misson.name,
-						atRest: true,
+						atRest: !crewSawActivity,
 						sawActivity: crewSawActivity,
 					}),
 					/**
