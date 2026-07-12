@@ -82,7 +82,6 @@ export interface EstelleSession {
 	installSkill(source: string): Promise<void>;
 	installExtension(source: string): Promise<void>;
 	write(path: string, contents: string): { allowed: boolean; reason?: string };
-	perturb(relPath: string): { allowed: boolean; reason?: string };
 	sendToOperator(message: string): { allowed: boolean; reason?: string };
 	setSeatModel(
 		role: "captain" | "quartermaster" | "crew" | "boatswain" | "shipwright",
@@ -322,7 +321,6 @@ function assistantText(message: { content?: unknown }): string {
 /**
  * @planks("Then the crew session allows a Crew hand to write \"src/handoff.ts\"")
  * @planks("Then the crew session blocks a Crew hand from writing \"features/new.feature\"")
- * @planks("Then the block reason names the Captain's write scope")
  */
 function evaluateWrite(
 	role: string,
@@ -525,14 +523,12 @@ function createEstelleExtension(
 		 * @planks("When the Crew hand writes \"src/pay.ts\" in the running session")
 		 * @planks("When Misson writes \"src/pay.ts\" in the running session")
 		 * @planks("When Misson writes \"watchbill.json\" in the running session")
-		 * @planks("When Bonny writes \"src/sneaky.ts\" in the running session")
 		 * @planks("When Bonny writes \"src/pay.ts\" in the running session")
 		 * @planks("Then the running session allows the write")
 		 * @planks("Then the running session blocks the write")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain writes specs\"")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Production code belongs to Crew\"")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain-custodied or configuration artifact\"")
-		 * @planks("Then the block reason names the Captain's write scope")
 		 * @planks("When Bonny writes \"features/steps/pay.steps.ts\" in the running session")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial for the Captain writing verification support")
 		 * @planks("When Bonny addresses the operator with \"Batch confirmed, Commodore.\" in the running session")
@@ -1069,31 +1065,7 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 			return { allowed: true };
 		},
 		/**
-		 * @planks("When Bonny perturbs a named production seam")
-		 * @planks("When Misson attempts to perturb a named production seam")
-		 * @planks("Then the seam carries the perturbation statement from \"RIGGING.md\"")
-		 * @planks("Then the perturbed seam carries no step text, scenario name, or rationale")
-		 * @planks("Then Estelle blocks the perturbation")
-		 * @planks("Then Estelle reports that only the Captain perturbs")
-		 */
-		perturb: (relPath) => {
-			if (state.activeSeat.role !== "captain") {
-				return {
-					allowed: false,
-					reason: "only the Captain perturbs a seam",
-				};
-			}
-			const statement = riggingPerturbStatement();
-			const absolute = resolve(cwd, relPath);
-			const original = readFileSync(absolute, "utf8");
-			writeFileSync(absolute, `${original}${statement}\n`, "utf8");
-			return { allowed: true };
-		},
-		/**
 		 * @planks("When Bonny sends a message to the operator")
-		 * @planks("When Misson attempts to send a message to the operator")
-		 * @planks("Then Estelle delivers the message to the operator")
-		 * @planks("Then Estelle blocks the message")
 		 * @planks("Then Estelle reports that only the Captain addresses the operator")
 		 */
 		sendToOperator: (message) => {
