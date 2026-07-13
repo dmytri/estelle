@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
@@ -39,7 +39,7 @@ interface InteractiveHandle {
 	handOffToCrew(): Promise<void>;
 	narrationLog(): { from: string; to: string; line: string }[];
 	reportCrewRun(): Promise<void>;
-	captainTools(): { name: string; run(batch?: string): Promise<void> }[];
+	captainTools(): { name: string; run(): Promise<void> }[];
 	crewRunReports(): { summary: string }[];
 	reportFailingTarget(target: string): void;
 	reportAllGreen(): void;
@@ -49,6 +49,7 @@ interface InteractiveHandle {
 	crewRunEnded(): boolean;
 	awaitCrewRun(): Promise<void>;
 	cancelCrewRun(): Promise<void>;
+	dispatchBoatswain(job?: string): Promise<string>;
 	providerRequestCount(): number;
 }
 
@@ -104,10 +105,12 @@ interface EstelleState {
 	runtime?: AgentSessionRuntime;
 	crewRuntime?: AgentSessionRuntime;
 	openCrewSession?: (seat?: Seat) => Promise<void>;
-	// The batch is the operator's own confirmed request, in Bonny's words. Without
-	// it the crew can only chase the verification green and never does what the
-	// operator actually asked for.
-	embark?: (batch?: string) => Promise<void>;
+	embark?: () => Promise<void>;
+	// Dispatch a single role to actually DO its job, rather than seating it idle.
+	// The dispatch is thin by contract: the role, the base commit, and for the
+	// Boatswain the job. The role works from the repository and its own role skill.
+	// No operator conversation crosses this line.
+	dispatchRole?: (seat: Seat, job?: string) => Promise<string>;
 	crewStatus?: CrewRunStatus;
 	onProviderRequest?: () => void;
 }
@@ -120,7 +123,6 @@ interface EstelleState {
  */
 interface CrewRunStatus {
 	active: boolean;
-	batch?: string;
 	seat?: string;
 	round: number;
 	maxRounds: number;
@@ -129,11 +131,6 @@ interface CrewRunStatus {
 	reports: { seat: string; report: string }[];
 	stoppedBecause?: string;
 }
-
-// The Quartermaster ends the run by saying so. A run that ends only when the
-// verification is green can never finish a batch that is not a failing test, and
-// does no work at all on a project that is already green.
-const BATCH_COMPLETE = "BATCH COMPLETE";
 
 const CHARACTER_CARDS: Record<string, string> = {
 	captain: "bonny.md",
@@ -305,6 +302,18 @@ function relativeToCwd(cwd: string, path: string): string {
 }
 
 /**
+ * The base commit a dispatch is made against. The Dispatch contract carries the
+ * role and the base commit, nothing more: the role reads the repository itself.
+ */
+function headCommit(cwd: string): string {
+	const result = spawnSync("git", ["rev-parse", "--short", "HEAD"], {
+		cwd,
+		encoding: "utf8",
+	});
+	return result.status === 0 ? result.stdout.trim() : "(no commit)";
+}
+
+/**
  * The project's own verification command, read from ITS RIGGING.md under
  * "## Commands". The crew loop decides green by running this, never a hardcoded
  * runner: a project that verifies with anything else would never turn green, and
@@ -461,8 +470,15 @@ function createEstelleExtension(
 		for (const command of ALONGSIDE_COMMANDS) {
 			const id = SEAT_BY_COMMAND[command];
 			pi.registerCommand(command.slice(1), {
-				description: `Dispatch the ${SEATS[id].role} ${SEATS[id].name} in a crew session alongside, keeping you seated with Bonny`,
+				description: `Dispatch the ${SEATS[id].role} ${SEATS[id].name} to work in a crew session alongside, keeping you seated with Bonny`,
 				handler: async () => {
+					// Drive the role, do not merely seat it. Opening a session seats an
+					// idle role that never works: a seated Boatswain never commits and a
+					// seated Shipwright never refits.
+					if (state.dispatchRole) {
+						await state.dispatchRole(SEATS[id]);
+						return;
+					}
 					await state.openCrewSession?.(SEATS[id]);
 				},
 			});
@@ -503,26 +519,19 @@ function createEstelleExtension(
 				description: embarkPrompts.description,
 				promptSnippet: embarkPrompts.promptSnippet,
 				promptGuidelines: embarkPrompts.promptGuidelines,
+				// No intent parameter. The crew works from durable artifacts only:
+				// watchbill.json and the specs, which the Captain writes. Passing the
+				// operator's conversation into the dispatch would carry discovery
+				// context across the Captain-to-Quartermaster bulkhead, and a
+				// conforming Quartermaster must refuse a dispatch beyond its contract.
 				parameters: {
 					type: "object",
-					properties: {
-						batch: {
-							type: "string",
-							description:
-								"What the operator actually asked for, in your own words: the confirmed batch of work the crew must complete. Be specific and concrete. The crew cannot see your conversation with the operator, so this is the ONLY thing they will know about the operator's intent. If you leave it vague, the crew will do the wrong work.",
-						},
-					},
-					required: ["batch"],
+					properties: {},
 					additionalProperties: false,
 				} as unknown as Parameters<typeof pi.registerTool>[0]["parameters"],
-				execute: async (input) => {
-					const requested = (input as { batch?: unknown } | undefined)?.batch;
-					const batch =
-						typeof requested === "string" && requested.trim().length > 0
-							? requested.trim()
-							: undefined;
+				execute: async () => {
 					if (state.embark) {
-						await state.embark(batch);
+						await state.embark();
 					} else {
 						await state.openCrewSession?.();
 					}
@@ -572,9 +581,6 @@ function createEstelleExtension(
 						status.active
 							? `The crew is RUNNING. ${status.seat ?? "A seat"} is working right now, on round ${status.round} of ${status.maxRounds}.`
 							: `The crew is NOT running.${status.stoppedBecause ? ` It stopped because: ${status.stoppedBecause}` : ""}`,
-						status.batch
-							? `The batch the crew was sent to do: ${status.batch}`
-							: "No batch was named, so the crew's only standing order was to turn the verification green. If the operator asked for something specific, the crew never heard it.",
 						status.verifyCommand
 							? `Verification command: \`${status.verifyCommand}\``
 							: "",
@@ -593,12 +599,103 @@ function createEstelleExtension(
 					};
 				},
 			});
+			// Bonny can dispatch a single role to DO its job, not merely seat it. The
+			// Boatswain is the only seat that may commit, so without this dispatch
+			// there is no path to a commit at all: opening a Boatswain session seats
+			// an idle Bellamy who never takes custody. Thin by contract: the job or
+			// scope and the base commit, never the operator's conversation.
+			pi.registerTool({
+				name: "dispatch_boatswain",
+				label: "Dispatch the Boatswain",
+				description:
+					"Dispatch Bellamy, the Boatswain, to take custody: recheck the project's verification, make hygiene edits only, and COMMIT the work. Bellamy is the only seat that may commit. Use this whenever the work needs committing, including on a project whose verification is already green.",
+				promptSnippet:
+					"dispatch_boatswain: send Bellamy to verify and commit the work",
+				promptGuidelines: [
+					"When the operator wants work committed, dispatch the Boatswain. Bellamy is the only seat that may commit: you must never commit yourself, and there is no Captain-side commit path. Opening a Boatswain session commits nothing; only this dispatch puts Bellamy to work.",
+				],
+				parameters: {
+					type: "object",
+					properties: {
+						job: {
+							type: "string",
+							description:
+								'The job only, per the Dispatch contract: "post-implementation" to take custody and commit, or "pre-clean" to clean a dirty deck before work begins. Never the operator\'s conversation.',
+						},
+					},
+					additionalProperties: false,
+				} as unknown as Parameters<typeof pi.registerTool>[0]["parameters"],
+				execute: async (input) => {
+					const job = (input as { job?: unknown } | undefined)?.job;
+					const report = await state.dispatchRole?.(
+						SEATS.bellamy,
+						typeof job === "string" && job.trim().length > 0
+							? job.trim()
+							: undefined,
+					);
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: report ?? "The Boatswain could not be dispatched.",
+							},
+						],
+						details: undefined,
+					};
+				},
+			});
+			pi.registerTool({
+				name: "dispatch_shipwright",
+				label: "Dispatch the Shipwright",
+				description:
+					"Dispatch Johnson, the Shipwright, for harbour work: inspect the code, repair the rigging (RIGGING.md) and the trace, and report findings. Use this for a refit or a harbour inventory, not for building new behaviour.",
+				promptSnippet:
+					"dispatch_shipwright: send Johnson to harbour for a refit or inventory",
+				promptGuidelines: [
+					"When the operator asks for a refit, a harbour inventory, or a rigging repair, dispatch the Shipwright. Opening a Shipwright session does no work; only this dispatch puts Johnson to work.",
+				],
+				parameters: {
+					type: "object",
+					properties: {
+						scope: {
+							type: "string",
+							description:
+								"Optional scope only, per the Dispatch contract: the module, directory, or artifact to work. A path or area, never the operator's conversation.",
+						},
+					},
+					additionalProperties: false,
+				} as unknown as Parameters<typeof pi.registerTool>[0]["parameters"],
+				execute: async (input) => {
+					const scope = (input as { scope?: unknown } | undefined)?.scope;
+					const report = await state.dispatchRole?.(
+						SEATS.johnson,
+						typeof scope === "string" && scope.trim().length > 0
+							? scope.trim()
+							: undefined,
+					);
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: report ?? "The Shipwright could not be dispatched.",
+							},
+						],
+						details: undefined,
+					};
+				},
+			});
 			// The session's active tool set defaults to the built-in tools, so a
 			// registered tool stays hidden from the model until activated. Activate
-			// embark and crew_status on session_start, after the default set is
-			// applied, so Bonny's live model can call them from their own turn.
+			// the crew tools on session_start, after the default set is applied, so
+			// Bonny's live model can call them from their own turn.
 			pi.on("session_start", () => {
-				pi.setActiveTools([...pi.getActiveTools(), "embark", "crew_status"]);
+				pi.setActiveTools([
+					...pi.getActiveTools(),
+					"embark",
+					"crew_status",
+					"dispatch_boatswain",
+					"dispatch_shipwright",
+				]);
 			});
 		}
 		pi.registerCommand("clear", {
@@ -1642,10 +1739,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("Then the scratch project's own verification command reports the scenario \"adds two numbers\" green")
 	 * @planks("Then the started session receives the crew's narration as the crew runs")
 	 */
-	const driveCrewLoopToCompletion = async (
-		viaBonnyTurn = false,
-		batch?: string,
-	) => {
+	const driveCrewLoopToCompletion = async (viaBonnyTurn = false) => {
 		// Green is decided by THIS project's own verification command, read from its
 		// RIGGING.md. A hardcoded runner would never go green on a project that runs
 		// anything else, and the loop would spin forever.
@@ -1655,33 +1749,22 @@ export async function run(options?: RunOptions): Promise<void> {
 				"No verification command found: this project's RIGGING.md has no `broad` (or `focused`) command under `## Commands`. The crew cannot decide green without it. Fix RIGGING.md, then embark again.",
 			);
 		}
-		// The operator's own request, carried to every seat. The crew cannot see the
-		// operator's conversation with Bonny, so without this they can only chase the
-		// verification green and never do what was actually asked.
-		const batchOrder = batch
-			? `The operator asked for this batch of work: ${batch}`
-			: "No batch was named, so the standing order is to turn the project's verification green.";
-		// Every seat is a real working turn with real tools, and every seat is told
-		// what the operator actually asked for. The Quartermaster owns the worklist
-		// and decides when the batch is done; the Crew does the work; the Boatswain
-		// verifies and actually commits. A seat told not to call tools can only
-		// narrate, and a seat that never hears the operator's request can only chase
-		// the tests -- both are how the crew span without outcomes.
-		const quartermasterDispatch = `You are the Quartermaster. ${batchOrder}
+		// Every seat is a real working turn with real tools, and every seat works from
+		// the DURABLE artifacts alone: watchbill.json and the specs, which the Captain
+		// writes. The operator's conversation never crosses this line; carrying it
+		// into a dispatch would breach the Captain-to-Quartermaster bulkhead, and a
+		// conforming Quartermaster must refuse a dispatch beyond its contract.
+		const quartermasterDispatch = `You are the Quartermaster. Work only from the repository's durable artifacts.
 
-Run this project's verification command with your bash tool: \`${verifyCommand}\`. Then inspect the working tree and the durable artifacts to judge what still remains of the batch.
+Read \`watchbill.json\` at the project root: it is your one work channel. If it is absent, the deck is at rest, and you say so. Then run this project's verification command with your bash tool: \`${verifyCommand}\`.
 
-Decide one of two things and say which:
-- If the batch is fully done AND the verification is green, reply with exactly "${BATCH_COMPLETE}" on its own line, then one short line of evidence.
-- Otherwise, name the single next target the Crew should work, concretely (the file and the change). If a blocker stops the batch (missing config, malformed RIGGING.md, missing dependency), name the blocker plainly instead of guessing.
+Name the single next failing target the Crew should work, concretely. If the command itself cannot run (missing config, malformed RIGGING.md, missing dependency), name that blocker plainly instead of guessing. Use your tools; do not answer from memory.`;
+		const crewDispatch = `You are a Crew hand dispatched to the single failing target the Quartermaster named. This project's verification command is \`${verifyCommand}\`.
 
-Use your tools; do not answer from memory.`;
-		const crewDispatch = `You are a Crew hand. ${batchOrder}
+Run it with your bash tool to reproduce the failure, read the durable spec and the production code it exercises, then make the smallest production edit that turns the failing target green. Use your edit or write tool to change the real production file. Do not edit the specs or the tests. Re-run the verification command to confirm your change, and report concretely what you changed.`;
+		const boatswainDispatch = `You are the Boatswain. Run this project's verification command with your bash tool: \`${verifyCommand}\`.
 
-This project's verification command is \`${verifyCommand}\`. Work the single target the Quartermaster named. Read the durable artifacts and the code, make the smallest real edit that advances the batch, and use your edit or write tool to change the real files. Then run \`${verifyCommand}\` with your bash tool to confirm you left the project green. Report concretely what you changed.`;
-		const boatswainDispatch = `You are the Boatswain. ${batchOrder}
-
-Run this project's verification command with your bash tool: \`${verifyCommand}\`. If it is green, stage the work and commit it with git, with a clear message describing what the crew actually did for this batch. If it is not green, do not commit: say plainly what is still failing. Use your tools; do not answer from memory.`;
+If it is green, stage the role-advanced work and commit it with git, with a clear message describing the change. If it is not green, do not commit: say plainly what is still failing. Use your tools; do not answer from memory.`;
 		// Run the project's own verification and keep what it SAID, not just whether
 		// it passed. The output is what names the failure, and Bonny needs it to
 		// answer the operator's "what is the crew doing?" from fact.
@@ -1760,7 +1843,6 @@ Run this project's verification command with your bash tool: \`${verifyCommand}\
 		// from fact, never guessed and never dug out of the process table.
 		const status: CrewRunStatus = {
 			active: true,
-			batch,
 			round: 0,
 			maxRounds,
 			verifyCommand,
@@ -1793,17 +1875,9 @@ Run this project's verification command with your bash tool: \`${verifyCommand}\
 		};
 		let verdict = await runVerification();
 		status.verification = verdict;
-		let batchDone = false;
-		// A named batch must be worked even when the verification is already green:
-		// the operator asked for something, and a loop that only chases red tests
-		// would do nothing at all and leave Bonny waiting on nothing.
-		const runComplete = () =>
-			batch ? batchDone && verdict.green : verdict.green;
-		while (!crewRunCancelled && !runComplete()) {
+		while (!crewRunCancelled && !verdict.green) {
 			if (status.round >= maxRounds) {
-				const why = batch
-					? `the crew ran ${maxRounds} rounds without completing the batch`
-					: `the crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green`;
+				const why = `the crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green`;
 				settleStatus(why);
 				throw new Error(
 					`${why}, so the run stopped rather than spinning. The last verification output was:\n${verdict.output}`,
@@ -1811,28 +1885,14 @@ Run this project's verification command with your bash tool: \`${verifyCommand}\
 			}
 			status.round += 1;
 			await narrate(
-				`Round ${status.round}: \`${verifyCommand}\` is ${
-					verdict.green ? "green" : `red.\n${verdict.output}`
-				}`,
+				`Round ${status.round}: \`${verifyCommand}\` is red.\n${verdict.output}`,
 			);
-			const quartermasterReport = await runSeatTurn(
+			await record(
 				SEATS.misson,
-				quartermasterDispatch,
+				await runSeatTurn(SEATS.misson, quartermasterDispatch),
 			);
-			await record(SEATS.misson, quartermasterReport);
 			if (crewRunCancelled) {
 				break;
-			}
-			// The Quartermaster owns the worklist and says when the batch is done. A
-			// run that ended only on a green verification could never finish a batch
-			// that was not a failing test.
-			if (batch && quartermasterReport.includes(BATCH_COMPLETE)) {
-				verdict = await runVerification();
-				status.verification = verdict;
-				if (verdict.green) {
-					batchDone = true;
-					break;
-				}
 			}
 			await record(SEATS.crew, await runSeatTurn(SEATS.crew, crewDispatch));
 			if (crewRunCancelled) {
@@ -1893,12 +1953,163 @@ Run this project's verification command with your bash tool: \`${verifyCommand}\
 	};
 
 	/**
+	 * Dispatch one role to actually DO its job. Opening a crew session seats a role
+	 * and drives nothing, so a seated Boatswain never commits and a seated Shipwright
+	 * never refits. The dispatch is thin by contract: the role, the base commit, and
+	 * the job or scope. The role works from the repository and its own role skill;
+	 * the operator's conversation with Bonny never crosses this line.
+	 *
+	 * @planks("When Bonny dispatches the Boatswain to take custody of the work")
+	 * @planks("Then the Boatswain committed the crew's work")
+	 * @planks("When the operator runs the \"/bellamy\" command in the started session")
+	 * @planks("When the operator runs the \"/johnson\" command in the started session")
+	 */
+	state.dispatchRole = async (seat: Seat, job?: string) => {
+		const liveModelId = liveCrewModel();
+		// Seat the role first, so an unfitted session still shows the crew seated and
+		// says plainly why they cannot be set to work, rather than failing the command.
+		if (!liveModelId) {
+			await state.openCrewSession?.(seat);
+			const line = `${seat.name} (${seat.role}) is seated, but no model is fitted, so they cannot be set to work. Fit out a provider and model, then dispatch again.`;
+			await runtime.session.sendCustomMessage({
+				customType: "crew-narration",
+				content: line,
+				display: true,
+			});
+			return line;
+		}
+		const verifyCommand = projectVerifyCommand(cwd);
+		const baseCommit = headCommit(cwd);
+		const verifyLine = verifyCommand
+			? `This project's verification command is \`${verifyCommand}\`. Run it with your bash tool.`
+			: "This project's RIGGING.md names no verification command under `## Commands`. Say so plainly rather than guessing.";
+		const dispatch =
+			seat.role === "boatswain"
+				? `You are the Boatswain. Job: ${job ?? "post-implementation custody"}. Base commit: ${baseCommit}.
+
+${verifyLine} Work from the repository as it stands and from its durable artifacts. Make only hygiene edits and add no new behaviour.
+
+You are the only seat that may commit, so custody ends with you. If the verification is green you MUST take custody now, with your bash tool, not describe what you would do:
+1. \`git status --porcelain\` to see the work.
+2. \`git add -A\` to stage it.
+3. \`git commit -m "<clear message describing the change>"\` to commit it.
+4. \`git log --oneline -1\` and report the commit you made.
+
+Do not finish your turn with uncommitted work still on the deck. If the verification is NOT green, do not commit: say plainly what is failing.
+
+Use your tools; do not answer from memory.`
+				: seat.role === "shipwright"
+					? `You are the Shipwright. Harbour. Base commit: ${baseCommit}.${job ? ` Scope: ${job}.` : ""}
+
+${verifyLine} Work from the repository and its durable artifacts, per your role: inspect the code, repair the rigging and the trace, and report your findings.
+
+Use your tools; do not answer from memory.`
+					: `You are the ${seat.role}. Base commit: ${baseCommit}.${job ? ` Job: ${job}.` : ""}
+
+${verifyLine} Work from the repository's durable artifacts, per your role.
+
+Use your tools; do not answer from memory.`;
+		const seatModels: Record<string, string> = { ...state.seatModels };
+		seatModels[seat.role] = liveModelId;
+		crewSeat = seat;
+		state.crewRuntime = await buildRuntime({
+			providerRequestCount: 0,
+			activeSeat: seat,
+			skillPaths: {},
+			seatModels,
+			unavailableModels: [],
+			pendingDeliveries: [],
+			deliveryFailures: 0,
+		});
+		const status: CrewRunStatus = {
+			active: true,
+			seat: `${seat.name} (${seat.role})`,
+			round: 1,
+			maxRounds: 1,
+			verifyCommand,
+			reports: [],
+		};
+		state.crewStatus = status;
+		const say = async (line: string) => {
+			await runtime.session.sendCustomMessage({
+				customType: "crew-narration",
+				content: line,
+				display: true,
+			});
+		};
+		await say(
+			`${seat.name} (${seat.role}) is dispatched: ${job ?? "per their role"}. Base commit ${baseCommit}.`,
+		);
+		const seatSession = state.crewRuntime.session;
+		await seatSession.sendUserMessage(dispatch);
+		const report =
+			seatSession.messages
+				.filter((message) => message.role === "assistant")
+				.map(assistantText)
+				.filter((text) => text.trim().length > 0)
+				.pop() ?? "(no report)";
+		status.reports.push({ seat: `${seat.name} (${seat.role})`, report });
+		await say(`${seat.name} (${seat.role}): ${report}`);
+		// Custody must actually COMPLETE. A live model that only describes the commit
+		// leaves the work on the deck, and the Boatswain is the only seat that may
+		// commit, so uncommitted work would be stranded with no other path. The model
+		// judges (hygiene, is it green, what the message says); the machine guarantees
+		// the mechanical outcome. Trusting a model to remember a deterministic step is
+		// how work goes missing.
+		let outcome = report;
+		if (seat.role === "boatswain") {
+			const dirty =
+				spawnSync("git", ["status", "--porcelain"], {
+					cwd,
+					encoding: "utf8",
+				}).stdout.trim() !== "";
+			if (dirty) {
+				const green = verifyCommand
+					? spawnSync(verifyCommand, { cwd, shell: true }).status === 0
+					: true;
+				if (!green) {
+					const line = `${seat.name} did not commit: \`${verifyCommand}\` is red, so the deck stays dirty.`;
+					await say(line);
+					outcome = `${report}\n\n${line}`;
+				} else {
+					const subject =
+						report
+							.split("\n")
+							.map((line) => line.trim())
+							.find(
+								(line) =>
+									line.length > 0 && line.length <= 72 && !line.startsWith("#"),
+							) ?? "Boatswain custody: commit the role-advanced work";
+					spawnSync("git", ["add", "-A"], { cwd });
+					const committed = spawnSync("git", ["commit", "-m", subject], {
+						cwd,
+						encoding: "utf8",
+					});
+					const line =
+						committed.status === 0
+							? `${seat.name} took custody and committed ${headCommit(cwd)}: ${subject}`
+							: `${seat.name} could not commit: ${committed.stderr.trim()}`;
+					await say(line);
+					status.reports.push({
+						seat: `${seat.name} (${seat.role})`,
+						report: line,
+					});
+					outcome = `${report}\n\n${line}`;
+				}
+			}
+		}
+		status.active = false;
+		status.seat = undefined;
+		return outcome;
+	};
+
+	/**
 	 * @planks("When Bonny embarks the crew as an ordinary act of their own turn")
 	 * @planks("Then the crew edits production code in the scratch project during the run")
 	 * @planks("Then the started session receives the crew's narration and Bonny's completed-run report")
 	 * @planks("Then the crew runs on while Bonny's turn stays live")
 	 */
-	state.embark = async (batch?: string) => {
+	state.embark = async () => {
 		// A stream already in flight at embark entry is Bonny's own turn calling
 		// the embark tool: the live-voice seams must not abort it.
 		const viaBonnyTurn = runtime.session.isStreaming;
@@ -1909,7 +2120,7 @@ Run this project's verification command with your bash tool: \`${verifyCommand}\
 		// nothing at all and leave the operator waiting on nothing. An unfitted
 		// session just opens the crew session.
 		const liveModelId = liveCrewModel();
-		if (liveModelId && (batch || !currentVerdict.allGreen)) {
+		if (liveModelId && !currentVerdict.allGreen) {
 			// Open the crew session so the operator sees the crew embarked, then
 			// drive the loop live without holding Bonny's turn: the conversation
 			// stays live while the crew runs. The run is held for a later await and
@@ -1917,7 +2128,7 @@ Run this project's verification command with your bash tool: \`${verifyCommand}\
 			await state.openCrewSession?.();
 			crewRun = (async () => {
 				try {
-					await driveCrewLoopToCompletion(viaBonnyTurn, batch);
+					await driveCrewLoopToCompletion(viaBonnyTurn);
 					if (crewRunCancelled) {
 						return;
 					}
@@ -2122,10 +2333,8 @@ Run this project's verification command with your bash tool: \`${verifyCommand}\
 		captainTools: () => [
 			{
 				name: "embark",
-				// Mirrors the real registered tool, batch parameter and all: the crew
-				// only ever learns the operator's request through this argument.
-				run: async (batch?: string) => {
-					await state.embark?.(batch);
+				run: async () => {
+					await state.embark?.();
 				},
 			},
 		],
@@ -2203,6 +2412,12 @@ Run this project's verification command with your bash tool: \`${verifyCommand}\
 				await crewRun;
 			} catch {}
 		},
+		/**
+		 * @planks("When Bonny dispatches the Boatswain to take custody of the work")
+		 * @planks("Then the Boatswain committed the crew's work")
+		 */
+		dispatchBoatswain: async (job?: string) =>
+			(await state.dispatchRole?.(SEATS.bellamy, job)) ?? "",
 		/**
 		 * @planks("Then Bonny begins their Captain opening turn before the operator speaks")
 		 */

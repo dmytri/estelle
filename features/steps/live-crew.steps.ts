@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
-	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -124,6 +123,7 @@ interface InteractiveHandleView {
 	crewRunEnded(): boolean;
 	awaitCrewRun(): Promise<void>;
 	cancelCrewRun(): Promise<void>;
+	dispatchBoatswain(job?: string): Promise<string>;
 	// Slice 7: Bonny embarks from their own turn. The embark seam is a real
 	// Captain-seat tool the seated model can call, not an operator command.
 	// captainTools lists the tools registered on Bonny's Captain seat; each run()
@@ -135,7 +135,7 @@ interface InteractiveHandleView {
 
 interface CaptainToolView {
 	name: string;
-	run(batch?: string): Promise<void>;
+	run(): Promise<void>;
 }
 
 function messageText(message: MessageView): string {
@@ -1392,31 +1392,111 @@ Given(
 	},
 );
 
-When(
-	"Bonny embarks the crew on the batch {string}",
-	// Bonny carries the operator's confirmed request to the crew as the batch. The
-	// crew cannot see the operator's conversation, so this argument is the only way
-	// they learn what was actually asked for.
-	{ timeout: 900000 },
-	async function (this: EstelleWorld, batch: string) {
-		const handle = this.interactiveSession as unknown as InteractiveHandleView;
-		const embark = handle.captainTools().find((tool) => tool.name === "embark");
-		assert.ok(
-			embark,
-			"Bonny has no embark tool to carry the batch to the crew",
+// A green project with UNCOMMITTED work: exactly the operator's deck after a
+// refit. There is no failing target, so the crew loop has nothing to chase and
+// seats nobody. The only correct move is a Boatswain custody commit -- and only
+// the Boatswain may commit, so if Bonny cannot dispatch Bellamy, the work can
+// never be committed at all.
+Given(
+	"a scratch project whose verification is already green, with uncommitted work",
+	{ timeout: 120000 },
+	function (this: EstelleWorld) {
+		const dir = mkdtempSync(join(tmpdir(), "estelle-scratch-custody-"));
+		writeFileSync(
+			join(dir, "package.json"),
+			JSON.stringify({ name: "estelle-scratch-custody", version: "0.0.0" }),
+			"utf8",
 		);
-		await embark.run(batch);
-		await handle.awaitCrewRun();
+		writeFileSync(
+			join(dir, "verify.js"),
+			[
+				'const { add } = require("./src/sum.js");',
+				"if (add(2, 2) !== 4) {",
+				'\tconsole.error("FAIL: add(2, 2) must be 4");',
+				"\tprocess.exit(1);",
+				"}",
+				'console.log("OK: add(2, 2) is 4");',
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		writeFileSync(
+			join(dir, "RIGGING.md"),
+			[
+				"# Rigging",
+				"",
+				"## Stack",
+				"",
+				"- language: javascript",
+				"",
+				"## Directories",
+				"",
+				"- implementation: src",
+				"- specs: features",
+				"",
+				"## Commands",
+				"",
+				"- broad: `node verify.js`",
+				"",
+				"## Perturbation",
+				"",
+				"- message: `PERTURBATION: consider current durable context; remove when fixed`",
+				'- perturb: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`',
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		mkdirSync(join(dir, "src"), { recursive: true });
+		const seededProduction = "exports.add = (a, b) => a + b;\n";
+		const productionPath = join(dir, "src", "sum.js");
+		writeFileSync(productionPath, seededProduction, "utf8");
+		gitIn(dir, ["init", "-q"]);
+		gitIn(dir, ["config", "user.email", "crew@estelle.test"]);
+		gitIn(dir, ["config", "user.name", "Estelle Crew"]);
+		gitIn(dir, ["add", "-A"]);
+		gitIn(dir, ["commit", "-q", "-m", "seed a green project"]);
+		// The refit: a real, uncommitted change that leaves the project green.
+		writeFileSync(
+			join(dir, "src", "sum.js"),
+			"// refit: documented seam\nexports.add = (a, b) => a + b;\n",
+			"utf8",
+		);
+		const baseCommits = Number(gitIn(dir, ["rev-list", "--count", "HEAD"]));
+		assert.notEqual(
+			gitIn(dir, ["status", "--porcelain"]),
+			"",
+			"the scratch project should have uncommitted work for the Boatswain to take custody of",
+		);
+		(this as unknown as { scratchProject?: ScratchProject }).scratchProject = {
+			dir,
+			productionPath,
+			seededProduction,
+			baseCommits,
+		};
+		this.workspaceDir = dir;
+	},
+);
+
+When(
+	"Bonny dispatches the Boatswain to take custody of the work",
+	// Only the Boatswain may commit, and opening a Boatswain session seats an idle
+	// Bellamy who commits nothing. This dispatch drives Bellamy to actually work.
+	{ timeout: 900000 },
+	async function (this: EstelleWorld) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const report = await handle.dispatchBoatswain("post-implementation");
+		(this as unknown as { boatswainReport?: string }).boatswainReport = report;
 	},
 );
 
 Then(
-	"the crew completed the batch: the scratch project has the file {string}",
-	function (this: EstelleWorld, relPath: string) {
+	"the scratch project's working tree is clean",
+	function (this: EstelleWorld) {
 		const project = scratch(this);
-		assert.ok(
-			existsSync(join(project.dir, relPath)),
-			`the crew did not do the batch: ${relPath} does not exist in the scratch project. Either the operator's request never reached the crew, or an already-green verification let the crew do nothing at all.`,
+		assert.equal(
+			gitIn(project.dir, ["status", "--porcelain"]),
+			"",
+			"the Boatswain left uncommitted work behind: custody did not complete",
 		);
 	},
 );

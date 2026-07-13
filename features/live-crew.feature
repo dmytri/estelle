@@ -260,22 +260,23 @@ Feature: Embarking runs the crew alongside Bonny
       Then the scratch project's own non-cucumber verification passes
       And the Boatswain committed the crew's work
 
-  Rule: The crew does what the operator asked, even when the project is already green
-    The crew never sees the operator's conversation with Bonny, so Bonny carries the
-    operator's confirmed request to them as the batch. A crew that only chases a red
-    verification does nothing at all on a project that is already green: the operator
-    waits on nothing while the work they asked for never happens. The Quartermaster
-    owns the worklist and says when the batch is done.
+  Rule: Bonny dispatches the Boatswain to take custody, the only path to a commit
+    Only the Boatswain may commit: there is no Captain-side commit path, and opening a
+    Boatswain session seats an idle Bellamy who never takes custody. So Bonny must be
+    able to dispatch Bellamy to recheck the verification and commit the work. On a green
+    project with uncommitted work the crew loop has no failing target to chase and seats
+    nobody, and the work could never be committed at all. The dispatch is thin by
+    contract: the job and the base commit. The operator's conversation never crosses into
+    the crew, which works from the durable artifacts alone.
 
     @eval
-    Scenario: The crew does the operator's batch on an already-green project and commits it
-      Given a scratch project whose verification is already green, in a git repo
+    Scenario: Bonny dispatches the Boatswain, who commits the work on an already-green project
+      Given a scratch project whose verification is already green, with uncommitted work
       And a started Estelle session seated as the Captain "Bonny" on the scratch project
       And the live eval model is fitted as the session default
-      When Bonny embarks the crew on the batch "Add a LICENSE file at the project root containing the MIT license text."
-      Then the crew completed the batch: the scratch project has the file "LICENSE"
-      And the Boatswain committed the crew's work
-      And the scratch project's own non-cucumber verification passes
+      When Bonny dispatches the Boatswain to take custody of the work
+      Then the Boatswain committed the crew's work
+      And the scratch project's working tree is clean
 
   Rule: The operator's own "/embark" command sets the crew working, not an idle seat
     The operator must have a deterministic way to set the crew working that does not
