@@ -39,7 +39,7 @@ interface InteractiveHandle {
 	handOffToCrew(): Promise<void>;
 	narrationLog(): { from: string; to: string; line: string }[];
 	reportCrewRun(): Promise<void>;
-	captainTools(): { name: string; run(): Promise<void> }[];
+	captainTools(): { name: string; run(batch?: string): Promise<void> }[];
 	crewRunReports(): { summary: string }[];
 	reportFailingTarget(target: string): void;
 	reportAllGreen(): void;
@@ -104,7 +104,10 @@ interface EstelleState {
 	runtime?: AgentSessionRuntime;
 	crewRuntime?: AgentSessionRuntime;
 	openCrewSession?: (seat?: Seat) => Promise<void>;
-	embark?: () => Promise<void>;
+	// The batch is the operator's own confirmed request, in Bonny's words. Without
+	// it the crew can only chase the verification green and never does what the
+	// operator actually asked for.
+	embark?: (batch?: string) => Promise<void>;
 	crewStatus?: CrewRunStatus;
 	onProviderRequest?: () => void;
 }
@@ -117,6 +120,7 @@ interface EstelleState {
  */
 interface CrewRunStatus {
 	active: boolean;
+	batch?: string;
 	seat?: string;
 	round: number;
 	maxRounds: number;
@@ -125,6 +129,11 @@ interface CrewRunStatus {
 	reports: { seat: string; report: string }[];
 	stoppedBecause?: string;
 }
+
+// The Quartermaster ends the run by saying so. A run that ends only when the
+// verification is green can never finish a batch that is not a failing test, and
+// does no work at all on a project that is already green.
+const BATCH_COMPLETE = "BATCH COMPLETE";
 
 const CHARACTER_CARDS: Record<string, string> = {
 	captain: "bonny.md",
@@ -496,11 +505,27 @@ function createEstelleExtension(
 				promptGuidelines: embarkPrompts.promptGuidelines,
 				parameters: {
 					type: "object",
-					properties: {},
+					properties: {
+						batch: {
+							type: "string",
+							description:
+								"What the operator actually asked for, in your own words: the confirmed batch of work the crew must complete. Be specific and concrete. The crew cannot see your conversation with the operator, so this is the ONLY thing they will know about the operator's intent. If you leave it vague, the crew will do the wrong work.",
+						},
+					},
+					required: ["batch"],
 					additionalProperties: false,
 				} as unknown as Parameters<typeof pi.registerTool>[0]["parameters"],
-				execute: async () => {
-					await (state.embark ?? state.openCrewSession)?.();
+				execute: async (input) => {
+					const requested = (input as { batch?: unknown } | undefined)?.batch;
+					const batch =
+						typeof requested === "string" && requested.trim().length > 0
+							? requested.trim()
+							: undefined;
+					if (state.embark) {
+						await state.embark(batch);
+					} else {
+						await state.openCrewSession?.();
+					}
 					return {
 						content: [
 							{
@@ -547,6 +572,9 @@ function createEstelleExtension(
 						status.active
 							? `The crew is RUNNING. ${status.seat ?? "A seat"} is working right now, on round ${status.round} of ${status.maxRounds}.`
 							: `The crew is NOT running.${status.stoppedBecause ? ` It stopped because: ${status.stoppedBecause}` : ""}`,
+						status.batch
+							? `The batch the crew was sent to do: ${status.batch}`
+							: "No batch was named, so the crew's only standing order was to turn the verification green. If the operator asked for something specific, the crew never heard it.",
 						status.verifyCommand
 							? `Verification command: \`${status.verifyCommand}\``
 							: "",
@@ -1614,7 +1642,10 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("Then the scratch project's own verification command reports the scenario \"adds two numbers\" green")
 	 * @planks("Then the started session receives the crew's narration as the crew runs")
 	 */
-	const driveCrewLoopToCompletion = async (viaBonnyTurn = false) => {
+	const driveCrewLoopToCompletion = async (
+		viaBonnyTurn = false,
+		batch?: string,
+	) => {
 		// Green is decided by THIS project's own verification command, read from its
 		// RIGGING.md. A hardcoded runner would never go green on a project that runs
 		// anything else, and the loop would spin forever.
@@ -1624,13 +1655,33 @@ export async function run(options?: RunOptions): Promise<void> {
 				"No verification command found: this project's RIGGING.md has no `broad` (or `focused`) command under `## Commands`. The crew cannot decide green without it. Fix RIGGING.md, then embark again.",
 			);
 		}
-		// Every seat is a real working turn with real tools: the Quartermaster runs
-		// verification and names the failing target, the Crew edits real production,
-		// and the Boatswain verifies and actually commits. A seat told not to call
-		// tools can only narrate, which is how the crew spun without outcomes.
-		const quartermasterDispatch = `You are the Quartermaster. Run this project's verification command with your bash tool: \`${verifyCommand}\`. Read its output and name the single failing target the Crew should fix next. If the command itself cannot run (missing config, malformed RIGGING.md, missing dependency), say so plainly and name the blocker instead of guessing. Use your tools; do not answer from memory.`;
-		const crewDispatch = `You are a Crew hand dispatched to a single failing verification target. This project's verification command is \`${verifyCommand}\`. Run it with your bash tool to reproduce the failure, read the durable spec and the production code it exercises, then make the smallest production edit that turns the failing target green. Use your edit or write tool to change the real production file. Do not edit the specs or the tests. Re-run the verification command to confirm your change.`;
-		const boatswainDispatch = `You are the Boatswain. Run this project's verification command with your bash tool: \`${verifyCommand}\`. If it is green, stage the work and commit it with git, with a clear message describing the change. If it is not green, do not commit: say plainly what is still failing. Use your tools; do not answer from memory.`;
+		// The operator's own request, carried to every seat. The crew cannot see the
+		// operator's conversation with Bonny, so without this they can only chase the
+		// verification green and never do what was actually asked.
+		const batchOrder = batch
+			? `The operator asked for this batch of work: ${batch}`
+			: "No batch was named, so the standing order is to turn the project's verification green.";
+		// Every seat is a real working turn with real tools, and every seat is told
+		// what the operator actually asked for. The Quartermaster owns the worklist
+		// and decides when the batch is done; the Crew does the work; the Boatswain
+		// verifies and actually commits. A seat told not to call tools can only
+		// narrate, and a seat that never hears the operator's request can only chase
+		// the tests -- both are how the crew span without outcomes.
+		const quartermasterDispatch = `You are the Quartermaster. ${batchOrder}
+
+Run this project's verification command with your bash tool: \`${verifyCommand}\`. Then inspect the working tree and the durable artifacts to judge what still remains of the batch.
+
+Decide one of two things and say which:
+- If the batch is fully done AND the verification is green, reply with exactly "${BATCH_COMPLETE}" on its own line, then one short line of evidence.
+- Otherwise, name the single next target the Crew should work, concretely (the file and the change). If a blocker stops the batch (missing config, malformed RIGGING.md, missing dependency), name the blocker plainly instead of guessing.
+
+Use your tools; do not answer from memory.`;
+		const crewDispatch = `You are a Crew hand. ${batchOrder}
+
+This project's verification command is \`${verifyCommand}\`. Work the single target the Quartermaster named. Read the durable artifacts and the code, make the smallest real edit that advances the batch, and use your edit or write tool to change the real files. Then run \`${verifyCommand}\` with your bash tool to confirm you left the project green. Report concretely what you changed.`;
+		const boatswainDispatch = `You are the Boatswain. ${batchOrder}
+
+Run this project's verification command with your bash tool: \`${verifyCommand}\`. If it is green, stage the work and commit it with git, with a clear message describing what the crew actually did for this batch. If it is not green, do not commit: say plainly what is still failing. Use your tools; do not answer from memory.`;
 		// Run the project's own verification and keep what it SAID, not just whether
 		// it passed. The output is what names the failure, and Bonny needs it to
 		// answer the operator's "what is the crew doing?" from fact.
@@ -1709,6 +1760,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		// from fact, never guessed and never dug out of the process table.
 		const status: CrewRunStatus = {
 			active: true,
+			batch,
 			round: 0,
 			maxRounds,
 			verifyCommand,
@@ -1724,27 +1776,63 @@ export async function run(options?: RunOptions): Promise<void> {
 			status.seat = undefined;
 			status.stoppedBecause = stoppedBecause;
 		};
+		// Bonny runs the crew rather than watching them: after each round Bonny reads
+		// the seats' real reports and speaks to the operator. Bonny stays quiet only
+		// when a turn is already in flight, so the operator's own turn is never
+		// trampled; the narration still carries the facts in that case.
+		const bonnySpeaks = async (prompt: string) => {
+			const bonnySession = runtime.session;
+			if (!liveModelId || bonnySession.isStreaming) {
+				return;
+			}
+			try {
+				await bonnySession.sendUserMessage(prompt);
+			} catch {
+				// A turn was already in flight; the narration already carries the facts.
+			}
+		};
 		let verdict = await runVerification();
 		status.verification = verdict;
-		while (!crewRunCancelled && !verdict.green) {
+		let batchDone = false;
+		// A named batch must be worked even when the verification is already green:
+		// the operator asked for something, and a loop that only chases red tests
+		// would do nothing at all and leave Bonny waiting on nothing.
+		const runComplete = () =>
+			batch ? batchDone && verdict.green : verdict.green;
+		while (!crewRunCancelled && !runComplete()) {
 			if (status.round >= maxRounds) {
-				settleStatus(
-					`the crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green`,
-				);
+				const why = batch
+					? `the crew ran ${maxRounds} rounds without completing the batch`
+					: `the crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green`;
+				settleStatus(why);
 				throw new Error(
-					`The crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green, so the run stopped rather than spinning. The last verification output was:\n${verdict.output}`,
+					`${why}, so the run stopped rather than spinning. The last verification output was:\n${verdict.output}`,
 				);
 			}
 			status.round += 1;
 			await narrate(
-				`Round ${status.round}: \`${verifyCommand}\` is red.\n${verdict.output}`,
+				`Round ${status.round}: \`${verifyCommand}\` is ${
+					verdict.green ? "green" : `red.\n${verdict.output}`
+				}`,
 			);
-			await record(
+			const quartermasterReport = await runSeatTurn(
 				SEATS.misson,
-				await runSeatTurn(SEATS.misson, quartermasterDispatch),
+				quartermasterDispatch,
 			);
+			await record(SEATS.misson, quartermasterReport);
 			if (crewRunCancelled) {
 				break;
+			}
+			// The Quartermaster owns the worklist and says when the batch is done. A
+			// run that ended only on a green verification could never finish a batch
+			// that was not a failing test.
+			if (batch && quartermasterReport.includes(BATCH_COMPLETE)) {
+				verdict = await runVerification();
+				status.verification = verdict;
+				if (verdict.green) {
+					batchDone = true;
+					break;
+				}
 			}
 			await record(SEATS.crew, await runSeatTurn(SEATS.crew, crewDispatch));
 			if (crewRunCancelled) {
@@ -1756,6 +1844,11 @@ export async function run(options?: RunOptions): Promise<void> {
 			);
 			verdict = await runVerification();
 			status.verification = verdict;
+			// Bonny runs the crew: read this round's real reports and surface them to
+			// the operator, rather than sitting silent while the crew works.
+			await bonnySpeaks(
+				`Your crew just finished round ${status.round}. The Quartermaster reported: ${status.reports.at(-3)?.report ?? "nothing"}. The Crew reported: ${status.reports.at(-2)?.report ?? "nothing"}. The Boatswain reported: ${status.reports.at(-1)?.report ?? "nothing"}. \`${verifyCommand}\` is now ${verdict.green ? "green" : "red"}. In one or two short lines, tell the operator in your own voice what the crew actually did this round and what happens next.`,
+			);
 		}
 		if (crewRunCancelled) {
 			settleStatus("the run was stood down");
@@ -1805,18 +1898,18 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("Then the started session receives the crew's narration and Bonny's completed-run report")
 	 * @planks("Then the crew runs on while Bonny's turn stays live")
 	 */
-	state.embark = async () => {
+	state.embark = async (batch?: string) => {
 		// A stream already in flight at embark entry is Bonny's own turn calling
 		// the embark tool: the live-voice seams must not abort it.
 		const viaBonnyTurn = runtime.session.isStreaming;
 		await narrateCrewRun();
-		// A resolvable live model plus a failing project drives the real crew loop
-		// against the project's own verification. The model is the operator's own
-		// default when no per-seat model is set, so a normal session drives the crew
-		// rather than seating an idle one; an all-green verdict or an unfitted
+		// A resolvable live model drives the real crew loop. A named batch is work
+		// the operator asked for, so it drives the crew even on a project whose
+		// verification is already green: a loop that only chases red tests would do
+		// nothing at all and leave the operator waiting on nothing. An unfitted
 		// session just opens the crew session.
 		const liveModelId = liveCrewModel();
-		if (!currentVerdict.allGreen && liveModelId) {
+		if (liveModelId && (batch || !currentVerdict.allGreen)) {
 			// Open the crew session so the operator sees the crew embarked, then
 			// drive the loop live without holding Bonny's turn: the conversation
 			// stays live while the crew runs. The run is held for a later await and
@@ -1824,7 +1917,7 @@ export async function run(options?: RunOptions): Promise<void> {
 			await state.openCrewSession?.();
 			crewRun = (async () => {
 				try {
-					await driveCrewLoopToCompletion(viaBonnyTurn);
+					await driveCrewLoopToCompletion(viaBonnyTurn, batch);
 					if (crewRunCancelled) {
 						return;
 					}
@@ -2029,8 +2122,10 @@ export async function run(options?: RunOptions): Promise<void> {
 		captainTools: () => [
 			{
 				name: "embark",
-				run: async () => {
-					await state.embark?.();
+				// Mirrors the real registered tool, batch parameter and all: the crew
+				// only ever learns the operator's request through this argument.
+				run: async (batch?: string) => {
+					await state.embark?.(batch);
 				},
 			},
 		],

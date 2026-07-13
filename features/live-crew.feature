@@ -260,6 +260,23 @@ Feature: Embarking runs the crew alongside Bonny
       Then the scratch project's own non-cucumber verification passes
       And the Boatswain committed the crew's work
 
+  Rule: The crew does what the operator asked, even when the project is already green
+    The crew never sees the operator's conversation with Bonny, so Bonny carries the
+    operator's confirmed request to them as the batch. A crew that only chases a red
+    verification does nothing at all on a project that is already green: the operator
+    waits on nothing while the work they asked for never happens. The Quartermaster
+    owns the worklist and says when the batch is done.
+
+    @eval
+    Scenario: The crew does the operator's batch on an already-green project and commits it
+      Given a scratch project whose verification is already green, in a git repo
+      And a started Estelle session seated as the Captain "Bonny" on the scratch project
+      And the live eval model is fitted as the session default
+      When Bonny embarks the crew on the batch "Add a LICENSE file at the project root containing the MIT license text."
+      Then the crew completed the batch: the scratch project has the file "LICENSE"
+      And the Boatswain committed the crew's work
+      And the scratch project's own non-cucumber verification passes
+
   Rule: The operator's own "/embark" command sets the crew working, not an idle seat
     The operator must have a deterministic way to set the crew working that does not
     depend on Bonny's model choosing to embark. The "/embark" command drives the real

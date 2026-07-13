@@ -1134,8 +1134,17 @@ function functionBodies(contents: string): string[] {
 // A crew-loop driver drives seat turns in a loop gated on a target-green decision.
 // Detected by a loop whose continuation is decided by a "green" gate, the stable
 // shape of "keep running the crew until the target is green".
+// The crew-loop driver: a loop that drives the crew's seats against the project's
+// own verification. Keying on the word "green" inside the loop condition would be
+// brittle -- the completion test is a named predicate once a batch can end a run --
+// so identify the driver by what it actually is: a loop, the project's verify
+// command, and real seat turns.
 function isCrewLoopDriver(body: string): boolean {
-	return /\b(?:while|for)\s*\([^;{]*[Gg]reen/.test(body);
+	return (
+		/\b(?:while|for)\s*\(/.test(body) &&
+		/verifyCommand|projectVerifyCommand/.test(body) &&
+		/runSeatTurn|SEATS\./.test(body)
+	);
 }
 
 // The green gate derives its truth from reading the target file itself: an

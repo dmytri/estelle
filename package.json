@@ -1,6 +1,6 @@
 {
   "name": "@dk/estelle",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Estelle launches pi pre-configured with the upstream Shipshape skills and the Estelle enforcement extension.",
   "license": "MIT",
   "bin": {

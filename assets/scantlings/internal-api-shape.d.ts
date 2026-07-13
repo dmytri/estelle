@@ -33,7 +33,7 @@ export interface InteractiveHandle {
 	handOffToCrew(): Promise<void>;
 	narrationLog(): { from: string; to: string; line: string }[];
 	reportCrewRun(): Promise<void>;
-	captainTools(): { name: string; run(): Promise<void> }[];
+	captainTools(): { name: string; run(batch?: string): Promise<void> }[];
 	crewRunReports(): { summary: string }[];
 	reportFailingTarget(target: string): void;
 	reportAllGreen(): void;

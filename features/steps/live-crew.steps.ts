@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -134,7 +135,7 @@ interface InteractiveHandleView {
 
 interface CaptainToolView {
 	name: string;
-	run(): Promise<void>;
+	run(batch?: string): Promise<void>;
 }
 
 function messageText(message: MessageView): string {
@@ -1314,6 +1315,109 @@ Given(
 			baseCommits,
 		};
 		this.workspaceDir = dir;
+	},
+);
+
+// A project whose verification is ALREADY GREEN. The crew has nothing to fix, so
+// only the operator's own named batch can give them work. This is the case that
+// used to do nothing at all: the loop chased a red verification, found none, ran
+// zero rounds, and the operator waited on nothing while the work they asked for
+// never happened.
+Given(
+	"a scratch project whose verification is already green, in a git repo",
+	{ timeout: 120000 },
+	function (this: EstelleWorld) {
+		const dir = mkdtempSync(join(tmpdir(), "estelle-scratch-green-"));
+		writeFileSync(
+			join(dir, "package.json"),
+			JSON.stringify({ name: "estelle-scratch-green", version: "0.0.0" }),
+			"utf8",
+		);
+		writeFileSync(
+			join(dir, "verify.js"),
+			[
+				'const { add } = require("./src/sum.js");',
+				"if (add(2, 2) !== 4) {",
+				'\tconsole.error("FAIL: add(2, 2) must be 4");',
+				"\tprocess.exit(1);",
+				"}",
+				'console.log("OK: add(2, 2) is 4");',
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		writeFileSync(
+			join(dir, "RIGGING.md"),
+			[
+				"# Rigging",
+				"",
+				"## Stack",
+				"",
+				"- language: javascript",
+				"",
+				"## Directories",
+				"",
+				"- implementation: src",
+				"- specs: features",
+				"",
+				"## Commands",
+				"",
+				"- broad: `node verify.js`",
+				"",
+				"## Perturbation",
+				"",
+				"- message: `PERTURBATION: consider current durable context; remove when fixed`",
+				'- perturb: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`',
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		mkdirSync(join(dir, "src"), { recursive: true });
+		const seededProduction = "exports.add = (a, b) => a + b;\n";
+		const productionPath = join(dir, "src", "sum.js");
+		writeFileSync(productionPath, seededProduction, "utf8");
+		gitIn(dir, ["init", "-q"]);
+		gitIn(dir, ["config", "user.email", "crew@estelle.test"]);
+		gitIn(dir, ["config", "user.name", "Estelle Crew"]);
+		gitIn(dir, ["add", "-A"]);
+		gitIn(dir, ["commit", "-q", "-m", "seed a green project"]);
+		const baseCommits = Number(gitIn(dir, ["rev-list", "--count", "HEAD"]));
+		(this as unknown as { scratchProject?: ScratchProject }).scratchProject = {
+			dir,
+			productionPath,
+			seededProduction,
+			baseCommits,
+		};
+		this.workspaceDir = dir;
+	},
+);
+
+When(
+	"Bonny embarks the crew on the batch {string}",
+	// Bonny carries the operator's confirmed request to the crew as the batch. The
+	// crew cannot see the operator's conversation, so this argument is the only way
+	// they learn what was actually asked for.
+	{ timeout: 900000 },
+	async function (this: EstelleWorld, batch: string) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const embark = handle.captainTools().find((tool) => tool.name === "embark");
+		assert.ok(
+			embark,
+			"Bonny has no embark tool to carry the batch to the crew",
+		);
+		await embark.run(batch);
+		await handle.awaitCrewRun();
+	},
+);
+
+Then(
+	"the crew completed the batch: the scratch project has the file {string}",
+	function (this: EstelleWorld, relPath: string) {
+		const project = scratch(this);
+		assert.ok(
+			existsSync(join(project.dir, relPath)),
+			`the crew did not do the batch: ${relPath} does not exist in the scratch project. Either the operator's request never reached the crew, or an already-green verification let the crew do nothing at all.`,
+		);
 	},
 );
 
