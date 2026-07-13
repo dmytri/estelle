@@ -1,6 +1,6 @@
 {
   "name": "pi-open-plugin-shim",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Run open-plugin-format plugins (https://open-plugins.com) on the Pi coding agent: a shim that maps open-plugin custody hooks, role agents, and commands onto Pi's extension API.",
   "type": "module",
   "license": "MIT",

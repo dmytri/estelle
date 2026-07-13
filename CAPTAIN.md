@@ -20,8 +20,14 @@ Embark now drives a REAL crew: `driveCrewLoopToCompletion` spawns the project's 
 - **Asset tidy:** `crewLoopPrompts.crew` in `assets/agent-prompts.json` is now unused (the proxy crew dispatch is gone); `quartermaster` / `boatswain` / `crewReady` still used.
 - **Parked (pre-existing):** 6th handoff-narration inline template; gender-neutral scan scope excludes `assets/`+`src/`; message-history isolation pinning (alongside seats); documented pi-gaps (`Task` -> dispatch-guard, `SubagentStop` -> planks-check).
 
-### Release plan (after operator approval)
-Boot-verify the REAL embark on the real `estelle` bin from the registry, then minor bump. Shim (`0.1.1`) bumps only if its runtime changed (it did not this voyage). Publish shim first, then `@dk/estelle`, per RIGGING `## Outbound`.
+### Released — @dk/estelle 0.2.1 (shim 0.1.2)
+Shipped and registry-boot-verified: a fresh `npm install @dk/estelle@latest` bin launches pi with the Estelle extension as Captain Bonny, greeting rendered, no crash.
+
+Boot-verify caught a real pre-existing bug: `0.2.0` (and `0.1.22`) crashed at boot on the Shipshape SessionStart hook `session-orient.sh` (a new quoted-`${PLUGIN_ROOT}` plugin hook). Root cause: **published `pi-open-plugin-shim@0.1.1` never unquoted in `runSessionStart`** — the source fix landed in `0d3fb67` but the shim was never republished, and no scenario exercised a *quoted* SessionStart command. Fix: quoted the `sessionstart-stack` fixture command (pins it, planted-red proven), republished shim `0.1.2` (unquote reaches the registry), bumped `@dk/estelle 0.2.1` (resolves shim `0.1.2`). The "shim bumps only if runtime changed" assumption was wrong — its runtime had changed since `0.1.1` and it was overdue for republish.
+
+### Release follow-ups
+- **Deprecate the boot-broken versions:** `npm deprecate @dk/estelle@0.2.0` (and `@0.1.22`) pointing at `0.2.1` — both crash at boot against the current plugin.
+- **Push pending:** local `main` is ahead of `origin/main`; push not yet done.
 
 ## What Estelle is
 

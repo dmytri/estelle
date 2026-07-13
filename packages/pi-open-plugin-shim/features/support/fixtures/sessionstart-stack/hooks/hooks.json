@@ -2,8 +2,8 @@
   "SessionStart": [
     {
       "hooks": [
-        { "type": "command", "command": "hooks/orient" },
-        { "type": "command", "command": "hooks/validate" }
+        { "type": "command", "command": "\"${PLUGIN_ROOT}/hooks/orient\"" },
+        { "type": "command", "command": "\"${PLUGIN_ROOT}/hooks/validate\"" }
       ]
     }
   ]
