@@ -202,6 +202,7 @@ Feature: Embarking runs the crew alongside Bonny
       And the operator confirms the batch is right and tells Bonny to ship it
       When Bonny takes their next turn
       Then Bonny embarks the crew rather than instructing the operator to run a role command
+      And the crew runs on while Bonny's turn stays live
 
   Rule: A manually dispatched role starts in an isolated session alongside, not by seat-switching
     A manual role command invokes that role into an isolated session alongside, the same

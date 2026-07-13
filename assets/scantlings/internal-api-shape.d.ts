@@ -41,6 +41,8 @@ export interface InteractiveHandle {
 	advanceCrewLoopThroughToBoatswain(): Promise<void>;
 	crewDispatches(): { target: string }[];
 	crewRunEnded(): boolean;
+	awaitCrewRun(): Promise<void>;
+	cancelCrewRun(): Promise<void>;
 	providerRequestCount(): number;
 }
 

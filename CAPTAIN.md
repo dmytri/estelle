@@ -4,57 +4,24 @@
 
 Binding behaviour lives in `.feature` specs and referenced `assets/**`. History lives in git. These notes carry only what the next cycle needs.
 
-## Active voyage — Estelle back on track (harbour + real-crew rebuild), base 27c42fd
+## Voyage complete — real-crew rebuild + harbour + non-blocking embark, base 27c42fd
 
-The `@dk/estelle@0.1.22` embark loop never drove a real crew. Deep four-lens audit found: the shipped embark path is inert (`openCrewSession` opens an idle Misson runtime and does nothing on a real project); the "crew loop" is narration theatre (`crewLoopPrompts` say "do not read files, do not call tools"); "green" is a non-empty markdown file the production code fills with the crew's chat line; and the `@eval` proofs pass vacuously. Separately, Estelle is pinned to the upstream 0.10.1 era while installed upstream is **0.13.1**, dropping four hook surfaces and forking Captain write-scope. Trace layer is healthy (0 stale planks, 0 orphans, 0 dead code).
+Embark now drives a REAL crew: `driveCrewLoopToCompletion` spawns the project's own `cucumber-js` and greens on its exit code (no file-content-as-green, no proxy). Proven by the `@eval` capstone (`live-crew.feature:235`): a genuinely failing scratch Shipshape scenario turns green through live crew work, driven only by Bonny's own embark turn. The `@dk/estelle@0.1.22` vacuous-green sin is fixed.
 
-### Decisions locked (operator)
-- **Direction:** drive the real crew for real — the reference-runtime promise. Thorough over quick, fewer cycles preferred, drastic measures authorized.
-- **Refit scope:** reconnect everything pi can consume, including `rules/*.mdc`.
-- **Capstone tier:** reuse `@eval` (no new tier).
-- **Non-shipped seams:** wire `perturb`, operator-address, delivery-failure to real model/command-reachable paths.
-- **Captain write-scope:** fully un-forked — Captain seat gated by the plugin's real write-custody hook like every seat (src/ and RIGGING.md open, verification dir blocked). Discipline (route code through the crew) is Bonny's voice, not custody.
-- **New doctrine supersedes old 100% (operator, this session):** adopt the newer installed Shipshape plugin (clone fast-forwarded 59b115a -> 2f6c51f, 0.13.x era) as the deliberate dependency; its custody is canon. The Boatswain no longer reads `CAPTAIN.md` (Context bulkhead: no role but Captain reads it). Superseded: `captain-notes-privacy` boatswain scenario (now asserts the denial) and this banner ("Boatswain reads" -> "Captain trims"). The shim `read-custody.feature` fixture stays: it proves the shim honours a hook's per-role decision, not Estelle doctrine.
+### Landed this session (local commits on main)
+- `00167e6` Harbour custody: condemned the proxy-loop fabrication the real path superseded (`configureRedTarget` / `runCrewLoopToCompletion` / `crewLoopSeatsRanLive` / `crewLoopTargetsAllGreen` seams + `redTargetPath` machinery + 16 dead step defs), re-synced 24 stale `@planks`, aligned the `internal-api-shape` scantling. Greened the methodology plank-trace invariant (`@logic`).
+- Non-blocking embark (Boatswain custody this session): `embark` opens the crew session then holds the crew loop as a background run instead of awaiting it inside Bonny's turn, so the conversation stays live while the crew runs (Rule 164/183). `targetGreen` is async (`spawn`). Capstone awaits `awaitCrewRun`; the `After` hook `cancelCrewRun` stands down any live run. New falsifiable pin `live-crew.feature:198` "the crew runs on while Bonny's turn stays live". Fixed the `:198` 600s timeout (old synchronous embark blocked Bonny's turn on the whole build).
 
-### Shipwright refit landed (uncommitted, this voyage)
-- `RIGGING.md`: `step-usage` no longer filters `@eval` (plank audits see @eval planks); `gherkin-lint` glob widened to catch top-level features. `AGENTS.md` current.
-- `@captain` skeletons written and promoted this voyage (see spec worklist).
+### Verified
+`@logic` 153/153. `@eval`: `:198` fixed (1m16s), capstone green, all live-crew `@eval` green. Watchbill (`watch1 @logic`, `watch2 @eval`) spent and struck.
 
-### Spec worklist authored this voyage (Captain)
-Promoted skeletons -> binding: `session-start-hooks`, `post-write-hooks`, `plugin-rules`, `operator-address`, `operator-delivery-failure` (new scenario), `perturb-command` (/perturb command path; old test-seam scenarios removed). Deleted `seat-tool-scope.feature` (superseded by `operator-address`). Un-forked `seat-write-scope` (Captain may write src/, blocked from verification dir, via the plugin hook). Rewrote `live-crew.feature`: removed six fabricated/shortcut/mis-tagged `@eval` scenarios, added the honest real-verification `@eval` capstone ("Embark turns a genuinely failing project scenario green through real crew work"), strengthened the heartbeat scenario to redden the hardcoded `atRest`. Added a `methodology-conformance` invariant: the crew loop decides green by the real verification command, no file-content-as-green. `watchbill.json`: watch1 `@logic`, watch2 `@eval` (tier-tag enumeration sweeps, cheapest first).
+### Open follow-ups (not blocking)
+- **Harness flake:** `captain-reset-nudge.feature:24` intermittently fails under the loaded full `@eval` run with "Agent is already processing" (Bonny's opening turn outlasts the 120s settle window in "Bonny takes their next turn"); passes in isolation. Engineer out: firmer settle signal or `streamingBehavior` on the send. Candidate for `## Known false-failure modes`.
+- **Asset tidy:** `crewLoopPrompts.crew` in `assets/agent-prompts.json` is now unused (the proxy crew dispatch is gone); `quartermaster` / `boatswain` / `crewReady` still used.
+- **Parked (pre-existing):** 6th handoff-narration inline template; gender-neutral scan scope excludes `assets/`+`src/`; message-history isolation pinning (alongside seats); documented pi-gaps (`Task` -> dispatch-guard, `SubagentStop` -> planks-check).
 
-### Crew build order (the real crew loop — from the honest capstone)
-Feasible with pi as-is (no missing primitive). Rebuild `driveCrewLoopToCompletion`:
-- Green = the RIGGING verify command's **exit code**, run via spawn, NOT a non-empty-file check.
-- Each seat = a fresh `buildRuntime` session with real default `write`+`bash` tools (already policed by the shim `tool_call` hook), driven to completion with `await session.prompt(...)` (NOT `sendUserMessage`+read-immediately, NOT abort-on-first-text).
-- Real dispatches per each role skill's Dispatch contract; drop the "no tools" `crewLoopPrompts` copy.
-- Capstone target = a scratch/namespaced Shipshape project with a real failing scenario (QM fixture), self-cleaning per the Verification agreement; the crew edits the SCRATCH project, never Estelle's own src.
-
-### Fabrication rip-out list (Crew removes as it rebuilds; do NOT leave a hole)
-- `configureRedTarget` empty-file target: `src/index.ts:1706-1710` (path decl :1250, interface :43).
-- Non-empty-file green: `targetGreen` `src/index.ts:1372-1374`, reused :1428.
-- Harness writes crew chat line into target: `src/index.ts:1414-1418`.
-- `captainTools()` direct-call shortcut: `src/index.ts:1638-1645`.
-- `runSeatTurn` sendUserMessage+scrape: `src/index.ts:1377-1399`; `runTurn` abort-on-first-text :1519-1539; mid-turn abort scaffolding :1302-1304, :1445-1447, :1607-1609.
-- "No tools" prompts: `assets/agent-prompts.json` `crewLoopPrompts.*`, `crewRunSummary`, `crewRunNarration`.
-
-### Operator-delivery-failure sc.2 -> @eval (operator, this session)
-`A failed operator delivery in the running session surfaces in session state` retagged `@eval`. Rationale: operator-address success delivers via the session channel (always lands hermetically), so a real `@logic` delivery *failure* was unreachable without a test-only flag. Under `@eval` a real operator forward against a live model can genuinely fail. QM watch2: rework the step to drive a real live failure and read it from real session state; drop the invented `input.failDelivery` flag. Scenario 1 (test-facing counter) stays `@logic`.
-
-### QM verification-support items (route to QM in the build)
-- `captain-notes-privacy` "the contents of CAPTAIN.md are returned": the step re-reads the file itself; assert the real read tool's returned payload instead.
-- Heartbeat `atRest` and `sawActivity`: make them real derived values, not a hardcoded `true` / harness latch.
-- The methodology fabricated-green invariant needs a bespoke checker over the crew-loop seam (spawn-of-verify present, no readFileSync-as-green); prove it with a planted red.
-- The capstone needs the scratch-project fixture + real-crew driver harness.
-
-### Deferred / report-only (parked, not this voyage)
-- 6th handoff-narration copy (inline template `src/index.ts:1610-1612`): needs a catalog key + a template-aware relocation check. Genuinely hard (interpolated template); leave parked.
-- Gender-neutral `@property` scan scope excludes `assets/` and `src/` (`features/steps/gender-neutral-crew.steps.ts:22`) — latent, currently clean (0 hits).
-- QM-only alongside message-history isolation pinning (`live-crew.feature`): Boatswain/Crew/Shipwright alongside seats run the same code unpinned.
-- Documented pi-gaps (no pi seam): `Task` -> `dispatch-guard`, `SubagentStop` -> `planks-check`. `methodology-conformance` partly compensates for planks-check.
-
-### Release plan (after green)
-Boot-verify the **real** embark on the real `estelle` bin from the registry — the thing 0.1.22 never verified: a genuinely failing scenario in a decoy project turns real-green by the crew, driven only by Bonny's embark act. Then minor bump. Shim (`0.1.1`) only bumps if its runtime changes.
+### Release plan (after operator approval)
+Boot-verify the REAL embark on the real `estelle` bin from the registry, then minor bump. Shim (`0.1.1`) bumps only if its runtime changed (it did not this voyage). Publish shim first, then `@dk/estelle`, per RIGGING `## Outbound`.
 
 ## What Estelle is
 

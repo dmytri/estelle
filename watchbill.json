@@ -1,4 +1,0 @@
-{
-  "watch1": { "scenarios": ["@logic"] },
-  "watch2": { "scenarios": ["@eval"] }
-}

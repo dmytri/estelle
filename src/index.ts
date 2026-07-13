@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
@@ -47,6 +47,8 @@ interface InteractiveHandle {
 	advanceCrewLoopThroughToBoatswain(): Promise<void>;
 	crewDispatches(): { target: string }[];
 	crewRunEnded(): boolean;
+	awaitCrewRun(): Promise<void>;
+	cancelCrewRun(): Promise<void>;
 	providerRequestCount(): number;
 }
 
@@ -1366,7 +1368,9 @@ export async function run(options?: RunOptions): Promise<void> {
 	let currentVerdict: { failingTarget?: string; allGreen?: boolean } = {};
 	const crewDispatches: { target: string }[] = [];
 	let crewRunEnded = false;
-	let crewLoopAllGreen = false;
+	let crewRun: Promise<void> | undefined;
+	let crewRunCancelled = false;
+	let activeVerification: ReturnType<typeof spawn> | undefined;
 	/**
 	 * @planks("Then a crew session opens alongside the started session")
 	 * @planks("Then the crew session opens alongside the started session")
@@ -1482,14 +1486,21 @@ export async function run(options?: RunOptions): Promise<void> {
 		// production, and the project's own verification command decides green.
 		const realCrewDispatch =
 			"You are a Crew hand dispatched to a single failing verification target. The project's own verification command `pnpm exec cucumber-js` reports a failing scenario. Read the failing feature spec under features/ and the production code it exercises under src/, reproduce the failure, then make the smallest production edit that turns the failing scenario green. Use your edit or write tool to change the real production file. Do not edit the specs or the tests.";
-		const targetGreen = () => {
-			const verification = spawnSync(
-				"pnpm",
-				["exec", "cucumber-js", "--tags", "not @captain and not @shipwright"],
-				{ cwd, encoding: "utf8" },
-			);
-			return verification.status === 0;
-		};
+		const targetGreen = () =>
+			new Promise<boolean>((resolve) => {
+				const verification = spawn(
+					"pnpm",
+					["exec", "cucumber-js", "--tags", "not @captain and not @shipwright"],
+					{ cwd },
+				);
+				activeVerification = verification;
+				const settle = (green: boolean) => {
+					activeVerification = undefined;
+					resolve(green);
+				};
+				verification.on("close", (code) => settle(code === 0));
+				verification.on("error", () => settle(false));
+			});
 		const liveModelId =
 			state.seatModels[SEATS.misson.role] ?? state.seatModels[SEATS.bonny.role];
 		const runSeatTurn = async (seat: Seat, prompt: string) => {
@@ -1510,18 +1521,26 @@ export async function run(options?: RunOptions): Promise<void> {
 			const seatSession = state.crewRuntime.session;
 			await seatSession.sendUserMessage(prompt);
 		};
-		while (!targetGreen()) {
+		while (!crewRunCancelled && !(await targetGreen())) {
 			await runSeatTurn(
 				SEATS.misson,
 				crewRunPrompts.crewLoopPrompts.quartermaster,
 			);
+			if (crewRunCancelled) {
+				break;
+			}
 			await runSeatTurn(SEATS.crew, realCrewDispatch);
+			if (crewRunCancelled) {
+				break;
+			}
 			await runSeatTurn(
 				SEATS.bellamy,
 				crewRunPrompts.crewLoopPrompts.boatswain,
 			);
 		}
-		crewLoopAllGreen = targetGreen();
+		if (crewRunCancelled) {
+			return;
+		}
 		const bonnySession = runtime.session;
 		// The crew loop can be driven from inside Bonny's own live tool call.
 		// Sending Bonny another user message mid-turn throws, and aborting would
@@ -1553,6 +1572,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("When Bonny embarks the crew as an ordinary act of their own turn")
 	 * @planks("Then the crew edits production code in the scratch project during the run")
 	 * @planks("Then the started session receives the crew's narration and Bonny's completed-run report")
+	 * @planks("Then the crew runs on while Bonny's turn stays live")
 	 */
 	state.embark = async () => {
 		// A stream already in flight at embark entry is Bonny's own turn calling
@@ -1566,11 +1586,28 @@ export async function run(options?: RunOptions): Promise<void> {
 			state.seatModels[SEATS.misson.role] ?? state.seatModels[SEATS.bonny.role],
 		);
 		if (!currentVerdict.allGreen && liveModelConfigured) {
-			await driveCrewLoopToCompletion(viaBonnyTurn);
-		} else {
+			// Open the crew session so the operator sees the crew embarked, then
+			// drive the loop live without holding Bonny's turn: the conversation
+			// stays live while the crew runs. The run is held for a later await and
+			// for cancellation at teardown.
 			await state.openCrewSession?.();
+			crewRun = (async () => {
+				try {
+					await driveCrewLoopToCompletion(viaBonnyTurn);
+					if (crewRunCancelled) {
+						return;
+					}
+					crewRunEnded = true;
+					await reportCrewRun(viaBonnyTurn);
+				} catch {
+					// The crew run failed or was aborted at teardown; either way the
+					// run is over, and the held promise settles rather than rejecting.
+				}
+			})();
+			return;
 		}
-		if (currentVerdict.allGreen || crewLoopAllGreen) {
+		await state.openCrewSession?.();
+		if (currentVerdict.allGreen) {
 			crewRunEnded = true;
 		}
 		await reportCrewRun(viaBonnyTurn);
@@ -1805,6 +1842,23 @@ export async function run(options?: RunOptions): Promise<void> {
 		},
 		crewDispatches: () => crewDispatches,
 		crewRunEnded: () => crewRunEnded,
+		/**
+		 * @planks("Then the scratch project's own verification command reports the scenario \"adds two numbers\" green")
+		 */
+		awaitCrewRun: () => crewRun ?? Promise.resolve(),
+		/**
+		 * @planks("Then the crew runs on while Bonny's turn stays live")
+		 */
+		cancelCrewRun: async () => {
+			crewRunCancelled = true;
+			activeVerification?.kill();
+			try {
+				await state.crewRuntime?.session.abort();
+			} catch {}
+			try {
+				await crewRun;
+			} catch {}
+		},
 		/**
 		 * @planks("Then Bonny begins their Captain opening turn before the operator speaks")
 		 */

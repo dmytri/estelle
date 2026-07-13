@@ -121,6 +121,8 @@ interface InteractiveHandleView {
 	advanceCrewLoopThroughToBoatswain(): Promise<void>;
 	crewDispatches(): { target: string }[];
 	crewRunEnded(): boolean;
+	awaitCrewRun(): Promise<void>;
+	cancelCrewRun(): Promise<void>;
 	// Slice 7: Bonny embarks from their own turn. The embark seam is a real
 	// Captain-seat tool the seated model can call, not an operator command.
 	// captainTools lists the tools registered on Bonny's Captain seat; each run()
@@ -1430,6 +1432,25 @@ When(
 	async function (this: EstelleWorld) {
 		const session = operatorSession(this);
 		await session.sendUserMessage("Please carry on.");
+		// Embark returns Bonny's turn as soon as the crew is under way; await the
+		// held crew run so the outcome steps read a completed build.
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		await handle.awaitCrewRun();
+	},
+);
+
+Then(
+	"the crew runs on while Bonny's turn stays live",
+	function (this: EstelleWorld) {
+		// Non-blocking embark: Bonny's turn returns while the crew loop is still
+		// under way, so the run has not yet ended. A blocking embark would return
+		// only once the whole loop finished, latching crewRunEnded first.
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		assert.equal(
+			handle.crewRunEnded(),
+			false,
+			"embark blocked Bonny's turn on the full crew run: the run had already ended when the turn returned, so the conversation did not stay live while the crew ran",
+		);
 	},
 );
 

@@ -171,7 +171,16 @@ Before(function (this: EstelleWorld, { pickle }) {
 	});
 });
 
-After(function (this: EstelleWorld) {
+After(async function (this: EstelleWorld) {
+	// A live embark leaves the crew loop running beside Bonny's turn. Stand it
+	// down before disposing the session, so no background run leaks live model
+	// turns or verification spawns into the next scenario.
+	const handle = this.interactiveSession as unknown as {
+		cancelCrewRun?: () => Promise<void>;
+	};
+	if (handle?.cancelCrewRun) {
+		await handle.cancelCrewRun();
+	}
 	this.launched?.dispose();
 	this.launched = undefined;
 	if (this.workspaceDir) {
