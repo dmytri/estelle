@@ -32,6 +32,16 @@ The operator ran it and the crew "spun from role to role with no outcomes", and 
 
 **Why weeks of green missed all of this:** every fixture was built so the test would pass — per-seat models a real session never sets, a cucumber scratch project the hardcoded runner happened to match, a trivial fix the Crew seat alone could make (so the QM/Boatswain theater never mattered). Green was real and meaningless. The fix is to verify against a project shaped like the operator's, and to assert a durable outcome (a commit) that theater cannot fake.
 
+### 0.2.5 — the crew does what the operator ASKED, even on a green project
+Operator: "refit never happened tho I asked for it", "bonny just sat there waiting for nothing", "fire and forget". Their transcript showed the crew narrating `... is green. The crew's run is done.` having done nothing. Three defects:
+1. **The crew never learned the operator's intent.** The embark tool took NO parameters (`properties: {}`); `state.embark: () => Promise<void>`. There was no channel at any layer. The crew could only chase the verification green, so it committed the wrong work and the refit was never assigned to anyone. `embark(batch)` now carries the operator's confirmed request and EVERY seat's dispatch names it. The tool description tells Bonny the crew cannot see the conversation, so the batch is the only intent they get.
+2. **On an already-green project the loop ran ZERO rounds** (`while (!verification.green)`), so Misson/Crew/Bellamy were never seated — which is why the Boatswain never committed. This looked to the operator like "Boatswain custody won't commit"; in fact Bellamy was never seated. A named batch now drives the crew even when green, and the Quartermaster owns the worklist and declares `BATCH COMPLETE`.
+3. **Bonny was fire-and-forget**: after embark the turn ended and the narration was display-only, so Bonny never read a report or spoke. Bonny now speaks each round off the crew's real reports; `crew_status` names the batch.
+
+**Pin:** an ALREADY-GREEN project + batch "Add a LICENSE file" -> the crew creates LICENSE and **Bellamy commits it** (13/13 live). Under the old gate that scenario runs zero rounds and does nothing. This is the operator's exact case.
+
+**Note:** there is deliberately NO Captain-side commit path. Only the Boatswain may commit; the custody hook is correct. The bug was that embark never reached Bellamy.
+
 ### Open follow-ups (not blocking)
 - **Bonny embark-decision steering (`:198`) — MOSTLY BROKEN, not flaky.** Record across this session: 1 pass / 3 fails. Bonny's live model usually instructs a role command instead of calling embark from loose phrasing ("build it and ship it"), despite `assets/agent-prompts.json` embark guidelines forbidding exactly that. `/embark` is the reliable path and works. Fix: harden the embark steering so "build/ship/proceed" maps hard to calling the tool; consider best-of-N or demoting `:198` off the hard gate, since a single-shot live-model decision is probabilistic by nature.
 - **Harness flake:** `captain-reset-nudge.feature:24` intermittently fails under the loaded full `@eval` run (live-model decision / "Agent is already processing" settle race); passes in isolation. Candidate for `## Known false-failure modes`.
