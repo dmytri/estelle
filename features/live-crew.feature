@@ -242,3 +242,20 @@ Feature: Embarking runs the crew alongside Bonny
       Then the crew edits production code in the scratch project during the run
       And the scratch project's own verification command reports the scenario "adds two numbers" green
       And the started session receives the crew's narration and Bonny's completed-run report
+
+  Rule: The crew works any project through its own verification command, and the Boatswain commits
+    The crew reads the project's own verification command from its RIGGING.md, so a project that
+    verifies with anything other than cucumber still turns green; a hardcoded runner would spin
+    forever without an outcome. Every seat is a real working turn: the Quartermaster runs the
+    verification, the Crew edits production, and the Boatswain commits. A seat that can only
+    narrate produces no durable outcome, so the commit is the proof.
+
+    @eval
+    Scenario: The crew greens a non-cucumber project and the Boatswain commits the work
+      Given a scratch project verified by its own non-cucumber command, with a failing target
+      And a started Estelle session seated as the Captain "Bonny" on the scratch project
+      And the live eval model is fitted as the session default
+      And the operator tells Bonny to embark the crew on the failing scenario
+      When Bonny embarks the crew as an ordinary act of their own turn
+      Then the scratch project's own non-cucumber verification passes
+      And the Boatswain committed the crew's work

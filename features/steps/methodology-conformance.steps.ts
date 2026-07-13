@@ -1147,12 +1147,23 @@ function greenReadsTargetFile(body: string): boolean {
 	);
 }
 
-// The green decision runs the project's real verification runner: a child-process
-// execution of cucumber, the runner every RIGGING verification command invokes.
+// The green decision runs THIS PROJECT'S own verification command, read from its
+// RIGGING.md, through a child process. Naming a runner here would re-introduce the
+// defect: a loop hardcoded to one runner never turns green on a project that
+// verifies with anything else, so it spins through seats forever with no outcome.
+// The driver must spawn the resolved project command, not a literal runner.
 function greenRunsVerification(body: string): boolean {
 	return (
 		/(?:spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(/.test(body) &&
-		/cucumber/i.test(body)
+		/verifyCommand|projectVerifyCommand/.test(body)
+	);
+}
+
+// A crew-loop driver that spawns a hardcoded test runner rather than the project's
+// own command. This is the shape that spun the crew without outcomes.
+function greenHardcodesRunner(body: string): boolean {
+	return /(?:spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(\s*["'`](?:pnpm|npm|npx|yarn|node)?["'`]?[^)]*["'`](?:cucumber|cucumber-js|jest|vitest|mocha|pytest|rspec)/i.test(
+		body,
 	);
 }
 
@@ -1183,6 +1194,21 @@ Then(
 		assert.ok(
 			deciding.length > 0,
 			`no crew-loop driver decides a target green by running the project's verification command:\n${drivers
+				.map((d) => `  ${d.file}`)
+				.join("\n")}`,
+		);
+	},
+);
+
+Then(
+	"no crew-loop driver hardcodes a test runner",
+	function (this: CrewLoopWorld) {
+		const drivers = this.methCrewLoopDrivers ?? [];
+		const hardcoded = drivers.filter((d) => greenHardcodesRunner(d.source));
+		assert.equal(
+			hardcoded.length,
+			0,
+			`a crew-loop driver spawns a hardcoded test runner instead of the project's own verification command, so it can never turn a project that verifies differently green:\n${hardcoded
 				.map((d) => `  ${d.file}`)
 				.join("\n")}`,
 		);

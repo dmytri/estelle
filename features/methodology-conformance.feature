@@ -18,6 +18,7 @@ Feature: Methodology conformance
   Scenario: The crew loop decides green by the project's real verification
     Given the crew-loop driver in the implementation
     Then the loop decides a target green by running the project's verification command
+    And no crew-loop driver hardcodes a test runner
     And no crew-loop seam treats a written file's contents as proof of a target green
 
   Scenario: Every plank traces to a live feature step

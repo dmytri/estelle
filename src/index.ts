@@ -278,6 +278,36 @@ function relativeToCwd(cwd: string, path: string): string {
 }
 
 /**
+ * The project's own verification command, read from ITS RIGGING.md under
+ * "## Commands". The crew loop decides green by running this, never a hardcoded
+ * runner: a project that verifies with anything else would never turn green, and
+ * the loop would spin forever without an outcome.
+ */
+function projectVerifyCommand(cwd: string): string | undefined {
+	let rigging: string;
+	try {
+		rigging = readFileSync(join(cwd, "RIGGING.md"), "utf8");
+	} catch {
+		return undefined;
+	}
+	const broad = rigging.match(/^\s*-\s*broad:\s*`([^`]+)`/m)?.[1];
+	if (broad) {
+		return broad.trim();
+	}
+	// A project with no broad sweep is still verifiable by its focused command with
+	// the scenario placeholder dropped, which runs the tier unfiltered.
+	const focused = rigging.match(/^\s*-\s*focused:\s*`([^`]+)`/m)?.[1];
+	if (!focused) {
+		return undefined;
+	}
+	return focused
+		.replace(/--name\s*"?\{scenario\}"?/g, "")
+		.replace(/\{scenario\}/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+/**
  * The perturbation statement is durable configuration under "## Perturbation"
  * in RIGGING.md, read from the project root so the stamped seam tracks the
  * project value.
@@ -1510,17 +1540,28 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("Then the started session receives the crew's narration as the crew runs")
 	 */
 	const driveCrewLoopToCompletion = async (viaBonnyTurn = false) => {
-		// The Crew's own live turn reads the durable specs and edits real
-		// production, and the project's own verification command decides green.
-		const realCrewDispatch =
-			"You are a Crew hand dispatched to a single failing verification target. The project's own verification command `pnpm exec cucumber-js` reports a failing scenario. Read the failing feature spec under features/ and the production code it exercises under src/, reproduce the failure, then make the smallest production edit that turns the failing scenario green. Use your edit or write tool to change the real production file. Do not edit the specs or the tests.";
+		// Green is decided by THIS project's own verification command, read from its
+		// RIGGING.md. A hardcoded runner would never go green on a project that runs
+		// anything else, and the loop would spin forever.
+		const verifyCommand = projectVerifyCommand(cwd);
+		if (!verifyCommand) {
+			throw new Error(
+				"No verification command found: this project's RIGGING.md has no `broad` (or `focused`) command under `## Commands`. The crew cannot decide green without it. Fix RIGGING.md, then embark again.",
+			);
+		}
+		// Every seat is a real working turn with real tools: the Quartermaster runs
+		// verification and names the failing target, the Crew edits real production,
+		// and the Boatswain verifies and actually commits. A seat told not to call
+		// tools can only narrate, which is how the crew spun without outcomes.
+		const quartermasterDispatch = `You are the Quartermaster. Run this project's verification command with your bash tool: \`${verifyCommand}\`. Read its output and name the single failing target the Crew should fix next. If the command itself cannot run (missing config, malformed RIGGING.md, missing dependency), say so plainly and name the blocker instead of guessing. Use your tools; do not answer from memory.`;
+		const crewDispatch = `You are a Crew hand dispatched to a single failing verification target. This project's verification command is \`${verifyCommand}\`. Run it with your bash tool to reproduce the failure, read the durable spec and the production code it exercises, then make the smallest production edit that turns the failing target green. Use your edit or write tool to change the real production file. Do not edit the specs or the tests. Re-run the verification command to confirm your change.`;
+		const boatswainDispatch = `You are the Boatswain. Run this project's verification command with your bash tool: \`${verifyCommand}\`. If it is green, stage the work and commit it with git, with a clear message describing the change. If it is not green, do not commit: say plainly what is still failing. Use your tools; do not answer from memory.`;
 		const targetGreen = () =>
 			new Promise<boolean>((resolve) => {
-				const verification = spawn(
-					"pnpm",
-					["exec", "cucumber-js", "--tags", "not @captain and not @shipwright"],
-					{ cwd },
-				);
+				const verification = spawn(verifyCommand, {
+					cwd,
+					shell: true,
+				});
 				activeVerification = verification;
 				const settle = (green: boolean) => {
 					activeVerification = undefined;
@@ -1555,31 +1596,33 @@ export async function run(options?: RunOptions): Promise<void> {
 			const seatSession = state.crewRuntime.session;
 			await seatSession.sendUserMessage(prompt);
 		};
+		// A bounded run: a crew that cannot turn the target green stops and says so,
+		// rather than spinning through seats forever with no outcome.
+		const maxRounds = 5;
+		let rounds = 0;
 		while (!crewRunCancelled && !(await targetGreen())) {
+			if (rounds >= maxRounds) {
+				throw new Error(
+					`The crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green, so the run stopped rather than spinning. Read the verification output and the blocker the Quartermaster named, then embark again.`,
+				);
+			}
+			rounds += 1;
 			await narrate(
-				`${SEATS.misson.name} takes the Quartermaster's turn against the failing target.`,
+				`${SEATS.misson.name} runs \`${verifyCommand}\` and names the failing target.`,
 			);
-			await runSeatTurn(
-				SEATS.misson,
-				crewRunPrompts.crewLoopPrompts.quartermaster,
-			);
+			await runSeatTurn(SEATS.misson, quartermasterDispatch);
 			if (crewRunCancelled) {
 				break;
 			}
 			await narrate(
-				`${SEATS.crew.name} works the failing target in production.`,
+				`${SEATS.crew.name} edits production to turn the failing target green.`,
 			);
-			await runSeatTurn(SEATS.crew, realCrewDispatch);
+			await runSeatTurn(SEATS.crew, crewDispatch);
 			if (crewRunCancelled) {
 				break;
 			}
-			await narrate(
-				`${SEATS.bellamy.name} takes the Boatswain's turn to verify and commit.`,
-			);
-			await runSeatTurn(
-				SEATS.bellamy,
-				crewRunPrompts.crewLoopPrompts.boatswain,
-			);
+			await narrate(`${SEATS.bellamy.name} verifies and commits the work.`);
+			await runSeatTurn(SEATS.bellamy, boatswainDispatch);
 		}
 		if (crewRunCancelled) {
 			return;

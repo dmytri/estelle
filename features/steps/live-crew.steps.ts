@@ -1239,6 +1239,110 @@ Then(
 	},
 );
 
+// A scratch project that does NOT use cucumber: its own verification is a plain
+// node script, named in ITS RIGGING.md. A crew loop hardcoded to a cucumber
+// runner can never turn this green, and a Boatswain forbidden from calling tools
+// can never commit it. This is the shape a real operator's project has, and it is
+// the only capstone that cannot pass on a technicality.
+
+Given(
+	"a scratch project verified by its own non-cucumber command, with a failing target",
+	{ timeout: 120000 },
+	function (this: EstelleWorld) {
+		const dir = mkdtempSync(join(tmpdir(), "estelle-scratch-plain-"));
+		writeFileSync(
+			join(dir, "package.json"),
+			JSON.stringify({ name: "estelle-scratch-plain", version: "0.0.0" }),
+			"utf8",
+		);
+		// The project's own verification: plain node, no cucumber anywhere.
+		writeFileSync(
+			join(dir, "verify.js"),
+			[
+				'const { add } = require("./src/sum.js");',
+				"const got = add(2, 2);",
+				"if (got !== 4) {",
+				'\tconsole.error("FAIL: add(2, 2) must be 4, got " + got);',
+				"\tprocess.exit(1);",
+				"}",
+				'console.log("OK: add(2, 2) is 4");',
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		writeFileSync(
+			join(dir, "RIGGING.md"),
+			[
+				"# Rigging",
+				"",
+				"## Stack",
+				"",
+				"- language: javascript",
+				"",
+				"## Directories",
+				"",
+				"- implementation: src",
+				"- specs: features",
+				"",
+				"## Commands",
+				"",
+				"- broad: `node verify.js`",
+				"",
+				"## Perturbation",
+				"",
+				"- message: `PERTURBATION: consider current durable context; remove when fixed`",
+				'- perturb: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`',
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		mkdirSync(join(dir, "src"), { recursive: true });
+		const seededProduction = "exports.add = (a, b) => a - b;\n";
+		const productionPath = join(dir, "src", "sum.js");
+		writeFileSync(productionPath, seededProduction, "utf8");
+		// A real git repo, so the Boatswain can actually commit and we can prove it.
+		gitIn(dir, ["init", "-q"]);
+		gitIn(dir, ["config", "user.email", "crew@estelle.test"]);
+		gitIn(dir, ["config", "user.name", "Estelle Crew"]);
+		gitIn(dir, ["add", "-A"]);
+		gitIn(dir, ["commit", "-q", "-m", "seed the failing project"]);
+		const baseCommits = Number(gitIn(dir, ["rev-list", "--count", "HEAD"]));
+		(this as unknown as { scratchProject?: ScratchProject }).scratchProject = {
+			dir,
+			productionPath,
+			seededProduction,
+			baseCommits,
+		};
+		this.workspaceDir = dir;
+	},
+);
+
+Then(
+	"the scratch project's own non-cucumber verification passes",
+	{ timeout: 120000 },
+	function (this: EstelleWorld) {
+		const project = scratch(this);
+		const result = spawnSync("node", ["verify.js"], {
+			cwd: project.dir,
+			encoding: "utf8",
+		});
+		assert.equal(
+			result.status,
+			0,
+			`the scratch project's own \`node verify.js\` is still red after the crew run: ${result.stdout}${result.stderr}`,
+		);
+	},
+);
+
+Then("the Boatswain committed the crew's work", function (this: EstelleWorld) {
+	const project = scratch(this);
+	const now = Number(gitIn(project.dir, ["rev-list", "--count", "HEAD"]));
+	assert.ok(
+		now > (project.baseCommits ?? 0),
+		`the Boatswain made no commit: the scratch project still has ${now} commit(s). A Boatswain that can only narrate cannot commit, so the crew produced no durable outcome.`,
+	);
+});
+
 Then(
 	"the started session receives the crew's narration and Bonny's completed-run report",
 	function (this: EstelleWorld) {
@@ -1269,6 +1373,17 @@ interface ScratchProject {
 	dir: string;
 	productionPath: string;
 	seededProduction: string;
+	baseCommits?: number;
+}
+
+function gitIn(dir: string, args: string[]): string {
+	const result = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+	assert.equal(
+		result.status,
+		0,
+		`git ${args.join(" ")} failed in ${dir}: ${result.stderr}`,
+	);
+	return result.stdout.trim();
 }
 
 function scratch(world: EstelleWorld): ScratchProject {

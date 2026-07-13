@@ -11,9 +11,6 @@
   "crewRunSummary": "Voice a single short line in your own voice summarizing the crew's completed run for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
   "crewRunNarration": "Voice a single short line in your own voice narrating that the crew is now running the batch for the operator. Reply with plain text only. Do not read files. Do not call any tools.",
   "crewLoopPrompts": {
-    "quartermaster": "You are the Quartermaster. Reply with a single short line of plain text naming the failing target. Do not read files. Do not call any tools.",
-    "crew": "You are the Crew. Reply with a single short line of plain text recording your fix for the target. Do not read files. Do not call any tools.",
-    "boatswain": "You are the Boatswain. Reply with a single short line of plain text confirming you commit the fix. Do not read files. Do not call any tools.",
     "crewReady": "Reply with a single short line of plain text confirming you are ready. Do not read files. Do not call any tools."
   }
 }
