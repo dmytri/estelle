@@ -105,7 +105,25 @@ interface EstelleState {
 	crewRuntime?: AgentSessionRuntime;
 	openCrewSession?: (seat?: Seat) => Promise<void>;
 	embark?: () => Promise<void>;
+	crewStatus?: CrewRunStatus;
 	onProviderRequest?: () => void;
+}
+
+/**
+ * The authoritative live state of the crew's run. Bonny reads this to answer the
+ * operator's "who is working, and what are they doing?" from fact. Without it
+ * Bonny can only guess from chat lines, or go digging through processes and git
+ * for forensics, which is not knowing.
+ */
+interface CrewRunStatus {
+	active: boolean;
+	seat?: string;
+	round: number;
+	maxRounds: number;
+	verifyCommand?: string;
+	verification?: { green: boolean; output: string };
+	reports: { seat: string; report: string }[];
+	stoppedBecause?: string;
 }
 
 const CHARACTER_CARDS: Record<string, string> = {
@@ -442,9 +460,13 @@ function createEstelleExtension(
 		}
 		pi.registerCommand("embark", {
 			description:
-				"Embark the batch: open a crew session alongside seated as the Quartermaster Misson",
+				"Embark the batch: set the crew working on the confirmed batch in a session alongside",
 			handler: async () => {
-				await state.openCrewSession?.();
+				// The operator's own deterministic path to a working crew: drive the
+				// real crew loop, exactly as Bonny's embark tool does. Opening an idle
+				// crew session here would seat the Quartermaster and do no work, which
+				// is the whole defect.
+				await (state.embark ?? state.openCrewSession)?.();
 			},
 		});
 		pi.registerCommand("qm", {
@@ -490,12 +512,65 @@ function createEstelleExtension(
 					};
 				},
 			});
+			// Bonny reads the crew's authoritative live state rather than guessing from
+			// chat lines or digging through processes and git for forensics. This is
+			// how Bonny answers "who is working, and what are they doing?" from fact.
+			pi.registerTool({
+				name: "crew_status",
+				label: "Read the crew's live status",
+				description:
+					"Report what the crew is actually doing right now: whether a run is active, which seat is working, which round it is on, what the project's verification command last said, and what each seat reported. Call this whenever the operator asks about the crew, rather than guessing or inspecting processes and git.",
+				promptSnippet:
+					"crew_status: read what the crew is actually doing right now",
+				promptGuidelines: [
+					"When the operator asks what the crew is doing, who is working, or whether the run is progressing, call crew_status and answer from what it returns. Never guess, and never go digging through the process table or git history to infer it.",
+				],
+				parameters: {
+					type: "object",
+					properties: {},
+					additionalProperties: false,
+				} as unknown as Parameters<typeof pi.registerTool>[0]["parameters"],
+				execute: async () => {
+					const status = state.crewStatus;
+					if (!status) {
+						return {
+							content: [
+								{
+									type: "text" as const,
+									text: "No crew run has been embarked in this session.",
+								},
+							],
+							details: undefined,
+						};
+					}
+					const lines = [
+						status.active
+							? `The crew is RUNNING. ${status.seat ?? "A seat"} is working right now, on round ${status.round} of ${status.maxRounds}.`
+							: `The crew is NOT running.${status.stoppedBecause ? ` It stopped because: ${status.stoppedBecause}` : ""}`,
+						status.verifyCommand
+							? `Verification command: \`${status.verifyCommand}\``
+							: "",
+						status.verification
+							? `Last verification: ${status.verification.green ? "GREEN" : "RED"}\n${status.verification.output}`
+							: "Verification has not run yet.",
+						status.reports.length > 0
+							? `What each seat reported:\n${status.reports
+									.map((entry) => `- ${entry.seat}: ${entry.report}`)
+									.join("\n")}`
+							: "No seat has reported yet.",
+					].filter((line) => line.length > 0);
+					return {
+						content: [{ type: "text" as const, text: lines.join("\n\n") }],
+						details: undefined,
+					};
+				},
+			});
 			// The session's active tool set defaults to the built-in tools, so a
 			// registered tool stays hidden from the model until activated. Activate
-			// embark on session_start, after the default set is applied, so Bonny's
-			// live model can call it from their own turn.
+			// embark and crew_status on session_start, after the default set is
+			// applied, so Bonny's live model can call them from their own turn.
 			pi.on("session_start", () => {
-				pi.setActiveTools([...pi.getActiveTools(), "embark"]);
+				pi.setActiveTools([...pi.getActiveTools(), "embark", "crew_status"]);
 			});
 		}
 		pi.registerCommand("clear", {
@@ -1556,21 +1631,39 @@ export async function run(options?: RunOptions): Promise<void> {
 		const quartermasterDispatch = `You are the Quartermaster. Run this project's verification command with your bash tool: \`${verifyCommand}\`. Read its output and name the single failing target the Crew should fix next. If the command itself cannot run (missing config, malformed RIGGING.md, missing dependency), say so plainly and name the blocker instead of guessing. Use your tools; do not answer from memory.`;
 		const crewDispatch = `You are a Crew hand dispatched to a single failing verification target. This project's verification command is \`${verifyCommand}\`. Run it with your bash tool to reproduce the failure, read the durable spec and the production code it exercises, then make the smallest production edit that turns the failing target green. Use your edit or write tool to change the real production file. Do not edit the specs or the tests. Re-run the verification command to confirm your change.`;
 		const boatswainDispatch = `You are the Boatswain. Run this project's verification command with your bash tool: \`${verifyCommand}\`. If it is green, stage the work and commit it with git, with a clear message describing the change. If it is not green, do not commit: say plainly what is still failing. Use your tools; do not answer from memory.`;
-		const targetGreen = () =>
-			new Promise<boolean>((resolve) => {
+		// Run the project's own verification and keep what it SAID, not just whether
+		// it passed. The output is what names the failure, and Bonny needs it to
+		// answer the operator's "what is the crew doing?" from fact.
+		const runVerification = () =>
+			new Promise<{ green: boolean; output: string }>((resolve) => {
 				const verification = spawn(verifyCommand, {
 					cwd,
 					shell: true,
 				});
+				let output = "";
+				verification.stdout?.on("data", (chunk) => {
+					output += String(chunk);
+				});
+				verification.stderr?.on("data", (chunk) => {
+					output += String(chunk);
+				});
 				activeVerification = verification;
 				const settle = (green: boolean) => {
 					activeVerification = undefined;
-					resolve(green);
+					resolve({ green, output: output.trim().slice(-1200) });
 				};
 				verification.on("close", (code) => settle(code === 0));
-				verification.on("error", () => settle(false));
+				verification.on("error", (error) => {
+					output += `\n${error.message}`;
+					settle(false);
+				});
 			});
 		const liveModelId = liveCrewModel();
+		// The crew's real progress reaches Bonny's own session: what the verification
+		// actually said, and what each seat actually reported doing. Bonny can then
+		// speak to the run with the operator instead of guessing. The firewall holds:
+		// Bonny receives each seat's own distilled report, never the crew's raw
+		// context.
 		const narrate = async (line: string) => {
 			await runtime.session.sendCustomMessage({
 				customType: "crew-narration",
@@ -1579,6 +1672,11 @@ export async function run(options?: RunOptions): Promise<void> {
 			});
 		};
 		const runSeatTurn = async (seat: Seat, prompt: string) => {
+			// The live status names who is working the moment they start, so Bonny can
+			// answer "who is working right now?" from fact rather than inference.
+			if (state.crewStatus) {
+				state.crewStatus.seat = `${seat.name} (${seat.role})`;
+			}
 			const seatModels: Record<string, string> = { ...state.seatModels };
 			if (liveModelId) {
 				seatModels[seat.role] = liveModelId;
@@ -1595,34 +1693,81 @@ export async function run(options?: RunOptions): Promise<void> {
 			});
 			const seatSession = state.crewRuntime.session;
 			await seatSession.sendUserMessage(prompt);
+			return (
+				seatSession.messages
+					.filter((message) => message.role === "assistant")
+					.map(assistantText)
+					.filter((text) => text.trim().length > 0)
+					.pop() ?? "(no report)"
+			);
 		};
 		// A bounded run: a crew that cannot turn the target green stops and says so,
 		// rather than spinning through seats forever with no outcome.
 		const maxRounds = 5;
-		let rounds = 0;
-		while (!crewRunCancelled && !(await targetGreen())) {
-			if (rounds >= maxRounds) {
+		// The authoritative live record of this run. Bonny reads it through the
+		// crew_status tool, so "who is working and what are they doing" is answered
+		// from fact, never guessed and never dug out of the process table.
+		const status: CrewRunStatus = {
+			active: true,
+			round: 0,
+			maxRounds,
+			verifyCommand,
+			reports: [],
+		};
+		state.crewStatus = status;
+		const record = async (seat: Seat, report: string) => {
+			status.reports.push({ seat: `${seat.name} (${seat.role})`, report });
+			await narrate(`${seat.name} (${seat.role}): ${report}`);
+		};
+		const settleStatus = (stoppedBecause?: string) => {
+			status.active = false;
+			status.seat = undefined;
+			status.stoppedBecause = stoppedBecause;
+		};
+		let verdict = await runVerification();
+		status.verification = verdict;
+		while (!crewRunCancelled && !verdict.green) {
+			if (status.round >= maxRounds) {
+				settleStatus(
+					`the crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green`,
+				);
 				throw new Error(
-					`The crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green, so the run stopped rather than spinning. Read the verification output and the blocker the Quartermaster named, then embark again.`,
+					`The crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green, so the run stopped rather than spinning. The last verification output was:\n${verdict.output}`,
 				);
 			}
-			rounds += 1;
+			status.round += 1;
 			await narrate(
-				`${SEATS.misson.name} runs \`${verifyCommand}\` and names the failing target.`,
+				`Round ${status.round}: \`${verifyCommand}\` is red.\n${verdict.output}`,
 			);
-			await runSeatTurn(SEATS.misson, quartermasterDispatch);
+			await record(
+				SEATS.misson,
+				await runSeatTurn(SEATS.misson, quartermasterDispatch),
+			);
 			if (crewRunCancelled) {
 				break;
 			}
-			await narrate(
-				`${SEATS.crew.name} edits production to turn the failing target green.`,
-			);
-			await runSeatTurn(SEATS.crew, crewDispatch);
+			await record(SEATS.crew, await runSeatTurn(SEATS.crew, crewDispatch));
 			if (crewRunCancelled) {
 				break;
 			}
-			await narrate(`${SEATS.bellamy.name} verifies and commits the work.`);
-			await runSeatTurn(SEATS.bellamy, boatswainDispatch);
+			await record(
+				SEATS.bellamy,
+				await runSeatTurn(SEATS.bellamy, boatswainDispatch),
+			);
+			verdict = await runVerification();
+			status.verification = verdict;
+		}
+		if (crewRunCancelled) {
+			settleStatus("the run was stood down");
+		} else {
+			settleStatus(
+				verdict.green ? undefined : `\`${verifyCommand}\` is still red`,
+			);
+			await narrate(
+				verdict.green
+					? `\`${verifyCommand}\` is green. The crew's run is done.`
+					: `\`${verifyCommand}\` is still red.\n${verdict.output}`,
+			);
 		}
 		if (crewRunCancelled) {
 			return;

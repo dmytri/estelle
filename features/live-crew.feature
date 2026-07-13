@@ -259,3 +259,19 @@ Feature: Embarking runs the crew alongside Bonny
       When Bonny embarks the crew as an ordinary act of their own turn
       Then the scratch project's own non-cucumber verification passes
       And the Boatswain committed the crew's work
+
+  Rule: The operator's own "/embark" command sets the crew working, not an idle seat
+    The operator must have a deterministic way to set the crew working that does not
+    depend on Bonny's model choosing to embark. The "/embark" command drives the real
+    crew loop, exactly as Bonny's embark tool does. A command that only opens a crew
+    session seats the Quartermaster and does no work, which is the defect.
+
+    @eval
+    Scenario: The operator's own "/embark" command drives the crew to green and commits
+      Given a scratch project verified by its own non-cucumber command, with a failing target
+      And a started Estelle session seated as the Captain "Bonny" on the scratch project
+      And the live eval model is fitted as the session default
+      When the operator runs the "/embark" command in the started session
+      And the crew run completes
+      Then the scratch project's own non-cucumber verification passes
+      And the Boatswain committed the crew's work

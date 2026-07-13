@@ -1317,6 +1317,17 @@ Given(
 	},
 );
 
+When(
+	"the crew run completes",
+	// Embark returns the operator's turn as soon as the crew is under way, so the
+	// outcome steps wait on the held run rather than reading a half-finished deck.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		await handle.awaitCrewRun();
+	},
+);
+
 Then(
 	"the scratch project's own non-cucumber verification passes",
 	{ timeout: 120000 },
