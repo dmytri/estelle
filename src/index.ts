@@ -1476,10 +1476,38 @@ export async function run(options?: RunOptions): Promise<void> {
 		.getExtensions()
 		.extensions.map((e) => extensionName(e.path, e.resolvedPath));
 
+	// The live model the crew runs on: an explicit per-seat model when the
+	// operator set one, otherwise the session's own default model, the same
+	// resolution every real turn uses. Returns an id only when it resolves to an
+	// available model, so an unfitted session drives no crew instead of seating an
+	// idle one.
+	const liveCrewModel = (): string | undefined => {
+		let id =
+			state.seatModels[SEATS.misson.role] ?? state.seatModels[SEATS.bonny.role];
+		if (!id) {
+			try {
+				id = piDefaultModel(agentDir);
+			} catch {
+				return undefined;
+			}
+		}
+		const slash = id.indexOf("/");
+		if (slash < 0) {
+			return undefined;
+		}
+		return runtime.services.modelRegistry.find(
+			id.slice(0, slash),
+			id.slice(slash + 1),
+		)
+			? id
+			: undefined;
+	};
+
 	/**
 	 * @planks("Then Estelle runs the crew loop to completion without a further operator step")
 	 * @planks("Then the crew edits production code in the scratch project during the run")
 	 * @planks("Then the scratch project's own verification command reports the scenario \"adds two numbers\" green")
+	 * @planks("Then the started session receives the crew's narration as the crew runs")
 	 */
 	const driveCrewLoopToCompletion = async (viaBonnyTurn = false) => {
 		// The Crew's own live turn reads the durable specs and edits real
@@ -1501,8 +1529,14 @@ export async function run(options?: RunOptions): Promise<void> {
 				verification.on("close", (code) => settle(code === 0));
 				verification.on("error", () => settle(false));
 			});
-		const liveModelId =
-			state.seatModels[SEATS.misson.role] ?? state.seatModels[SEATS.bonny.role];
+		const liveModelId = liveCrewModel();
+		const narrate = async (line: string) => {
+			await runtime.session.sendCustomMessage({
+				customType: "crew-narration",
+				content: line,
+				display: true,
+			});
+		};
 		const runSeatTurn = async (seat: Seat, prompt: string) => {
 			const seatModels: Record<string, string> = { ...state.seatModels };
 			if (liveModelId) {
@@ -1522,6 +1556,9 @@ export async function run(options?: RunOptions): Promise<void> {
 			await seatSession.sendUserMessage(prompt);
 		};
 		while (!crewRunCancelled && !(await targetGreen())) {
+			await narrate(
+				`${SEATS.misson.name} takes the Quartermaster's turn against the failing target.`,
+			);
 			await runSeatTurn(
 				SEATS.misson,
 				crewRunPrompts.crewLoopPrompts.quartermaster,
@@ -1529,10 +1566,16 @@ export async function run(options?: RunOptions): Promise<void> {
 			if (crewRunCancelled) {
 				break;
 			}
+			await narrate(
+				`${SEATS.crew.name} works the failing target in production.`,
+			);
 			await runSeatTurn(SEATS.crew, realCrewDispatch);
 			if (crewRunCancelled) {
 				break;
 			}
+			await narrate(
+				`${SEATS.bellamy.name} takes the Boatswain's turn to verify and commit.`,
+			);
 			await runSeatTurn(
 				SEATS.bellamy,
 				crewRunPrompts.crewLoopPrompts.boatswain,
@@ -1579,13 +1622,13 @@ export async function run(options?: RunOptions): Promise<void> {
 		// the embark tool: the live-voice seams must not abort it.
 		const viaBonnyTurn = runtime.session.isStreaming;
 		await narrateCrewRun();
-		// A live model with a genuinely failing project drives the real crew loop
-		// against the project's own verification; an all-green verdict just opens
-		// the crew session.
-		const liveModelConfigured = Boolean(
-			state.seatModels[SEATS.misson.role] ?? state.seatModels[SEATS.bonny.role],
-		);
-		if (!currentVerdict.allGreen && liveModelConfigured) {
+		// A resolvable live model plus a failing project drives the real crew loop
+		// against the project's own verification. The model is the operator's own
+		// default when no per-seat model is set, so a normal session drives the crew
+		// rather than seating an idle one; an all-green verdict or an unfitted
+		// session just opens the crew session.
+		const liveModelId = liveCrewModel();
+		if (!currentVerdict.allGreen && liveModelId) {
 			// Open the crew session so the operator sees the crew embarked, then
 			// drive the loop live without holding Bonny's turn: the conversation
 			// stays live while the crew runs. The run is held for a later await and
@@ -1599,9 +1642,19 @@ export async function run(options?: RunOptions): Promise<void> {
 					}
 					crewRunEnded = true;
 					await reportCrewRun(viaBonnyTurn);
-				} catch {
-					// The crew run failed or was aborted at teardown; either way the
-					// run is over, and the held promise settles rather than rejecting.
+				} catch (error) {
+					// A cancelled run was stood down at teardown and needs no report.
+					// Any other failure is surfaced into the operator's own session, so
+					// a crew run that could not complete is visible rather than silent.
+					if (!crewRunCancelled) {
+						await runtime.session.sendCustomMessage({
+							customType: "crew-run-report",
+							content: `${SEATS.bellamy.name}: the crew run stopped before every target was green. ${
+								error instanceof Error ? error.message : String(error)
+							}`,
+							display: true,
+						});
+					}
 				}
 			})();
 			return;
@@ -1609,8 +1662,16 @@ export async function run(options?: RunOptions): Promise<void> {
 		await state.openCrewSession?.();
 		if (currentVerdict.allGreen) {
 			crewRunEnded = true;
+			await reportCrewRun(viaBonnyTurn);
+			return;
 		}
-		await reportCrewRun(viaBonnyTurn);
+		// A batch is waiting but no model resolves: the crew is seated and cannot be
+		// set to work. Say so plainly rather than reporting a run that never ran.
+		await runtime.session.sendCustomMessage({
+			customType: "crew-run-report",
+			content: `${SEATS.bonny.name}: the crew is seated, but no model is fitted, so I cannot set them to work. Fit out a provider and model, then embark again.`,
+			display: true,
+		});
 	};
 
 	await openWithBonnyVoice(

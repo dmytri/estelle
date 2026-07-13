@@ -236,7 +236,7 @@ Feature: Embarking runs the crew alongside Bonny
     Scenario: Embark turns a genuinely failing project scenario green through real crew work
       Given a scratch Shipshape project whose scenario "adds two numbers" fails its own verification command
       And a started Estelle session seated as the Captain "Bonny" on the scratch project
-      And a live eval model is configured for the crew and Bonny
+      And the live eval model is fitted as the session default
       And the operator tells Bonny to embark the crew on the failing scenario
       When Bonny embarks the crew as an ordinary act of their own turn
       Then the crew edits production code in the scratch project during the run

@@ -537,6 +537,32 @@ Given(
 	},
 );
 
+Given(
+	"the live eval model is fitted as the session default",
+	async function (this: EstelleWorld) {
+		const model = process.env.HARNESS_EVAL_MODEL!;
+		const key = process.env.HARNESS_OPENROUTER_API_KEY!;
+		// Fit the eval model as the agent's DEFAULT model, with no per-seat override
+		// and no estelle.json seats, exactly as a normal operator session is
+		// configured. Embark must resolve the crew's model from this default, the
+		// way every real turn does, rather than from a per-seat estelle.json a real
+		// operator session never writes. A capstone that pre-seeds per-seat models
+		// proves nothing about the real path.
+		writeFileSync(
+			join(this.agentDir!, "settings.json"),
+			JSON.stringify({ defaultProvider: "openrouter", defaultModel: model }),
+			"utf8",
+		);
+		writeFileSync(
+			join(this.agentDir!, "auth.json"),
+			JSON.stringify({ openrouter: { type: "api_key", key } }),
+			"utf8",
+		);
+		this.interactiveSession = undefined;
+		await startSession(this);
+	},
+);
+
 Then(
 	"Bonny's narration for the handoff carries a live line in their voice",
 	function (this: EstelleWorld) {

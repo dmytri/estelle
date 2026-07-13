@@ -15,8 +15,15 @@ Embark now drives a REAL crew: `driveCrewLoopToCompletion` spawns the project's 
 ### Verified
 `@logic` 153/153. `@eval`: `:198` fixed (1m16s), capstone green, all live-crew `@eval` green. Watchbill (`watch1 @logic`, `watch2 @eval`) spent and struck.
 
+### 0.2.2 — embark drives the crew in a REAL session (the operator's actual bug)
+Reported by the operator: embark returned "Crew embarked... working alongside" but the crew did nothing (deck unchanged, no build process). Two bugs, only one had been found:
+1. **Mechanism (FIXED, proven):** embark gated `liveModelConfigured` on `state.seatModels` (explicit per-seat models), which is empty in a normal session that uses the agent's *default* model. So embark took the "just open the session" branch and never drove the loop. Fix: `liveCrewModel()` resolves `seatModels ?? piDefaultModel(agentDir)` and confirms availability via `modelRegistry`, the same resolution every real turn uses. The capstone now runs through the default-model path ("the live eval model is fitted as the session default", empty seats) — passed 14/14, planted-red proven (old seatModels-only gate reddens it). Also: background-run errors now surface into the operator's session instead of a silent `catch {}`; an unfitted session says so; per-seat narration streams as the crew works.
+   - **Why weeks of green missed it:** the capstone hand-configured per-seat `estelle.json` seats — the one path a real session never takes. The green was real but under conditions that don't exist in reality.
+2. **Decision (steering TODO, model-dependent):** Bonny reliably embarks on explicit "embark the crew on X" (capstone green) but NOT reliably on loose "build it and ship it" — `:198` reproducibly reddens because the live model instructs a role command instead of calling embark, despite steering that forbids it. Mechanism, not blocked; steering to harden. Operator chose to ship the mechanism fix and defer steering.
+
 ### Open follow-ups (not blocking)
-- **Harness flake:** `captain-reset-nudge.feature:24` intermittently fails under the loaded full `@eval` run with "Agent is already processing" (Bonny's opening turn outlasts the 120s settle window in "Bonny takes their next turn"); passes in isolation. Engineer out: firmer settle signal or `streamingBehavior` on the send. Candidate for `## Known false-failure modes`.
+- **Bonny embark-decision steering (`:198`):** harden `assets/agent-prompts.json` embark guidelines so "build/ship/proceed" maps hard to calling embark; `:198` is a single-shot live-model decision, so consider best-of-N / demoting it off the hard gate.
+- **Harness flake:** `captain-reset-nudge.feature:24` intermittently fails under the loaded full `@eval` run (live-model decision / "Agent is already processing" settle race); passes in isolation. Candidate for `## Known false-failure modes`.
 - **Asset tidy:** `crewLoopPrompts.crew` in `assets/agent-prompts.json` is now unused (the proxy crew dispatch is gone); `quartermaster` / `boatswain` / `crewReady` still used.
 - **Parked (pre-existing):** 6th handoff-narration inline template; gender-neutral scan scope excludes `assets/`+`src/`; message-history isolation pinning (alongside seats); documented pi-gaps (`Task` -> dispatch-guard, `SubagentStop` -> planks-check).
 
