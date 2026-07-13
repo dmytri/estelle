@@ -507,7 +507,6 @@ const LIVE_TURN_MARKER: RegExp[] = [
 	/\.runTurn\(/,
 	/\.handOffToCrew\(/,
 	/\.reportCrewRun\(/,
-	/\.runCrewLoopToCompletion\(/,
 	/\bembark\.run\(/,
 	/agent_end/,
 ];

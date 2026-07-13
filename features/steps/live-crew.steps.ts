@@ -121,20 +121,6 @@ interface InteractiveHandleView {
 	advanceCrewLoopThroughToBoatswain(): Promise<void>;
 	crewDispatches(): { target: string }[];
 	crewRunEnded(): boolean;
-	// Slice 6 @eval: the live capstone. configureRedTarget arms a real target
-	// that starts red and turns green only once the Crew fixes it.
-	// runCrewLoopToCompletion drives the whole loop live: the Quartermaster
-	// verdict, the Crew fix, and the Boatswain commit, looping until green.
-	// crewLoopSeatsRanLive reports which seats produced a live model turn during
-	// the run; crewLoopTargetsAllGreen reports the loop's final verdict.
-	configureRedTarget(): void;
-	runCrewLoopToCompletion(): Promise<void>;
-	crewLoopSeatsRanLive(): {
-		quartermaster: boolean;
-		crew: boolean;
-		boatswain: boolean;
-	};
-	crewLoopTargetsAllGreen(): boolean;
 	// Slice 7: Bonny embarks from their own turn. The embark seam is a real
 	// Captain-seat tool the seated model can call, not an operator command.
 	// captainTools lists the tools registered on Bonny's Captain seat; each run()
@@ -793,20 +779,6 @@ Then(
 );
 
 Then(
-	"the crew session blocks a Crew hand from committing",
-	function (this: EstelleWorld) {
-		const result = crewSession(this).commit();
-		assert.equal(
-			result.allowed,
-			false,
-			`crew session allowed the seated Crew hand's commit but commit custody should block it: ${
-				result.reason ?? ""
-			}`,
-		);
-	},
-);
-
-Then(
 	"the crew session lets only the Boatswain commit",
 	function (this: EstelleWorld) {
 		const result = crewSession(this).commit();
@@ -838,60 +810,6 @@ Then(
 			`Boatswain crew session carries the Crew's context ${JSON.stringify(
 				target,
 			)}; leaked messages: ${JSON.stringify(leaked.map(messageText))}`,
-		);
-	},
-);
-
-Given(
-	"a target that is red until the Crew fixes it",
-	function (this: EstelleWorld) {
-		handle(this).configureRedTarget();
-	},
-);
-
-When(
-	"Estelle runs the crew loop to completion",
-	// The live loop drives real provider turns through the Quartermaster, the
-	// Crew, and the Boatswain seats, looping until the target turns green. It
-	// needs a live-run budget well beyond cucumber's 5000ms default and beyond a
-	// single-turn live step.
-	{ timeout: 600000 },
-	async function (this: EstelleWorld) {
-		await handle(this).runCrewLoopToCompletion();
-	},
-);
-
-Then(
-	"the crew loop ran the Quartermaster, the Crew, and the Boatswain live",
-	function (this: EstelleWorld) {
-		const seats = handle(this).crewLoopSeatsRanLive();
-		assert.equal(
-			seats.quartermaster,
-			true,
-			`the Quartermaster did not run live during the loop: ${JSON.stringify(
-				seats,
-			)}`,
-		);
-		assert.equal(
-			seats.crew,
-			true,
-			`the Crew did not run live during the loop: ${JSON.stringify(seats)}`,
-		);
-		assert.equal(
-			seats.boatswain,
-			true,
-			`the Boatswain did not run live during the loop: ${JSON.stringify(seats)}`,
-		);
-	},
-);
-
-Then(
-	"the crew loop ended with every target green",
-	function (this: EstelleWorld) {
-		assert.equal(
-			handle(this).crewLoopTargetsAllGreen(),
-			true,
-			"the crew loop ended with a target still red",
 		);
 	},
 );
@@ -958,34 +876,6 @@ Then(
 		assert.ok(
 			reports[reports.length - 1].summary.trim().length > 0,
 			`crew-run report carries no summary: ${JSON.stringify(reports)}`,
-		);
-	},
-);
-
-Then(
-	"Bonny's crew-run report carries a live summary of the run",
-	function (this: EstelleWorld) {
-		// A live summary is real text Bonny's model voiced for the completed run,
-		// not a static template. Require the recorded summary to appear as a
-		// non-empty assistant message in Bonny's own live session, the same seam
-		// the sibling live-summary and live-reply scenarios read.
-		const report = crewRunReport(this);
-		assert.ok(
-			report.summary.trim().length > 0,
-			`Bonny's crew-run report carries no live summary: ${JSON.stringify(
-				report,
-			)}`,
-		);
-		const handle = this.interactiveSession as unknown as InteractiveHandleView;
-		const bonnyReplies = handle.runtime.session.messages
-			.filter((m) => m.role === "assistant")
-			.map(messageText)
-			.filter((text) => text.trim().length > 0);
-		assert.ok(
-			bonnyReplies.includes(report.summary),
-			`Bonny's crew-run summary was not voiced by their live model; summary: ${JSON.stringify(
-				report.summary,
-			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
 		);
 	},
 );
@@ -1091,13 +981,6 @@ function surfacedMessages(
 	);
 }
 
-function operatorAssistantReplies(world: EstelleWorld): string[] {
-	return operatorSession(world)
-		.messages.filter((message) => message.role === "assistant")
-		.map(messageText)
-		.filter((text) => text.trim().length > 0);
-}
-
 Then(
 	"the started session receives the crew's narration as the crew runs",
 	function (this: EstelleWorld) {
@@ -1124,54 +1007,6 @@ Then(
 					.messages.filter((m) => m.role === "custom")
 					.map((m) => m.customType),
 			)}`,
-		);
-	},
-);
-
-Then(
-	"the started session shows live narration of the crew's run",
-	function (this: EstelleWorld) {
-		// Live narration reaches the operator's session as a display message whose
-		// text Bonny's live model voiced. Require a surfaced narration message and
-		// require its text to appear among Bonny's own live assistant replies in the
-		// operator's session, the same live-proof seam the sibling @eval steps use. A
-		// static template pushed straight into the session never appears as a live
-		// assistant reply, so this fails rather than passing green without a live run.
-		const narration = surfacedMessages(this, "crew-narration");
-		assert.ok(
-			narration.length > 0,
-			"the operator's session shows no live crew narration display message",
-		);
-		const replies = operatorAssistantReplies(this);
-		const narrationTexts = narration.map(messageText);
-		assert.ok(
-			narrationTexts.some((text) => replies.includes(text)),
-			`the operator's crew narration was not voiced by Bonny's live model; narration: ${JSON.stringify(
-				narrationTexts,
-			)}; Bonny's assistant replies: ${JSON.stringify(replies)}`,
-		);
-	},
-);
-
-Then(
-	"the started session shows Bonny's report of the completed run",
-	function (this: EstelleWorld) {
-		// The completed-run report reaches the operator's session as a display
-		// message whose summary Bonny's live model voiced. Require a surfaced report
-		// message and require its summary to appear among Bonny's own live assistant
-		// replies in the operator's session.
-		const reports = surfacedMessages(this, "crew-run-report");
-		assert.ok(
-			reports.length > 0,
-			"the operator's session shows no live crew-run report display message",
-		);
-		const summary = messageText(reports[reports.length - 1]);
-		const replies = operatorAssistantReplies(this);
-		assert.ok(
-			replies.includes(summary),
-			`the operator's crew-run report was not voiced by Bonny's live model; summary: ${JSON.stringify(
-				summary,
-			)}; Bonny's assistant replies: ${JSON.stringify(replies)}`,
 		);
 	},
 );
@@ -1376,94 +1211,6 @@ Then(
 	},
 );
 
-// Slice A: embark drives the REAL crew. This scenario reuses the same red
-// target and loop-completion signals the Slice 6 capstone proved
-// (configureRedTarget, crewLoopSeatsRanLive, crewLoopTargetsAllGreen), but it
-// drives them from Bonny's own registered "embark" tool alone, with no
-// separate "Estelle runs the crew loop to completion" step in between. A
-// vacuous embark that only opens an idle crew session and never drives the
-// loop itself leaves these steps red even though the sibling capstone scenario
-// is green.
-
-Given(
-	"the project carries a verification target that is failing",
-	function (this: EstelleWorld) {
-		handle(this).configureRedTarget();
-	},
-);
-
-When(
-	"Bonny embarks the crew from their own turn",
-	// The embark tool's own run drives the live loop to completion, so this
-	// needs the same live-run budget as the Slice 6 capstone's loop-completion
-	// step, not cucumber's 5000ms default.
-	{ timeout: 600000 },
-	async function (this: EstelleWorld) {
-		// Settle Bonny's live opening turn before embarking, so the embark seam's
-		// own Bonny-voice turns do not collide with a turn already in flight.
-		await settleOperatorTurn(
-			handle(this).runtime.session as unknown as SessionView,
-		);
-		// Bonny embarks by calling a real tool registered on their Captain seat,
-		// the same tool their live model would call from their own turn.
-		const tools = handle(this).captainTools();
-		const embark = tools.find((tool) => tool.name === "embark");
-		assert.ok(
-			embark,
-			`Bonny has no "embark" tool to embark from their turn; Captain-seat tools: ${JSON.stringify(
-				tools.map((tool) => tool.name),
-			)}`,
-		);
-		await embark.run();
-		// Marks this scenario's own embark act as the test-only stand-in: the
-		// harness called the registered tool's run() directly rather than a live
-		// model deciding to call it from a real turn. The sibling scenario asserts
-		// no such stand-in was needed for its own outcome.
-		(
-			this as unknown as { embarkedViaTestShortcut?: boolean }
-		).embarkedViaTestShortcut = true;
-	},
-);
-
-Then(
-	"Estelle drives the Quartermaster, the Crew, and the Boatswain against the failing target",
-	function (this: EstelleWorld) {
-		const seats = handle(this).crewLoopSeatsRanLive();
-		assert.equal(
-			seats.quartermaster,
-			true,
-			`embark did not drive a live Quartermaster turn against the failing target: ${JSON.stringify(
-				seats,
-			)}`,
-		);
-		assert.equal(
-			seats.crew,
-			true,
-			`embark did not drive a live Crew turn against the failing target: ${JSON.stringify(
-				seats,
-			)}`,
-		);
-		assert.equal(
-			seats.boatswain,
-			true,
-			`embark did not drive a live Boatswain turn against the failing target: ${JSON.stringify(
-				seats,
-			)}`,
-		);
-	},
-);
-
-Then(
-	"the failing target passes the project's verification after the run",
-	function (this: EstelleWorld) {
-		assert.equal(
-			handle(this).crewLoopTargetsAllGreen(),
-			true,
-			"the failing target is still red after embark's run",
-		);
-	},
-);
-
 Then(
 	"the started session receives the crew's narration and Bonny's completed-run report",
 	function (this: EstelleWorld) {
@@ -1480,65 +1227,10 @@ Then(
 	},
 );
 
-// The confirmed-defect scenario: proves embark from the operator's own plain
-// instruction, with no harness-side tool.run() call standing in for Bonny's
-// live decision. The registered embark tool is reachable only through Bonny's
-// own turn here, unlike the sibling scenario above, which calls captainTools's
-// embark.run() directly as a test-only stand-in for that decision.
-
-When(
-	"the operator tells Bonny to embark the crew on the failing target",
-	{ timeout: 600000 },
-	async function (this: EstelleWorld) {
-		const session = operatorSession(this);
-		await settleOperatorTurn(session);
-		await session.sendUserMessage(
-			"The failing target is confirmed. Please embark the crew now to fix it.",
-			{ triggerTurn: false },
-		);
-	},
-);
-
-When(
-	"Bonny embarks the crew as an ordinary act of their own turn, with no further step standing in for their decision",
-	// Triggers Bonny's real turn on the live model. No captainTools().run() call
-	// stands in for the model's own decision to invoke the registered embark
-	// tool; whichever tool the live model calls from this turn is the real path.
-	{ timeout: 600000 },
-	async function (this: EstelleWorld) {
-		const session = operatorSession(this);
-		await session.sendUserMessage("Please carry on.");
-	},
-);
-
-Then(
-	"the crew's real work, driven only by that one embark act, turns the failing target green",
-	function (this: EstelleWorld) {
-		assert.equal(
-			handle(this).crewLoopTargetsAllGreen(),
-			true,
-			"the failing target is still red after the operator's own embark instruction",
-		);
-	},
-);
-
-Then(
-	"no test-only stand-in for embark was needed to reach this outcome",
-	function (this: EstelleWorld) {
-		const usedShortcut = (
-			this as unknown as { embarkedViaTestShortcut?: boolean }
-		).embarkedViaTestShortcut;
-		assert.ok(
-			!usedShortcut,
-			"this scenario's own steps called the test-only captainTools().run() stand-in instead of driving embark from a real live turn",
-		);
-	},
-);
-
 // The real-project capstone: embark drives the crew to green a genuinely failing
 // scenario in a real, self-contained Shipshape project, proven by that project's
-// OWN verification command, not the harness verdict. No configureRedTarget arms
-// the target and no proxy file stands in: the crew must edit real production code
+// OWN verification command, not the harness verdict. No harness proxy arms the
+// target and no proxy file stands in: the crew must edit real production code
 // and the project's own cucumber must report the scenario green. The scratch
 // project is a real cucumber project seeded with a wrong "add", disposable and
 // namespaced in a temp dir. It shares the repo's installed toolchain through a

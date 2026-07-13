@@ -41,14 +41,6 @@ export interface InteractiveHandle {
 	advanceCrewLoopThroughToBoatswain(): Promise<void>;
 	crewDispatches(): { target: string }[];
 	crewRunEnded(): boolean;
-	configureRedTarget(): void;
-	runCrewLoopToCompletion(): Promise<void>;
-	crewLoopSeatsRanLive(): {
-		quartermaster: boolean;
-		crew: boolean;
-		boatswain: boolean;
-	};
-	crewLoopTargetsAllGreen(): boolean;
 	providerRequestCount(): number;
 }
 
