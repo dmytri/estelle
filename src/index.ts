@@ -229,6 +229,8 @@ function assetsDir(cwd: string): string {
  * @planks("Then the seat system prompt includes the plugin's always-apply \"shipshape\" rule")
  * @planks("Then the seat system prompt includes the plugin's \"qm\" rule")
  * @planks("Then the seat system prompt excludes the plugin's \"captain\" rule")
+ * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
+ * @planks("Then the scratch project carries a specification for the greeting page")
  */
 function seatSystemPrompt(
 	base: string,
@@ -283,7 +285,28 @@ function seatSystemPrompt(
 					) as { embark: { promptGuidelines: string[] } }
 				).embark.promptGuidelines.join("\n")}`
 			: "";
-	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${pluginRules}\n\n${card}${dispatch}${embarkSteer}`;
+	// The Captain holds the only seat facing the operator, so a blocker Bonny
+	// reports and holds is a blocker nobody is working. The rigging blocker is the
+	// one Bonny meets first on a faulty project, and it is Bonny's to repair or to
+	// route to Johnson. Anchored at the end of the seat prompt for the same reason
+	// the embark steer is: guidance far from the end of a long prompt is lost.
+	const blockerSteer =
+		seat.role === "captain"
+			? "\n\nBlocker rule: a blocker is yours to resolve or to route, never to hold. When you find a fault in this project's rigging, a missing or malformed value in RIGGING.md such as no `focused` command under `## Commands`, resolve it in the same turn: write the missing tooling value into RIGGING.md yourself, or call dispatch_shipwright to send Johnson to refit it. Then carry on with the operator's work in that same turn. Never end a turn by reporting a rigging fault and waiting."
+			: "";
+	// The crew works from durable artifacts alone, so intent that never reaches a
+	// .feature file never reaches the crew. Discovery is the Captain's craft, and
+	// a turn spent entirely on questions leaves the operator's ask nowhere: the
+	// question ends the turn, the intent stays in chat, and chat is discarded. So
+	// the write comes first and the questions ride on top of it, where a wrong
+	// assumption is visible in a file the operator can correct. Anchored at the
+	// end of the seat prompt for the same reason the embark steer is: guidance far
+	// from the end of a long prompt is lost.
+	const specSteer =
+		seat.role === "captain"
+			? "\n\nSpecification rule: when the operator asks you to specify, build, or add something, your FIRST act in that same turn is to write a Gherkin `.feature` file, with your write tool, under this project's specs directory, the `specs` value in RIGGING.md. Write it before you reply, and before you ask anything. Where a detail is unsettled, choose the most reasonable option, write it into the scenario as a concrete example, and then tell the operator what you assumed and offer to change it. Asking the operator a question instead of writing costs a whole turn and leaves the intent in chat, which is discarded: a turn that ends in questions with no `.feature` file written is a failed turn, however good the questions were. Every refinement the operator asks for afterwards is an edit to the file you already wrote."
+			: "";
+	return `${base}\n\n${houseRules}\n\n${roleInstructions}\n\n${pluginRules}\n\n${card}${dispatch}${embarkSteer}${blockerSteer}${specSteer}`;
 }
 
 /**
@@ -311,6 +334,37 @@ function headCommit(cwd: string): string {
 		encoding: "utf8",
 	});
 	return result.status === 0 ? result.stdout.trim() : "(no commit)";
+}
+
+/**
+ * The rigging values the Rigging read contract requires: a project whose
+ * RIGGING.md carries every one of these is riggable, and a project missing any
+ * of them carries a rigging fault. Bonny holds the only operator-facing seat, so
+ * a rigging fault Bonny reports and holds is a fault nobody is working: the
+ * faults are routed to Johnson for a refit instead.
+ *
+ * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
+ */
+const REQUIRED_RIGGING_VALUES = [
+	"language",
+	"implementation",
+	"specs",
+	"focused",
+	"perturb",
+];
+
+/**
+ * The rigging values this project's RIGGING.md does not carry. Each value is a
+ * Markdown list item `- <key>: <value>` under its heading, so a key with no
+ * recorded value is missing.
+ *
+ * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
+ */
+function missingRiggingValues(cwd: string): string[] {
+	const rigging = readFileSync(join(cwd, "RIGGING.md"), "utf8");
+	return REQUIRED_RIGGING_VALUES.filter(
+		(key) => !new RegExp(`^\\s*-\\s*${key}\\s*:\\s*\\S`, "m").test(rigging),
+	);
 }
 
 /**
@@ -448,6 +502,7 @@ function evaluateRead(
  * @planks("Then the started session stays seated as the Captain \"Bonny\"")
  * @planks("Then the started session carries no greeting before the operator speaks")
  * @planks("Then Bonny embarks the crew rather than instructing the operator to run a role command")
+ * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
  */
 function createEstelleExtension(
 	state: EstelleState,
@@ -653,6 +708,7 @@ function createEstelleExtension(
 					"dispatch_shipwright: send Johnson to harbour for a refit or inventory",
 				promptGuidelines: [
 					"When the operator asks for a refit, a harbour inventory, or a rigging repair, dispatch the Shipwright. Opening a Shipwright session does no work; only this dispatch puts Johnson to work.",
+					"When you find a rigging fault yourself, a missing or malformed value in RIGGING.md such as no `focused` command, that blocker is yours to resolve or to route in the same turn: repair RIGGING.md yourself, or dispatch the Shipwright to refit it. Never report a rigging fault to the operator and end your turn holding it.",
 				],
 				parameters: {
 					type: "object",
@@ -2165,6 +2221,24 @@ Use your tools; do not answer from memory.`;
 			display: true,
 		});
 	};
+
+	// A fitted project whose RIGGING.md is missing a required value carries a
+	// rigging fault. The fault is Bonny's to route, never to hold, so Johnson is
+	// dispatched to refit the rigging before Bonny opens at the helm. The refit
+	// lands before the operator's work begins, so the work is never held on the
+	// fault.
+	/**
+	 * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
+	 */
+	if (existsSync(join(cwd, "RIGGING.md"))) {
+		const missing = missingRiggingValues(cwd);
+		if (missing.length > 0) {
+			await state.dispatchRole?.(
+				SEATS.johnson,
+				`refit RIGGING.md: it carries no ${missing.join(", ")} under its headings, and every one is a required value. Record each missing value as a real, working value on its own \`- <key>: <value>\` line under its heading. A required key left blank, or written as \`none\` or a placeholder, is still the fault you were sent to repair. Derive each value from this project's own stack and tooling; where the tooling for a value is not fitted yet, fit it first, then record the value that runs with it. The \`focused\` command runs one named scenario and carries the \`{scenario}\` placeholder. When you are done, read RIGGING.md back and confirm every one of ${missing.join(", ")} now carries a value.`,
+			);
+		}
+	}
 
 	await openWithBonnyVoice(
 		state,
