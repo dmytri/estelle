@@ -11,9 +11,53 @@ Estelle rests on faithfully consuming the real upstream Shipshape plugin, never 
 2. **Live-fire pilot** producing the maintainer's evidence: what enforces on pi, what fumbles, every false red and vacuous green.
 3. **A coding agent** in its own right: Bonny and the crew personas, `/embark`, `/clear`, alongside-crew UX, per-seat models, fitting-out.
 
-## THE NEXT VOYAGE — the harness guarantees the turn
+## THE BOARD, in order
 
-**Best-evidenced work on the board. Start here.**
+**1. IN FLIGHT — the crew-loop twin (perturbation planted, watchbill live).** Johnson's harbour found a
+second crew loop. `advanceCrewLoop` and `advanceCrewLoopThroughToBoatswain`, reachable only from
+`InteractiveHandle`, reimplement the loop's decision from scratch: push a target onto an array, and
+hand-build a Boatswain runtime. The real loop is `driveCrewLoopToCompletion` -> `runSeatTurn`. Four
+`@logic` scenarios at `live-crew.feature:143` were proven **entirely against the twin**, including the
+one that looks honest (`Then the crew session is seated as the Boatswain "Bellamy"`, discharged by
+seating logic written for the test). The fast tier never touched the real loop; only `@eval` did, and
+`@eval` is red. That is why nobody noticed.
+
+The `Rule:` prose was right all along and names the fix: the decision is a pure function of the verdict,
+so **one seam** makes it, and both the live loop and the fast tier drive that one seam. Rule rewritten to
+forbid a second copy; the four weak `Then`s rewritten to assert seating and dispatch, not an array push.
+Cluster perturbation planted at the twin only, not at `driveCrewLoopToCompletion` -- perturbing the live
+loop would have put the voyage behind the 28-minute stalling `@eval` tier.
+
+**2. NEXT — the mutation tier.** The operator's insight, and it reframes the whole project. A perturbation
+*is* a mutant: hand-placed, n of 1. Every serious defect this project has produced is a **surviving
+mutant** -- the custody twin, the crew-loop twin, `Then Estelle sends the Crew to the target` satisfied by
+an array push. In each case you could break the real code and the suite stayed green. Twins are the
+symptom; the disease is that green means nothing at those seams, and we find that out by having Johnson
+read source with their eyes, once per harbour, at 33 minutes a pass.
+
+Be precise about how it catches this: mutating the *twin* gets killed (the scenarios do faithfully assert
+the array push). The signal is on the other side -- **`driveCrewLoopToCompletion` shows surviving mutants
+under `@logic`**. Break the real loop, the fast tier does not notice. That is the mechanical statement of
+"your fast tier does not test the real loop", and the same report would have flagged the real custody hook
+last session. It does not say "twin". It says "no test can kill this seam", and a twin is the commonest
+reason why.
+
+Cadence is **harbour**, where we already pay for a full regression and already ask "is the ship sound?"
+An `@mutation` tier over `@logic` only; Stryker, no new stack. Surviving mutants become findings; findings
+become `@captain` skeletons or scantling rules. Johnson stops hunting twins and starts triaging a list the
+machine produced.
+
+**This is upstream doctrine, not just an Estelle feature.** The Articles already say *"Passing verification
+is not proof"* and *"methodology rules need executable conformance checks when they matter."* A mutation
+score is that Article made executable. The planted-red rule is already the same idea in miniature: *a check
+that has never been red is unproven.* Mutation testing is that rule generalized and automated. Likely the
+most load-bearing check Shipshape could carry.
+
+**3. THEN — the open red, the empty turn.** Still standing; Johnson reproduced it independently (`@eval`
+blocked: 26 min, one step failed, then ten minutes of silence). Detail below under OPEN RED. The
+consolidated crew loop from (1) is the fast grip needed to chase it.
+
+**4. QUEUED — the harness guarantees the turn**
 
 A role ended its turn holding live work **four times** in one session: Bonny held a blocker instead of routing it; Misson ended their turn "standing by" for a run **three times**. Upstream doctrine forbids this in plain words, and Misson violated it *while holding the skill that says it*. Captain had to be the heartbeat every time.
 
@@ -95,6 +139,42 @@ During a `266` run, the **live Shipwright deleted the scratch project's `verify.
 - **The operator's running Estelle loads the 0.13.6 plugin cache.** Neither upstream fix reaches Bonny until that install refreshes. Refresh before sailing her at a Cucumber-layout project.
 - **0.2.7 does not ship until the gate is green.** Pre-outbound wants a full regression across every tier; the last one had reds. Publish shim first, then flagship, per the runbook in `AGENTS.md`.
 - Deprecate the boot-broken versions: `npm deprecate @dk/estelle@0.2.0` and `@0.1.22`, pointing at a good release.
+
+### Harbour 2026-07-14 (`2992df4`) — what Johnson landed and what is owed
+
+- **Green: `@logic` + `@sandbox` 162/162** (3m07s). **`@eval` blocked**, corroborating the open red. The
+  harbour regression is therefore **incomplete**, and outbound owes a fresh full run regardless.
+- **`@captain` skeleton left in tree, unresolved on purpose:** `features/verification-conformance.feature`
+  plus the six-rule `scantlings/verification-conformance.json`. It closes the **verification-debt routing
+  gap** -- debt currently has no way to reach QM as red, so two Verification-agreement rules landed as
+  ad-hoc scenarios in `methodology-conformance.feature` (both supersession candidates). Promote it as the
+  mutation tier's opening move. **Owed: a planted red.** Bellamy notes its `dispatch-prompt-from-catalog`
+  rule applies to `implementation`, so only a *production* violation reddens it -- that needs Shipwright's
+  harbour plant exception, not a QM fixture plant.
+- **80% of suite time is six `@sandbox` scenarios** (149s of 186s), all because `pnpm build` runs from step
+  bodies instead of a shared provisioner. `features/support/upstream.ts` is the pattern that already exists
+  and is already `@invariant`-enforced for the upstream clone; the package build has no equivalent. Lands
+  as a rule entry once the rule set is promoted -- **not** as another scenario.
+- **A methodology check is green through a hole.** The dispatch-prompt-from-catalog invariant matches
+  `/\bYou are (?:the|a|an)\b/`, so the ~700-char role prompt at `src/index.ts:2243` opening `"refit
+  RIGGING.md: ..."` sails past it. The violation sits in the file the check guards. Structural replacement
+  is the scantling rule.
+- **Planks on assignment statements, not declarations** (`state.openCrewSession`, `state.dispatchRole`,
+  `state.embark`), so the reader mis-binds them to inner locals -- which is why `crewState`, `liveModelId`,
+  `viaBonnyTurn`, `missing` show up as seams. The `@invariant` that should catch this stays green because
+  `bindSeam` always resolves to *something*. **Two defects: the planks, and the check blind to them.**
+  Production restructure, so Johnson correctly did not write it.
+- **`broad` is everything-but-eval,** so the 149s `@sandbox` tier rides every inner-loop run. `broad-logic`
+  already exists as the conforming command. Johnson left it alone deliberately: `projectVerifyCommand` reads
+  `broad` as a project's own verify command for the crew loop, so narrowing it changes what "green" means
+  for a live crew run. **Captain's call, still open.**
+- **Rigging: `perturb` was a bare `throw`,** unusable on strict TS -- it widens narrowed types below it and
+  reddens `typecheck` and `lint`, breaking the *gates* instead of the *target*. Now guarded with `if (true as
+  boolean)`. Any stack with control-flow narrowing needs this; worth carrying upstream.
+- **Misfiled (next harbour):** the new `## Known false-failure modes` entry documents a weak *green*, but that
+  section's contract is failures that *mislead*. Same content already lives in the scantling's `note`. Wrong
+  home, duplicated.
+- **`@property` tag is used on three features and declared nowhere.** Declare or drop.
 
 ### Open follow-ups (not blocking)
 

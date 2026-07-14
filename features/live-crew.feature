@@ -133,38 +133,41 @@ Feature: Embarking runs the crew alongside Bonny
       When Estelle reports the crew's run back to Bonny
       Then Bonny's crew-run report carries a live summary of the crew's work
 
-  Rule: Estelle drives the full crew loop until every target is green
+  Rule: One decision seam chooses the next seat from the Quartermaster's verdict
     Estelle drives the whole run, not one handoff: it reads the Quartermaster's verdict and
     decides the next seat, sends the Crew to each failing target, seats the Boatswain to
-    commit, and loops the Quartermaster until every target is green. The decision logic is a
-    pure function of the verdict, pinned deterministically at the fast tier. The live-eval
-    tier pins a genuine live run of the whole loop to green.
+    commit, and loops the Quartermaster until every target is green. The decision is a pure
+    function of the verdict, so one seam makes it. The live run drives that seam and the fast
+    tier drives the same seam directly. A second copy of the decision, reachable only from
+    verification, passes while the real loop is broken.
 
-    Scenario: Estelle sends the Crew to the target the Quartermaster names
+    Scenario: The crew loop seats the Crew on the target the Quartermaster names
       Given a started Estelle session seated as the Captain "Bonny"
       When the operator runs the "/embark" command in the started session
       And the Quartermaster reports the failing target "greeting.md"
       And Estelle advances the crew loop
-      Then Estelle sends the Crew to the target "greeting.md"
+      Then the crew session is seated as the Crew
+      And the Crew's dispatch names the target "greeting.md"
 
-    Scenario: Estelle ends the run when the Quartermaster reports all green
+    Scenario: The crew loop ends the run when the Quartermaster reports all green
       Given a started Estelle session seated as the Captain "Bonny"
       When the operator runs the "/embark" command in the started session
       And the Quartermaster reports all targets green
       And Estelle advances the crew loop
-      Then the crew run ends without sending the Crew
+      Then the crew loop seats no further seat
+      And the crew run ends
 
-    Scenario: Estelle loops the Crew until the Quartermaster's verdict turns green
+    Scenario: The crew loop stops seating the Crew once the verdict turns green
       Given a started Estelle session seated as the Captain "Bonny"
       When the operator runs the "/embark" command in the started session
       And the Quartermaster reports the failing target "greeting.md"
       And Estelle advances the crew loop
       And the Quartermaster then reports all targets green
       And Estelle advances the crew loop
-      Then Estelle sent the Crew exactly once
+      Then the crew loop seated the Crew exactly once
       And the crew run ends
 
-    Scenario: The loop seats the Boatswain to commit, isolated from the Crew
+    Scenario: The crew loop seats the Boatswain to commit, isolated from the Crew
       Given a started Estelle session seated as the Captain "Bonny"
       When the operator runs the "/embark" command in the started session
       And the Quartermaster reports the failing target "greeting.md"

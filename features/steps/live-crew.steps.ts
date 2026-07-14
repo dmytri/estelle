@@ -742,48 +742,66 @@ When(
 	},
 );
 
+// The loop's decision is proven where it lands: on the real crew session's seat.
+// A dispatch recorded without seating the crew session is the second copy of the
+// decision the Rule condemns, so the seat is asserted through crewSession(), the
+// same production view every other seat scenario reads.
+Then("the crew session is seated as the Crew", function (this: EstelleWorld) {
+	const seat = crewSession(this).seat();
+	assert.equal(
+		seat.role,
+		"crew",
+		`crew session is seated as ${JSON.stringify(
+			seat.role,
+		)}, not the Crew, after the loop advanced on a failing target`,
+	);
+});
+
 Then(
-	"Estelle sends the Crew to the target {string}",
+	"the Crew's dispatch names the target {string}",
 	function (this: EstelleWorld, target: string) {
 		const dispatches = handle(this).crewDispatches();
 		assert.ok(
 			dispatches.some((d) => d.target === target),
-			`Estelle did not send the Crew to the target ${JSON.stringify(
+			`the Crew's dispatch does not name the target ${JSON.stringify(
 				target,
 			)}; dispatches: ${JSON.stringify(dispatches)}`,
 		);
 	},
 );
 
+Then("the crew loop seats no further seat", function (this: EstelleWorld) {
+	const seat = crewSession(this).seat();
+	assert.equal(
+		seat.role,
+		"quartermaster",
+		`crew loop seated ${JSON.stringify(
+			seat.role,
+		)} on an all-green verdict; the crew session should still be the Quartermaster's`,
+	);
+	const dispatches = handle(this).crewDispatches();
+	assert.equal(
+		dispatches.length,
+		0,
+		`crew loop seated the Crew despite an all-green verdict; dispatches: ${JSON.stringify(
+			dispatches,
+		)}`,
+	);
+});
+
 Then(
-	"the crew run ends without sending the Crew",
+	"the crew loop seated the Crew exactly once",
 	function (this: EstelleWorld) {
-		assert.equal(
-			handle(this).crewRunEnded(),
-			true,
-			"crew run did not end when the Quartermaster reported all green",
-		);
 		const dispatches = handle(this).crewDispatches();
 		assert.equal(
 			dispatches.length,
-			0,
-			`crew run sent the Crew despite an all-green verdict; dispatches: ${JSON.stringify(
+			1,
+			`crew loop seated the Crew ${dispatches.length} times, not exactly once; dispatches: ${JSON.stringify(
 				dispatches,
 			)}`,
 		);
 	},
 );
-
-Then("Estelle sent the Crew exactly once", function (this: EstelleWorld) {
-	const dispatches = handle(this).crewDispatches();
-	assert.equal(
-		dispatches.length,
-		1,
-		`Estelle sent the Crew ${dispatches.length} times, not exactly once; dispatches: ${JSON.stringify(
-			dispatches,
-		)}`,
-	);
-});
 
 Then("the crew run ends", function (this: EstelleWorld) {
 	assert.equal(

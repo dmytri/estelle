@@ -49,7 +49,8 @@ Procedure lives in the skills. Every role reads this on open.
 ## Perturbation
 
 - message: `PERTURBATION: consider current durable context; remove when fixed`
-- perturb: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`
+- perturb: `if (true as boolean) { throw new Error("PERTURBATION: consider current durable context; remove when fixed"); }`
+- note: the `true as boolean` guard keeps the statements after the seam's perturbation reachable for TypeScript's control-flow analysis; a bare `throw` widens narrowed types below it and reddens `typecheck` and `lint`, which breaks the gates instead of the target
 
 ## Tiers
 

@@ -1666,6 +1666,72 @@ export async function run(options?: RunOptions): Promise<void> {
 		state.crewRuntime = await buildRuntime(crewState);
 	};
 
+	// Seating the crew session: a fresh, context-isolated runtime on the new seat.
+	// One implementation, so the seat a decision names is the seat the crew session
+	// actually takes, on the live run and on the fast tier alike. The live status
+	// names the seat the moment it is taken, so Bonny can answer who is working.
+	const seatCrewOn = async (
+		seat: Seat,
+		seatModels: Record<string, string> = state.seatModels,
+	) => {
+		if (state.crewStatus) {
+			state.crewStatus.seat = `${seat.name} (${seat.role})`;
+		}
+		crewSawActivity = false;
+		crewSeat = seat;
+		state.crewRuntime = await buildRuntime({
+			providerRequestCount: 0,
+			activeSeat: seat,
+			skillPaths: {},
+			seatModels,
+			unavailableModels: [],
+			pendingDeliveries: [],
+			deliveryFailures: 0,
+		});
+	};
+
+	// The one decision seam: the next seat is a pure function of the Quartermaster's
+	// verdict. All green ends the run and seats nobody; a named failing target seats
+	// the Crew on it. The live loop and the fast tier drive this same seam, so a
+	// second copy of the decision cannot pass while the real loop is broken.
+	/**
+	 * @planks("When Estelle advances the crew loop")
+	 * @planks("Then the crew session is seated as the Crew")
+	 * @planks("Then the Crew's dispatch names the target \"greeting.md\"")
+	 * @planks("Then the crew loop seats no further seat")
+	 * @planks("Then the crew loop seated the Crew exactly once")
+	 * @planks("Then the crew run ends")
+	 */
+	const advanceCrewLoop = async (
+		seatModels: Record<string, string> = state.seatModels,
+	): Promise<Seat | undefined> => {
+		if (currentVerdict.allGreen) {
+			crewRunEnded = true;
+			return undefined;
+		}
+		const { failingTarget } = currentVerdict;
+		if (failingTarget === undefined) {
+			throw new Error("crew loop advanced without a reported failing target");
+		}
+		crewDispatches.push({ target: failingTarget });
+		await seatCrewOn(SEATS.crew, seatModels);
+		return SEATS.crew;
+	};
+
+	/**
+	 * @planks("When Estelle advances the crew loop through the Crew to the Boatswain")
+	 * @planks("Then the crew session is seated as the Boatswain \"Bellamy\"")
+	 * @planks("Then the crew session lets only the Boatswain commit")
+	 * @planks("Then the crew session's message history excludes the Crew's context")
+	 */
+	const advanceCrewLoopThroughToBoatswain = async () => {
+		const seat = await advanceCrewLoop();
+		if (seat === undefined) {
+			return;
+		}
+		await seatCrewOn(SEATS.bellamy);
+	};
+
 	/**
 	 * @planks("When Estelle reports the crew's run back to Bonny")
 	 * @planks("Then the started session records a crew-run report")
@@ -1846,27 +1912,22 @@ export async function run(options?: RunOptions): Promise<void> {
 				display: true,
 			});
 		};
-		const runSeatTurn = async (seat: Seat, prompt: string) => {
-			// The live status names who is working the moment they start, so Bonny can
-			// answer "who is working right now?" from fact rather than inference.
-			if (state.crewStatus) {
-				state.crewStatus.seat = `${seat.name} (${seat.role})`;
-			}
+		// The live model rides the seat that is about to work, so every seat turn is a
+		// real turn on a real model.
+		const seatModelsFor = (seat: Seat): Record<string, string> => {
 			const seatModels: Record<string, string> = { ...state.seatModels };
 			if (liveModelId) {
 				seatModels[seat.role] = liveModelId;
 			}
-			crewSeat = seat;
-			state.crewRuntime = await buildRuntime({
-				providerRequestCount: 0,
-				activeSeat: seat,
-				skillPaths: {},
-				seatModels,
-				unavailableModels: [],
-				pendingDeliveries: [],
-				deliveryFailures: 0,
-			});
-			const seatSession = state.crewRuntime.session;
+			return seatModels;
+		};
+		// A working turn on the seat the crew session already holds. The seat the
+		// decision seam named is the seat that works.
+		const runTurnOnCrewSeat = async (prompt: string) => {
+			const seatSession = state.crewRuntime?.session;
+			if (!seatSession) {
+				throw new Error("crew loop ran a seat turn before the seat was taken");
+			}
 			await seatSession.sendUserMessage(prompt);
 			return (
 				seatSession.messages
@@ -1875,6 +1936,10 @@ export async function run(options?: RunOptions): Promise<void> {
 					.filter((text) => text.trim().length > 0)
 					.pop() ?? "(no report)"
 			);
+		};
+		const runSeatTurn = async (seat: Seat, prompt: string) => {
+			await seatCrewOn(seat, seatModelsFor(seat));
+			return runTurnOnCrewSeat(prompt);
 		};
 		// A bounded run: a crew that cannot turn the target green stops and says so,
 		// rather than spinning through seats forever with no outcome.
@@ -1914,9 +1979,25 @@ export async function run(options?: RunOptions): Promise<void> {
 				// A turn was already in flight; the narration already carries the facts.
 			}
 		};
-		let verdict = await runVerification();
-		status.verification = verdict;
-		while (!crewRunCancelled && !verdict.green) {
+		// The Quartermaster's verdict: the project's own verification command decides
+		// green, and names the failing target when it is red. The decision seam reads
+		// this verdict and nothing else.
+		const quartermasterVerdict = async () => {
+			const verdict = await runVerification();
+			status.verification = verdict;
+			currentVerdict = verdict.green
+				? { allGreen: true }
+				: { failingTarget: verdict.output };
+			return verdict;
+		};
+		let verdict = await quartermasterVerdict();
+		while (!crewRunCancelled) {
+			// The decision, made once, in the one seam: all green ends the run, a failing
+			// target seats the Crew on it.
+			const seat = await advanceCrewLoop(seatModelsFor(SEATS.crew));
+			if (seat === undefined) {
+				break;
+			}
 			if (status.round >= maxRounds) {
 				const why = `the crew ran ${maxRounds} rounds without turning \`${verifyCommand}\` green`;
 				settleStatus(why);
@@ -1928,14 +2009,10 @@ export async function run(options?: RunOptions): Promise<void> {
 			await narrate(
 				`Round ${status.round}: \`${verifyCommand}\` is red.\n${verdict.output}`,
 			);
-			await record(
-				SEATS.misson,
-				await runSeatTurn(SEATS.misson, quartermasterDispatch),
-			);
-			if (crewRunCancelled) {
-				break;
-			}
-			await record(SEATS.crew, await runSeatTurn(SEATS.crew, crewDispatch));
+			// The Crew works the seat the decision seam gave them, then the Boatswain
+			// takes custody and commits, then the Quartermaster takes the next turn and
+			// reports the fresh verdict the seam reads at the top of the loop.
+			await record(seat, await runTurnOnCrewSeat(crewDispatch));
 			if (crewRunCancelled) {
 				break;
 			}
@@ -1943,12 +2020,18 @@ export async function run(options?: RunOptions): Promise<void> {
 				SEATS.bellamy,
 				await runSeatTurn(SEATS.bellamy, boatswainDispatch),
 			);
-			verdict = await runVerification();
-			status.verification = verdict;
+			if (crewRunCancelled) {
+				break;
+			}
+			await record(
+				SEATS.misson,
+				await runSeatTurn(SEATS.misson, quartermasterDispatch),
+			);
+			verdict = await quartermasterVerdict();
 			// Bonny runs the crew: read this round's real reports and surface them to
 			// the operator, rather than sitting silent while the crew works.
 			await bonnySpeaks(
-				`Your crew just finished round ${status.round}. The Quartermaster reported: ${status.reports.at(-3)?.report ?? "nothing"}. The Crew reported: ${status.reports.at(-2)?.report ?? "nothing"}. The Boatswain reported: ${status.reports.at(-1)?.report ?? "nothing"}. \`${verifyCommand}\` is now ${verdict.green ? "green" : "red"}. In one or two short lines, tell the operator in your own voice what the crew actually did this round and what happens next.`,
+				`Your crew just finished round ${status.round}. The Crew reported: ${status.reports.at(-3)?.report ?? "nothing"}. The Boatswain reported: ${status.reports.at(-2)?.report ?? "nothing"}. The Quartermaster reported: ${status.reports.at(-1)?.report ?? "nothing"}. \`${verifyCommand}\` is now ${verdict.green ? "green" : "red"}. In one or two short lines, tell the operator in your own voice what the crew actually did this round and what happens next.`,
 			);
 		}
 		if (crewRunCancelled) {
@@ -2444,48 +2527,10 @@ export async function run(options?: RunOptions): Promise<void> {
 		reportAllGreen: () => {
 			currentVerdict = { allGreen: true };
 		},
-		/**
-		 * @planks("When Estelle advances the crew loop")
-		 * @planks("Then Estelle sends the Crew to the target \"greeting.md\"")
-		 * @planks("Then the crew run ends without sending the Crew")
-		 * @planks("Then Estelle sent the Crew exactly once")
-		 * @planks("Then the crew run ends")
-		 */
 		advanceCrewLoop: async () => {
-			if (currentVerdict.allGreen) {
-				crewRunEnded = true;
-				return;
-			}
-			const { failingTarget } = currentVerdict;
-			if (failingTarget === undefined) {
-				throw new Error("crew loop advanced without a reported failing target");
-			}
-			crewDispatches.push({ target: failingTarget });
+			await advanceCrewLoop();
 		},
-		/**
-		 * @planks("When Estelle advances the crew loop through the Crew to the Boatswain")
-		 * @planks("Then the crew session is seated as the Boatswain \"Bellamy\"")
-		 * @planks("Then the crew session's message history excludes the Crew's context")
-		 */
-		advanceCrewLoopThroughToBoatswain: async () => {
-			const { failingTarget } = currentVerdict;
-			if (failingTarget === undefined) {
-				throw new Error("crew loop advanced without a reported failing target");
-			}
-			crewDispatches.push({ target: failingTarget });
-			const boatswainState: EstelleState = {
-				providerRequestCount: 0,
-				activeSeat: SEATS.bellamy,
-				skillPaths: {},
-				seatModels: state.seatModels,
-				unavailableModels: [],
-				pendingDeliveries: [],
-				deliveryFailures: 0,
-			};
-			crewSawActivity = false;
-			crewSeat = SEATS.bellamy;
-			state.crewRuntime = await buildRuntime(boatswainState);
-		},
+		advanceCrewLoopThroughToBoatswain,
 		crewDispatches: () => crewDispatches,
 		crewRunEnded: () => crewRunEnded,
 		/**
