@@ -215,6 +215,98 @@ const SEAT_BY_ROLE: Record<string, Seat> = Object.fromEntries(
 	Object.values(SEATS).map((seat) => [seat.role, seat]),
 );
 
+// Estelle's re-ask. A live seat asked to act sometimes answers in prose instead,
+// and where the missing artifact is machine-detectable by its absence, the seat is
+// asked once more before the turn reaches the operator. The alongside Quartermaster
+// omits the artifact by refusing for unclean context on a session Estelle opened
+// clean. The re-ask states the fact the seat got wrong and takes whatever the second
+// turn answers.
+const UNCLEAN_CONTEXT_REASK =
+	"Your context here is clean: Estelle opened this session alongside, and no Captain conversation reached it. Take the turn again and do your role's work.";
+
+/**
+ * @planks("When the alongside Quartermaster's turn ends by refusing for unclean context")
+ */
+function refusedForUncleanContext(reply: string): boolean {
+	return /unclean context|clean context|clear context/i.test(reply);
+}
+
+// Bonny omits the artifact by ending a turn that sends the operator to a role
+// command while embarking no crew. Estelle sets the crew to work from Bonny's own
+// turn, so a turn that routes the operator to a role command instead has left the
+// embark undone, and the absence of the crew is what Estelle detects.
+const OMITTED_EMBARK_REASK =
+	"You ended your turn by sending the operator to a role command. Estelle sets the crew to work from your own turn: call the embark tool now, in this turn, rather than telling the operator to run a role command. Take the turn again.";
+
+// The role commands Bonny can send the operator to. The Captain's own seat
+// commands are not among them: they seat the operator with Bonny, who is already
+// seated, so they route no work away from Bonny's turn.
+const ROLE_COMMANDS = Object.keys(SEAT_BY_COMMAND).filter(
+	(command) => !SEAT_COMMANDS.includes(command),
+);
+
+/**
+ * @planks("When Bonny's turn ends by instructing the operator to run {string} and embarks no crew")
+ * @planks("When Bonny's re-asked turn ends by instructing the operator to run {string} and embarks no crew")
+ */
+function instructedARoleCommand(reply: string): boolean {
+	return ROLE_COMMANDS.some((command) =>
+		new RegExp(`${command}\\b`, "i").test(reply),
+	);
+}
+
+/**
+ * @planks("Given Estelle has re-asked Bonny once for the turn")
+ * @planks("Then Estelle re-asks Bonny once before the turn reaches the operator")
+ * @planks("Then the started session receives Bonny's reply")
+ * @planks("Then Estelle re-asks Bonny no further for the turn")
+ */
+function reAskBonnyOnOmittedEmbark(
+	session: AgentSession,
+	state: EstelleState,
+): void {
+	// Bounded at one. The flag is set on the re-ask and cleared when the re-asked
+	// turn ends, so the re-asked turn's own reply reaches the operator rather than
+	// driving a second re-ask: a repair that retries until it succeeds is the
+	// unended turn wearing a repair's coat.
+	let reAsked = false;
+	session.subscribe((event) => {
+		if (event.type !== "agent_end" || event.willRetry) {
+			return;
+		}
+		if (reAsked) {
+			reAsked = false;
+			return;
+		}
+		// Estelle's own opening turn rides a custom message, so the turn the operator
+		// asked for is the one a user message prompted. A turn the operator never
+		// asked for was not for the artifact.
+		const prompt = [...session.messages]
+			.reverse()
+			.find((message) => message.role !== "assistant");
+		if (prompt?.role !== "user") {
+			return;
+		}
+		const answered =
+			session.messages
+				.filter((message) => message.role === "assistant")
+				.map(assistantText)
+				.filter((text) => text.trim().length > 0)
+				.pop() ?? "";
+		if (state.crewRuntime || !instructedARoleCommand(answered)) {
+			return;
+		}
+		reAsked = true;
+		// The turn's end signal fires while the run is still processing, so the
+		// re-ask is queued as that run's follow-up: it is served after the turn's
+		// own end, inside the operator's one turn, with no further operator message
+		// to prompt it.
+		void session.sendUserMessage(OMITTED_EMBARK_REASK, {
+			deliverAs: "followUp",
+		});
+	});
+}
+
 /**
  * @planks("When the operator runs the Estelle package in that directory")
  */
@@ -889,6 +981,7 @@ function createEstelleExtension(
 		 * @planks("When a non-outbound command runs in the started session")
 		 * @planks("Then no reset nudge guidance is delivered into Bonny's session context")
 		 * @planks("Then Bonny offers the operator a fresh context for the next batch")
+		 * @planks("Then the started session offers the operator a fresh context for the next batch")
 		 * @planks("When Bonny's write tool call to \"features/login.feature\" completes in the running session")
 		 * @planks("When Bonny's edit tool call to \"features/login.feature\" completes in the running session")
 		 * @planks("Then the plugin's PostToolUse feature-quality output is delivered into the session context")
@@ -953,6 +1046,14 @@ function createEstelleExtension(
 				},
 				session.isStreaming ? { deliverAs: "nextTurn" } : undefined,
 			);
+			// The nudge above is guidance addressed to Bonny. The offer of a fresh
+			// context belongs to the operator, and it is a duty, so Estelle emits it
+			// itself: the operator receives it with no model rigged to voice it.
+			await session.sendCustomMessage({
+				customType: "estelle-reset-offer",
+				content: RESET_OFFER,
+				display: true,
+			});
 		});
 	};
 }
@@ -966,6 +1067,11 @@ function assignCrewSeat(survivors: string[]): { role: string; name: string } {
 	const name = survivors[Math.floor(Math.random() * survivors.length)];
 	return { role: "crew", name };
 }
+
+// Estelle's own offer to the operator once a batch ships. Bonny may voice the
+// same offer in their own words; this line is the guarantee under that voice.
+const RESET_OFFER =
+	"That batch is away, Commodore. Captain context is bounded to a batch, so I can give you a fresh context for the next one, rehydrated from the durable artifacts and CAPTAIN.md. Use /clear when you want it. You may also carry on in this one.";
 
 const SHIPSHAPE_PACKAGE_SOURCE = "https://github.com/dmytri/shipshape";
 
@@ -997,9 +1103,56 @@ async function ensureShipshapePackage(options: {
 }
 
 /**
+ * The scenarios in the workspace specs that await the Captain's review: a
+ * scenario tagged "@captain" is a skeleton the Captain has not yet promoted.
+ * Derived from the specs themselves, so a pending review reaches the operator
+ * whether or not a model speaks.
+ *
+ * @planks("Then the session's opening carries the pending {string} scenario to the operator")
+ */
+function pendingCaptainReviews(
+	cwd: string,
+): { spec: string; scenario: string }[] {
+	const specsRoot = join(cwd, "features");
+	if (!existsSync(specsRoot)) {
+		return [];
+	}
+	const pending: { spec: string; scenario: string }[] = [];
+	for (const entry of readdirSync(specsRoot, {
+		recursive: true,
+		withFileTypes: true,
+	})) {
+		if (!entry.isFile() || !entry.name.endsWith(".feature")) {
+			continue;
+		}
+		const specPath = join(entry.parentPath, entry.name);
+		let tagged = false;
+		for (const line of readFileSync(specPath, "utf8").split("\n")) {
+			const text = line.trim();
+			if (text.startsWith("@")) {
+				tagged = text.split(/\s+/).includes("@captain");
+				continue;
+			}
+			const scenario = /^Scenario(?: Outline)?:\s*(.+)$/.exec(text);
+			if (scenario && tagged) {
+				pending.push({
+					spec: relative(cwd, specPath),
+					scenario: scenario[1].trim(),
+				});
+			}
+			if (scenario) {
+				tagged = false;
+			}
+		}
+	}
+	return pending;
+}
+
+/**
  * @planks("Then Bonny begins their Captain opening turn before the operator speaks")
  * @planks("Then Bonny opens the session with the guidance \"Commodore, no model is rigged yet. Use /login, then /model.\"")
  * @planks("Then Bonny steers the operator to fit out with the Shipwright \"Johnson\"")
+ * @planks("Then the session's opening carries the pending {string} scenario to the operator")
  * @planks("When Bonny takes their next turn")
  */
 async function openWithBonnyVoice(
@@ -1008,6 +1161,17 @@ async function openWithBonnyVoice(
 	modelRegistry: { getAvailable(): unknown[] },
 	cwd: string,
 ): Promise<void> {
+	const pending = pendingCaptainReviews(cwd);
+	if (pending.length > 0) {
+		await session.sendCustomMessage({
+			customType: "estelle-pending-review",
+			content: [
+				'Pending review: the specs carry "@captain" scenarios awaiting the Captain\'s review.',
+				...pending.map((item) => `- ${item.scenario} (${item.spec})`),
+			].join("\n"),
+			display: true,
+		});
+	}
 	if (modelRegistry.getAvailable().length === 0) {
 		const content = readFileSync(
 			join(assetsDir(cwd), "steer.md"),
@@ -1754,6 +1918,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("Then Bonny's crew-run report carries a live summary of the crew's work")
 	 * @planks("Then the crew run is reported back into Bonny's session")
 	 * @planks("Then the started session receives Bonny's report when the run ends")
+	 * @planks("Then the started session receives a report of the crew's run")
 	 */
 	const reportCrewRun = async (viaBonnyTurn = false) => {
 		let summary = `${SEATS.crew.name}'s run is reported to ${SEATS.bonny.name}`;
@@ -1783,7 +1948,12 @@ export async function run(options?: RunOptions): Promise<void> {
 				.filter((message) => message.role === "assistant")
 				.map(assistantText)
 				.filter((text) => text.trim().length > 0);
-			summary = voiced[voiced.length - 1];
+			// Bonny supplies the prose, never the guarantee: a model that voices no
+			// summary costs the operator prose, and the default summary carries the
+			// report to them.
+			if (voiced.length > 0) {
+				summary = voiced[voiced.length - 1];
+			}
 		}
 		crewRunReports.push({ summary });
 		await runtime.session.sendCustomMessage({
@@ -2422,6 +2592,8 @@ export async function run(options?: RunOptions): Promise<void> {
 		}
 	}
 
+	reAskBonnyOnOmittedEmbark(runtime.session, state);
+
 	await openWithBonnyVoice(
 		state,
 		runtime.session,
@@ -2470,27 +2642,41 @@ export async function run(options?: RunOptions): Promise<void> {
 					 * @planks("When the crew session runs a turn")
 					 * @planks("Then the crew session received a live reply from the Quartermaster's model")
 					 * @planks("Then the crew session's heartbeat reflected live activity during the run")
+					 * @planks("When the alongside Quartermaster's turn ends by refusing for unclean context")
+					 * @planks("Then Estelle re-asks the Quartermaster once, stating the alongside session's context is clean")
 					 */
 					runTurn: async () => {
 						const crewSession = crewRuntime.session;
-						await new Promise<void>((resolve) => {
-							const unsubscribe = crewSession.subscribe(() => {
-								crewSawActivity = true;
-								const gotReply = crewSession.messages.some(
-									(message) =>
-										message.role === "assistant" &&
-										assistantText(message).trim().length > 0,
-								);
-								if (gotReply) {
-									unsubscribe();
-									resolve();
-								}
+						const seatReplies = () =>
+							crewSession.messages
+								.filter((message) => message.role === "assistant")
+								.map(assistantText)
+								.filter((text) => text.trim().length > 0);
+						// One real turn on the seat, ended on the seat's own reply.
+						const seatTurn = async (prompt: string) => {
+							const before = seatReplies().length;
+							await new Promise<void>((resolve) => {
+								const unsubscribe = crewSession.subscribe(() => {
+									crewSawActivity = true;
+									if (seatReplies().length > before) {
+										unsubscribe();
+										resolve();
+									}
+								});
+								void crewSession.sendUserMessage(prompt);
 							});
-							void crewSession.sendUserMessage(
-								crewRunPrompts.crewLoopPrompts.crewReady,
-							);
-						});
-						await crewSession.abort();
+							await crewSession.abort();
+						};
+						await seatTurn(crewRunPrompts.crewLoopPrompts.crewReady);
+						// The alongside session is opened with clean context by
+						// construction, so a refusal for unclean context is a turn that
+						// omitted the work it was dispatched for. Estelle re-asks the seat
+						// once, stating the fact the seat got wrong, and takes whatever the
+						// second turn answers: one re-ask, never a retry loop.
+						const answered = seatReplies().pop() ?? "";
+						if (refusedForUncleanContext(answered)) {
+							await seatTurn(UNCLEAN_CONTEXT_REASK);
+						}
 					},
 					/**
 					 * @planks("Then the crew session allows a Crew hand to write \"src/handoff.ts\"")
@@ -2534,6 +2720,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		 * @planks("Then the crew session's message history excludes the Quartermaster's message \"target greeting.md is red\"")
 		 * @planks("Then Bonny's narration log records a handoff from the Quartermaster to the Crew")
 		 * @planks("Then Bonny's narration for the handoff carries a live line in their voice")
+		 * @planks("Then the started session receives a narration of the handoff from the Quartermaster to the Crew")
 		 */
 		handOffToCrew: async () => {
 			const fromSeat = crewSeat;
@@ -2574,13 +2761,25 @@ export async function run(options?: RunOptions): Promise<void> {
 					.filter((message) => message.role === "assistant")
 					.map(assistantText)
 					.filter((text) => text.trim().length > 0);
-				line = voiced[voiced.length - 1];
+				// Bonny supplies the voice, never the guarantee: a model that voices no
+				// line costs the operator colour, and the default line carries the
+				// narration to them.
+				if (voiced.length > 0) {
+					line = voiced[voiced.length - 1];
+				}
 			}
 			state.crewRuntime = await buildRuntime(crewState);
 			narrationLog.push({
 				from: fromSeat.role,
 				to: SEATS.crew.role,
 				line,
+			});
+			// Reaching the operator is Estelle's duty, so the handoff's narration is
+			// emitted into the operator's own session, not the log alone.
+			await runtime.session.sendCustomMessage({
+				customType: "crew-narration",
+				content: line,
+				display: true,
 			});
 		},
 		narrationLog: () => narrationLog,

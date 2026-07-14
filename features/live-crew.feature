@@ -89,11 +89,11 @@ Feature: Embarking runs the crew alongside Bonny
       Then the crew session is seated as a Crew hand
       And the crew session's message history excludes the Quartermaster's turn
 
-  Rule: A handoff records narration voiced off the completed seat's work
+  Rule: A handoff narrates to the operator, and Estelle owns that the narration arrives
     One small Bonny call per seat handoff, voiced off the completed seat's work, is the paid
-    colour over the free heartbeat. The fast tier pins that a handoff records a narration
-    for the transition. The live-eval tier pins that Bonny voices a real line in their own
-    voice at the handoff.
+    colour over the free heartbeat. Reaching the operator is the duty, so Estelle emits the
+    narration and a silent model costs the operator colour, never the signal. Bonny supplies
+    the voice, never the guarantee.
 
     Scenario: A handoff records a narration for the seat transition
       Given a started Estelle session seated as the Captain "Bonny"
@@ -101,20 +101,18 @@ Feature: Embarking runs the crew alongside Bonny
       And Estelle hands the crew off from the Quartermaster to the Crew
       Then Bonny's narration log records a handoff from the Quartermaster to the Crew
 
-    @eval
-    Scenario: Bonny voices a live line at the seat handoff
+    Scenario: The handoff narration reaches the operator when the model returns no line
       Given a started Estelle session seated as the Captain "Bonny"
-      And a live eval model is configured for the crew and Bonny
+      And Bonny's model returns no line for the handoff
       When the operator runs the "/embark" command in the started session
-      And the crew session runs a turn
-      When Estelle hands the crew off from the Quartermaster to the Crew
-      Then Bonny's narration for the handoff carries a live line in their voice
+      And Estelle hands the crew off from the Quartermaster to the Crew
+      Then the started session receives a narration of the handoff from the Quartermaster to the Crew
 
   Rule: The crew's run is reported back into Bonny's session when it ends
     Estelle summarizes the result back into Bonny's session so they can speak to what
     shipped, while the firewall holds: Bonny receives the distilled summary, never the
-    crew's raw context. The fast tier pins the report seam and the firewall. The live-eval
-    tier pins a real model summary of the crew's work.
+    crew's raw context. The report reaching the operator is the duty, so Estelle emits it
+    and a silent model costs the operator prose, never the report.
 
     Scenario: The crew's run is reported back into Bonny's session without leaking raw context
       Given a started Estelle session seated as the Captain "Bonny"
@@ -124,14 +122,12 @@ Feature: Embarking runs the crew alongside Bonny
       Then the started session records a crew-run report
       And the started session's history excludes the crew's raw message "greeting.md warmer; three planks green"
 
-    @eval
-    Scenario: Bonny's crew-run report carries a live summary
+    Scenario: The crew-run report reaches the operator when the model returns no summary
       Given a started Estelle session seated as the Captain "Bonny"
-      And a live eval model is configured for the crew and Bonny
+      And Bonny's model returns no summary for the crew's run
       When the operator runs the "/embark" command in the started session
-      And the crew session runs a turn
-      When Estelle reports the crew's run back to Bonny
-      Then Bonny's crew-run report carries a live summary of the crew's work
+      And Estelle reports the crew's run back to Bonny
+      Then the started session receives a report of the crew's run
 
   Rule: One decision seam chooses the next seat from the Quartermaster's verdict
     Estelle drives the whole run, not one handoff: it reads the Quartermaster's verdict and
@@ -239,6 +235,33 @@ Feature: Embarking runs the crew alongside Bonny
       When the operator runs the "/qm" command in the started session
       And the alongside Quartermaster takes a turn
       Then the alongside Quartermaster does not refuse for unclean context
+
+  Rule: Estelle re-asks once for a turn that omits the artifact the turn was for
+    A live model asked to act sometimes answers in prose instead. Where the missing artifact
+    is machine-detectable by its absence, Estelle re-asks the seat once. The re-ask is
+    bounded at one: a seat that omits the artifact again is passed through, because a repair
+    that retries until it succeeds is the unended turn wearing a repair's coat. A re-ask
+    moves the odds. It does not make the model's choice for it.
+
+    Scenario: Bonny answering with a role command instead of embarking is re-asked once
+      Given a started Estelle session seated as the Captain "Bonny"
+      And the operator has told Bonny to ship the batch of specs the crew can build
+      When Bonny's turn ends by instructing the operator to run "/qm" and embarks no crew
+      Then Estelle re-asks Bonny once before the turn reaches the operator
+
+    Scenario: A dispatched Quartermaster refusing for unclean context is re-asked once
+      Given a started Estelle session carrying the operator's message "make the greeting warmer" to Bonny
+      And the operator runs the "/qm" command in the started session
+      When the alongside Quartermaster's turn ends by refusing for unclean context
+      Then Estelle re-asks the Quartermaster once, stating the alongside session's context is clean
+
+    Scenario: A re-asked turn that omits the artifact again reaches the operator
+      Given a started Estelle session seated as the Captain "Bonny"
+      And the operator has told Bonny to ship the batch of specs the crew can build
+      And Estelle has re-asked Bonny once for the turn
+      When Bonny's re-asked turn ends by instructing the operator to run "/qm" and embarks no crew
+      Then the started session receives Bonny's reply
+      And Estelle re-asks Bonny no further for the turn
 
   Rule: Embark drives the real crew to green, proven against the project's own verification
     On a real project the crew reads the durable artifacts, edits real production code, and the

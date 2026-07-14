@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Given, Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
@@ -17,6 +17,7 @@ interface MessageView {
 	role: string;
 	content?: unknown;
 	display?: boolean;
+	customType?: string;
 }
 
 interface ToolResultEmitter {
@@ -53,6 +54,7 @@ interface SessionRuntimeView {
 interface InteractiveHandleView {
 	runtime: SessionRuntimeView;
 	seat(): { id: string; role: string; name: string };
+	providerRequestCount?: () => number;
 }
 
 function messageText(message: MessageView): string {
@@ -83,6 +85,12 @@ function startedSession(world: EstelleWorld): SessionView {
 // session, not a hand-written stand-in.
 const NUDGE_MARK = "Batch shipped";
 const NUDGE_GUIDANCE = "Offer the operator a fresh context for the next batch";
+
+// The plugin's own nudge, delivered into Bonny's session context as guidance
+// addressed to Bonny. It is the machine's instruction to the Captain, not the
+// offer the operator reads, so the operator-facing offer is observed apart from
+// it: an offer that is only this message is guidance nobody voiced.
+const NUDGE_CUSTOM_TYPE = "shipshape-reset-nudge";
 
 let toolResultSeq = 0;
 
@@ -157,6 +165,89 @@ Then(
 			0,
 			`a reset nudge reached Bonny's session context on a non-outbound command; delivered: ${JSON.stringify(
 				delivered,
+			)}`,
+		);
+	},
+);
+
+Given("no live model is configured for Bonny", function (this: EstelleWorld) {
+	// The started session runs against a disposable agent dir with no provider
+	// auth and no model registry, so no model is rigged and Bonny can take no
+	// turn. Observe that state rather than assuming it: the agent dir carries
+	// neither provider auth nor a model registry, and the started session has
+	// driven no provider request, so nothing Bonny "says" can come from a model.
+	const agentDir = this.agentDir!;
+	assert.ok(agentDir, "the started session has no operator agent directory");
+	// The launch materializes these files, so their presence proves nothing; what
+	// they carry does. No provider is authed and no model registry is declared, so
+	// no model resolves for Bonny's seat.
+	const entries = (name: string): string[] => {
+		const path = join(agentDir, name);
+		if (!existsSync(path)) {
+			return [];
+		}
+		const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<
+			string,
+			unknown
+		>;
+		return Object.keys(parsed.providers ?? parsed);
+	};
+	assert.deepEqual(
+		entries("auth.json"),
+		[],
+		"the operator's agent directory carries provider auth, so a live model is configured for Bonny",
+	);
+	assert.deepEqual(
+		entries("models.json"),
+		[],
+		"the operator's agent directory carries a model registry, so a live model is configured for Bonny",
+	);
+	const handle = this
+		.interactiveSession as unknown as InteractiveHandleView | null;
+	assert.ok(handle, "no started Estelle session");
+	assert.equal(
+		typeof handle.providerRequestCount,
+		"function",
+		"started session exposes no provider-request count, so whether a model is driving Bonny cannot be observed",
+	);
+	assert.equal(
+		handle.providerRequestCount!(),
+		0,
+		"the started session drove a provider request, so a live model is configured for Bonny",
+	);
+});
+
+Then(
+	"the started session offers the operator a fresh context for the next batch",
+	function (this: EstelleWorld) {
+		// The offer is Estelle's duty, so it reaches the operator with no model to
+		// voice it. Read the operator-visible messages the started session carries
+		// and require one that offers a fresh context for the next batch.
+		//
+		// The plugin's own nudge is excluded: that message is guidance addressed to
+		// Bonny and is already asserted by the sibling scenario. Counting it here
+		// would report the offer delivered whenever the guidance arrives, which is
+		// exactly the failure this scenario exists to catch. With no model rigged,
+		// no assistant reply can carry the offer either, so what remains is Estelle
+		// emitting the offer itself.
+		const messages = startedSession(this).messages;
+		const offers = messages.filter(
+			(message) =>
+				message.display !== false &&
+				message.customType !== NUDGE_CUSTOM_TYPE &&
+				/fresh context|fresh session|fresh start|start fresh|start anew|clean slate|new context|new session|reset (the |your |our |this )?(context|session)|clear (the |your |our )?context/i.test(
+					messageText(message),
+				),
+		);
+		assert.ok(
+			offers.length > 0,
+			`the started session never offered the operator a fresh context for the next batch; operator-visible messages: ${JSON.stringify(
+				messages
+					.filter((message) => message.display !== false)
+					.map((message) => ({
+						customType: message.customType,
+						text: messageText(message),
+					})),
 			)}`,
 		);
 	},

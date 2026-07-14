@@ -1952,6 +1952,766 @@ Then(
 	},
 );
 
+// A model that is rigged and answers, yet returns no line. The silence is real:
+// a live HTTP endpoint speaking the provider's own completions API answers every
+// turn with a well-formed reply whose assistant content is empty, so the turn
+// travels the real provider client and the real seat-turn seam and comes back
+// carrying nothing. This is the condition the real environment cannot be asked
+// to produce on demand from a hosted model, and it is the condition the operator
+// meets when a model goes quiet: Bonny voices nothing, and the duty to reach the
+// operator falls to Estelle.
+interface SilentProviderView {
+	server: Server;
+}
+
+// Teardown registered before anything is created: a listening server left open
+// holds the run's event loop and leaks a live endpoint into the next scenario.
+After(async function (this: EstelleWorld) {
+	const silent = (this as unknown as { silentProvider?: SilentProviderView })
+		.silentProvider;
+	if (!silent) {
+		return;
+	}
+	silent.server.closeAllConnections();
+	await new Promise<void>((resolve, reject) => {
+		silent.server.close((error) => (error ? reject(error) : resolve()));
+	});
+	(this as unknown as { silentProvider?: SilentProviderView }).silentProvider =
+		undefined;
+});
+
+// Fit a live-but-silent model on Bonny's Captain seat and relaunch, so every
+// turn Estelle drives on Bonny comes back with no line. The crew's own seat model
+// is left unset: this scenario is about Bonny's voice, and the crew resolves its
+// model the way a real session does.
+async function fitSilentCaptainModel(world: EstelleWorld): Promise<void> {
+	const server = createServer((request, response) => {
+		let body = "";
+		request.on("data", (chunk) => {
+			body += String(chunk);
+		});
+		request.on("end", () => {
+			let streaming = false;
+			try {
+				streaming = (JSON.parse(body) as { stream?: boolean }).stream === true;
+			} catch {
+				streaming = false;
+			}
+			const id = "estelle-silent-1";
+			const created = Math.floor(Date.now() / 1000);
+			// A well-formed completion whose assistant content is empty: the provider
+			// answered, and the model said nothing.
+			if (streaming) {
+				response.writeHead(200, {
+					"content-type": "text/event-stream",
+					"cache-control": "no-cache",
+					connection: "keep-alive",
+				});
+				const chunk = (delta: Record<string, unknown>, finish: string | null) =>
+					`data: ${JSON.stringify({
+						id,
+						object: "chat.completion.chunk",
+						created,
+						model: "estelle-silent-1",
+						choices: [{ index: 0, delta, finish_reason: finish }],
+					})}\n\n`;
+				response.write(chunk({ role: "assistant" }, null));
+				response.write(chunk({}, "stop"));
+				response.write("data: [DONE]\n\n");
+				response.end();
+				return;
+			}
+			response.writeHead(200, { "content-type": "application/json" });
+			response.end(
+				JSON.stringify({
+					id,
+					object: "chat.completion",
+					created,
+					model: "estelle-silent-1",
+					choices: [
+						{
+							index: 0,
+							message: { role: "assistant", content: "" },
+							finish_reason: "stop",
+						},
+					],
+					usage: {
+						prompt_tokens: 1,
+						completion_tokens: 0,
+						total_tokens: 1,
+					},
+				}),
+			);
+		});
+	});
+	(world as unknown as { silentProvider?: SilentProviderView }).silentProvider =
+		{ server };
+	await new Promise<void>((resolve) => {
+		server.listen(0, "127.0.0.1", resolve);
+	});
+	const address = server.address() as AddressInfo;
+	const baseUrl = `http://127.0.0.1:${address.port}/v1`;
+	const provider = "estelle-silent";
+	const modelId = "estelle-silent-1";
+	writeFileSync(
+		join(world.agentDir!, "models.json"),
+		JSON.stringify({
+			providers: {
+				[provider]: {
+					baseUrl,
+					apiKey: "sk-estelle-silent",
+					api: "openai-completions",
+					models: [
+						{
+							id: modelId,
+							name: "Estelle Silent",
+							reasoning: false,
+							input: ["text"],
+							cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+							contextWindow: 100000,
+							maxTokens: 1000,
+						},
+					],
+				},
+			},
+		}),
+		"utf8",
+	);
+	writeFileSync(
+		join(world.agentDir!, "auth.json"),
+		JSON.stringify({
+			[provider]: { type: "api_key", key: "sk-estelle-silent" },
+		}),
+		"utf8",
+	);
+	writeFileSync(
+		join(world.agentDir!, "estelle.json"),
+		JSON.stringify({ seats: { captain: `${provider}/${modelId}` } }),
+		"utf8",
+	);
+	world.interactiveSession = undefined;
+	await startSession(world);
+}
+
+Given(
+	"Bonny's model returns no line for the handoff",
+	{ timeout: 120000 },
+	async function (this: EstelleWorld) {
+		await fitSilentCaptainModel(this);
+	},
+);
+
+Given(
+	"Bonny's model returns no summary for the crew's run",
+	{ timeout: 120000 },
+	async function (this: EstelleWorld) {
+		await fitSilentCaptainModel(this);
+	},
+);
+
+Then(
+	"the started session receives a narration of the handoff from the Quartermaster to the Crew",
+	{ timeout: 120000 },
+	function (this: EstelleWorld) {
+		// Reaching the operator is the duty, and a silent model costs the operator
+		// colour, never the signal. So the handoff's narration must both exist with
+		// content and land in the operator's own session. Read the recorded handoff
+		// first: a model that returned no line must not leave the narration empty.
+		const entry = handoffNarration(this);
+		assert.equal(
+			typeof entry.line,
+			"string",
+			`the handoff narration carries no line at all after Bonny's model returned none: ${JSON.stringify(
+				entry,
+			)}`,
+		);
+		assert.ok(
+			entry.line.trim().length > 0,
+			`the handoff narration carries an empty line after Bonny's model returned none: ${JSON.stringify(
+				entry,
+			)}`,
+		);
+		// Then read the operator's own session: the narration the operator reads is
+		// a display message carrying that line. A narration recorded only in the log
+		// never reached the operator.
+		const surfaced = surfacedMessages(this, "crew-narration").map(messageText);
+		assert.ok(
+			surfaced.some((text) => text.includes(entry.line)),
+			`the operator's own session received no narration of the handoff from the Quartermaster to the Crew; recorded handoff line: ${JSON.stringify(
+				entry.line,
+			)}; narration display messages in the operator's session: ${JSON.stringify(
+				surfaced,
+			)}`,
+		);
+	},
+);
+
+Then(
+	"the started session receives a report of the crew's run",
+	{ timeout: 120000 },
+	function (this: EstelleWorld) {
+		// The report reaching the operator is the duty, and a silent model costs the
+		// operator prose, never the report. A model that returned no summary must not
+		// leave an empty report behind, and the report must land in the operator's
+		// own session.
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		const reports = handle.crewRunReports();
+		assert.ok(
+			reports.length > 0,
+			"the started session recorded no report of the crew's run after Bonny's model returned no summary",
+		);
+		const empty = reports.filter(
+			(report) =>
+				typeof report.summary !== "string" ||
+				report.summary.trim().length === 0,
+		);
+		assert.equal(
+			empty.length,
+			0,
+			`the crew's run was reported with no summary after Bonny's model returned none; reports: ${JSON.stringify(
+				reports,
+			)}`,
+		);
+		const surfaced = surfacedMessages(this, "crew-run-report").map(messageText);
+		const delivered = reports.filter((report) =>
+			surfaced.some((text) => text.includes(report.summary)),
+		);
+		assert.ok(
+			delivered.length > 0,
+			`the operator's own session received no report of the crew's run; recorded reports: ${JSON.stringify(
+				reports,
+			)}; report display messages in the operator's session: ${JSON.stringify(
+				surfaced,
+			)}`,
+		);
+	},
+);
+
+// A seat whose live model answers, and omits the artifact the turn was for. The
+// omission is real: a live HTTP endpoint speaking the provider's own completions
+// API answers every turn with one scripted reply and counts the turns it served,
+// so a re-ask is observed as a second served turn rather than inferred.
+//
+// @exceptional-double: the condition under test is a live model that answers in
+// prose instead of acting. A hosted model cannot be asked to omit the artifact on
+// demand, and a model that happened to comply would turn the scenario green while
+// the re-ask stayed broken. The live coverage rides this feature's @eval
+// scenarios. Everything else on this path is real: the real provider client, the
+// real seat turn, the real session, and Estelle's own re-ask seam.
+interface ScriptedProviderView {
+	server: Server;
+	served: number;
+}
+
+function scriptedProvider(world: EstelleWorld): ScriptedProviderView {
+	const provider = (
+		world as unknown as { scriptedProvider?: ScriptedProviderView }
+	).scriptedProvider;
+	assert.ok(provider, "no scripted provider was fitted for this scenario");
+	return provider;
+}
+
+// Teardown registered before anything is created: a listening server left open
+// holds the run's event loop and leaks a live endpoint into the next scenario.
+After(async function (this: EstelleWorld) {
+	const provider = (
+		this as unknown as { scriptedProvider?: ScriptedProviderView }
+	).scriptedProvider;
+	if (!provider) {
+		return;
+	}
+	provider.server.closeAllConnections();
+	await new Promise<void>((resolve, reject) => {
+		provider.server.close((error) => (error ? reject(error) : resolve()));
+	});
+	(
+		this as unknown as { scriptedProvider?: ScriptedProviderView }
+	).scriptedProvider = undefined;
+});
+
+// Fit the scripted model on one seat and relaunch, so the seat's every turn comes
+// back with the scripted reply. The seat model is read when the session is built,
+// so the fitting precedes the launch.
+async function fitScriptedSeat(
+	world: EstelleWorld,
+	seatRole: string,
+	reply: string,
+): Promise<void> {
+	const state: ScriptedProviderView = {
+		server: undefined as unknown as Server,
+		served: 0,
+	};
+	const server = createServer((request, response) => {
+		let body = "";
+		request.on("data", (chunk) => {
+			body += String(chunk);
+		});
+		request.on("end", () => {
+			state.served += 1;
+			let streaming = false;
+			try {
+				streaming = (JSON.parse(body) as { stream?: boolean }).stream === true;
+			} catch {
+				streaming = false;
+			}
+			const id = "estelle-scripted-1";
+			const created = Math.floor(Date.now() / 1000);
+			if (streaming) {
+				response.writeHead(200, {
+					"content-type": "text/event-stream",
+					"cache-control": "no-cache",
+					connection: "keep-alive",
+				});
+				const chunk = (delta: Record<string, unknown>, finish: string | null) =>
+					`data: ${JSON.stringify({
+						id,
+						object: "chat.completion.chunk",
+						created,
+						model: "estelle-scripted-1",
+						choices: [{ index: 0, delta, finish_reason: finish }],
+					})}\n\n`;
+				response.write(chunk({ role: "assistant", content: reply }, null));
+				response.write(chunk({}, "stop"));
+				response.write("data: [DONE]\n\n");
+				response.end();
+				return;
+			}
+			response.writeHead(200, { "content-type": "application/json" });
+			response.end(
+				JSON.stringify({
+					id,
+					object: "chat.completion",
+					created,
+					model: "estelle-scripted-1",
+					choices: [
+						{
+							index: 0,
+							message: { role: "assistant", content: reply },
+							finish_reason: "stop",
+						},
+					],
+					usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+				}),
+			);
+		});
+	});
+	state.server = server;
+	(
+		world as unknown as { scriptedProvider?: ScriptedProviderView }
+	).scriptedProvider = state;
+	await new Promise<void>((resolve) => {
+		server.listen(0, "127.0.0.1", resolve);
+	});
+	const address = server.address() as AddressInfo;
+	const baseUrl = `http://127.0.0.1:${address.port}/v1`;
+	const provider = "estelle-scripted";
+	const modelId = "estelle-scripted-1";
+	writeFileSync(
+		join(world.agentDir!, "models.json"),
+		JSON.stringify({
+			providers: {
+				[provider]: {
+					baseUrl,
+					apiKey: "sk-estelle-scripted",
+					api: "openai-completions",
+					models: [
+						{
+							id: modelId,
+							name: "Estelle Scripted",
+							reasoning: false,
+							input: ["text"],
+							cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+							contextWindow: 100000,
+							maxTokens: 1000,
+						},
+					],
+				},
+			},
+		}),
+		"utf8",
+	);
+	writeFileSync(
+		join(world.agentDir!, "auth.json"),
+		JSON.stringify({
+			[provider]: { type: "api_key", key: "sk-estelle-scripted" },
+		}),
+		"utf8",
+	);
+	writeFileSync(
+		join(world.agentDir!, "estelle.json"),
+		JSON.stringify({ seats: { [seatRole]: `${provider}/${modelId}` } }),
+		"utf8",
+	);
+	world.interactiveSession = undefined;
+	await startSession(world);
+}
+
+// Bonny's turn ends by telling the operator to run a role command, and calls no
+// embark tool: the artifact the turn was for is missing, and its absence is what
+// Estelle detects.
+const ROLE_COMMAND_REPLY =
+	'The batch is ready. Run "/qm" and the Quartermaster will verify it, then I will report back.';
+
+// The Quartermaster's own context-bulkhead refusal voice, returned by a seat whose
+// alongside session is in fact clean.
+const UNCLEAN_REFUSAL =
+	"No. Captain context visible. Need clear context, then QM.";
+
+interface ReAskWorld {
+	servedBeforeTurn?: number;
+	turnReplies?: string[];
+}
+
+// Drive one real turn on Bonny's seat and record what the operator saw. The wait
+// ends on the turn's own end signal, agent_end with no retry pending; a resolved
+// send is the fallback with a short drain, since a turn that fails silently
+// resolves it with no reply. Estelle's re-ask, when it exists, runs inside this
+// turn, so the served count and the operator-visible replies are read after the
+// turn has ended.
+async function driveBonnyTurn(world: EstelleWorld): Promise<void> {
+	const session = operatorSession(world);
+	// Settle Bonny's opening turn on its observed signal, so the turn under test is
+	// the only turn in flight.
+	const settleDeadline = Date.now() + 120000;
+	while (Date.now() < settleDeadline) {
+		const opened = session.messages.some(
+			(message) =>
+				message.role === "assistant" && messageText(message).trim().length > 0,
+		);
+		if (opened && !session.isStreaming) {
+			break;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+	const world_ = world as unknown as ReAskWorld;
+	const provider = scriptedProvider(world);
+	world_.servedBeforeTurn = provider.served;
+	const before = session.messages.length;
+	await session.sendUserMessage("Please carry on.");
+	// The turn is over when the run goes quiet, not when the first agent_end
+	// fires. A re-ask Estelle queues as the run's follow-up is dispatched after
+	// that first end signal, so a wait that stops there reads the turn before its
+	// own re-ask has been served and reports a re-ask that did happen as one that
+	// never did. Wait for quiescence instead: the session idle and the seat's
+	// endpoint serving nothing further, held for a quiet window and bounded by a
+	// deadline, so a turn that hangs fails loudly rather than waiting forever.
+	const quietWindow = 1500;
+	const deadline = Date.now() + 120000;
+	let quietSince = Date.now();
+	let lastServed = provider.served;
+	while (Date.now() < deadline) {
+		const moved = provider.served !== lastServed || session.isStreaming;
+		if (moved) {
+			lastServed = provider.served;
+			quietSince = Date.now();
+		} else if (Date.now() - quietSince >= quietWindow) {
+			break;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 50));
+	}
+	assert.ok(
+		Date.now() < deadline,
+		`Bonny's turn never went quiet: the session was still running ${
+			provider.served - (world_.servedBeforeTurn ?? 0)
+		} turn(s) in when the deadline passed`,
+	);
+	// What the operator actually reads: the turn's own operator-visible replies. A
+	// reply Estelle withheld from the operator is not one of them.
+	world_.turnReplies = session.messages
+		.slice(before)
+		.filter(
+			(message) => message.role === "assistant" && message.display !== false,
+		)
+		.map(messageText)
+		.filter((text) => text.trim().length > 0);
+}
+
+function reAsk(world: EstelleWorld): {
+	servedBefore: number;
+	replies: string[];
+} {
+	const world_ = world as unknown as ReAskWorld;
+	assert.equal(
+		typeof world_.servedBeforeTurn,
+		"number",
+		"no turn was driven on Bonny's seat for this scenario",
+	);
+	return {
+		servedBefore: world_.servedBeforeTurn as number,
+		replies: world_.turnReplies ?? [],
+	};
+}
+
+Given(
+	"the operator has told Bonny to ship the batch of specs the crew can build",
+	{ timeout: 120000 },
+	async function (this: EstelleWorld) {
+		// A real, actionable batch in the workspace: a fitted project with a spec the
+		// crew can build. Embarking is the sensible next act, so a turn that instead
+		// sends the operator to a role command has genuinely omitted the artifact.
+		const featuresDir = join(this.workspaceDir!, "features");
+		mkdirSync(featuresDir, { recursive: true });
+		// A fully fitted rigging: every required value carries a real value, so the
+		// launch routes no rigging refit and the only turn on Bonny's seat is the one
+		// this scenario drives.
+		writeFileSync(
+			join(this.workspaceDir!, "RIGGING.md"),
+			[
+				"# Rigging",
+				"",
+				"## Stack",
+				"",
+				"- language: typescript",
+				"",
+				"## Directories",
+				"",
+				"- implementation: src",
+				"- specs: features",
+				"",
+				"## Commands",
+				"",
+				'- focused: `pnpm exec cucumber-js --name "{scenario}"`',
+				"",
+				"## Perturbation",
+				"",
+				"- message: `PERTURBATION: consider current durable context; remove when fixed`",
+				'- perturb: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`',
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		writeFileSync(
+			join(featuresDir, "greeting.feature"),
+			"@logic\nFeature: Warm greeting\n\n  Scenario: The store greets the customer warmly\n    Given a customer opens the store\n    When the greeting renders\n    Then it welcomes them with a warm line\n",
+			"utf8",
+		);
+		// Bonny's seat answers with a role-command instruction and embarks no crew.
+		await fitScriptedSeat(this, "captain", ROLE_COMMAND_REPLY);
+		const session = operatorSession(this);
+		await settleOperatorTurn(session);
+		await session.sendUserMessage(
+			"Yes, that greeting spec is exactly what I want. Build it and ship it.",
+			{ triggerTurn: false },
+		);
+	},
+);
+
+When(
+	"Bonny's turn ends by instructing the operator to run {string} and embarks no crew",
+	{ timeout: 600000 },
+	async function (this: EstelleWorld, command: string) {
+		await driveBonnyTurn(this);
+		// The turn ended as the scenario names it: Bonny sent the operator to the role
+		// command and called no embark tool, so no crew session opened.
+		const session = operatorSession(this);
+		const replies = session.messages
+			.filter((message) => message.role === "assistant")
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			replies.some((text) => text.includes(command)),
+			`Bonny's turn did not end by instructing the operator to run ${JSON.stringify(
+				command,
+			)}; Bonny's replies: ${JSON.stringify(replies)}`,
+		);
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		assert.equal(
+			handle.crewSession(),
+			undefined,
+			"Bonny embarked a crew on the turn, so the turn did not omit the artifact this scenario is about",
+		);
+	},
+);
+
+Then(
+	"Estelle re-asks Bonny once before the turn reaches the operator",
+	function (this: EstelleWorld) {
+		// The re-ask is a second real turn on Bonny's seat, served by the same live
+		// endpoint: the seat served the original turn and exactly one more. A turn
+		// Estelle passed straight through serves one.
+		//
+		// Before the turn reaches the operator: the re-ask is served inside the
+		// operator's own turn, with no further operator message to prompt it. The
+		// operator speaks once, and the seat is asked twice before the turn ends.
+		const { servedBefore } = reAsk(this);
+		const served = scriptedProvider(this).served - servedBefore;
+		assert.equal(
+			served,
+			2,
+			`Estelle did not re-ask Bonny exactly once: Bonny's seat served ${served} turn(s) for the operator's message, where the original turn plus one re-ask is 2`,
+		);
+	},
+);
+
+Given(
+	"Estelle has re-asked Bonny once for the turn",
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		await driveBonnyTurn(this);
+		const { servedBefore } = reAsk(this);
+		const served = scriptedProvider(this).served - servedBefore;
+		assert.equal(
+			served,
+			2,
+			`Estelle did not re-ask Bonny once for the turn: Bonny's seat served ${served} turn(s), where the original turn plus one re-ask is 2`,
+		);
+	},
+);
+
+When(
+	"Bonny's re-asked turn ends by instructing the operator to run {string} and embarks no crew",
+	function (this: EstelleWorld, command: string) {
+		// The re-asked turn omitted the artifact again: the seat answered with the
+		// role-command instruction once more and called no embark tool. The turn is
+		// already driven; this step reads how it ended.
+		const replies = operatorSession(this)
+			.messages.filter((message) => message.role === "assistant")
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			replies.some((text) => text.includes(command)),
+			`Bonny's re-asked turn did not end by instructing the operator to run ${JSON.stringify(
+				command,
+			)}; Bonny's replies: ${JSON.stringify(replies)}`,
+		);
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		assert.equal(
+			handle.crewSession(),
+			undefined,
+			"Bonny embarked a crew on the re-asked turn, so the re-asked turn did not omit the artifact again",
+		);
+	},
+);
+
+Then(
+	"the started session receives Bonny's reply",
+	function (this: EstelleWorld) {
+		// A repair that retries until it succeeds is the unended turn wearing a
+		// repair's coat, so the re-asked turn's reply is passed through to the operator
+		// rather than withheld for another attempt.
+		const { replies } = reAsk(this);
+		assert.ok(
+			replies.length > 0,
+			"the started session received no reply from Bonny for the turn: the re-asked turn was withheld from the operator rather than passed through",
+		);
+		assert.ok(
+			replies.some((text) => text.includes(ROLE_COMMAND_REPLY)),
+			`the started session did not receive Bonny's own reply for the re-asked turn; operator-visible replies: ${JSON.stringify(
+				replies,
+			)}`,
+		);
+	},
+);
+
+Then(
+	"Estelle re-asks Bonny no further for the turn",
+	function (this: EstelleWorld) {
+		// Bounded at one. The seat served the original turn and one re-ask, and no
+		// more: a third served turn is the retry loop the Rule forbids.
+		const { servedBefore } = reAsk(this);
+		const served = scriptedProvider(this).served - servedBefore;
+		assert.equal(
+			served,
+			2,
+			`Estelle re-asked Bonny again after the re-asked turn omitted the artifact: Bonny's seat served ${served} turns for the operator's message, where the original turn plus exactly one re-ask is 2`,
+		);
+	},
+);
+
+When(
+	"the alongside Quartermaster's turn ends by refusing for unclean context",
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		// The alongside Quartermaster's seat model is read when its session is built,
+		// so the scripted seat is fitted and the session relaunched, then the
+		// scenario's own starting state is re-established on the fresh session: the
+		// operator's message carried in Bonny's session, and the Quartermaster
+		// dispatched alongside by the operator's own "/qm" command.
+		await fitScriptedSeat(this, "quartermaster", UNCLEAN_REFUSAL);
+		const operator = operatorSession(this);
+		await settleOperatorTurn(operator);
+		await operator.sendCustomMessage({
+			customType: "operator-message",
+			content: "make the greeting warmer",
+			display: true,
+		});
+		const runtime = this.interactiveSession!.runtime as {
+			services: {
+				resourceLoader: {
+					getExtensions(): {
+						extensions: {
+							commands: Map<
+								string,
+								{ handler: (arg: string, ctx: object) => Promise<void> }
+							>;
+						}[];
+					};
+				};
+			};
+		};
+		let handler: ((arg: string, ctx: object) => Promise<void>) | undefined;
+		for (const ext of runtime.services.resourceLoader.getExtensions()
+			.extensions) {
+			const registered = ext.commands.get("qm");
+			if (registered) {
+				handler = registered.handler;
+				break;
+			}
+		}
+		assert.ok(handler, 'command "/qm" not registered as a live pi command');
+		await handler("", {});
+		const crew = crewSession(this);
+		const world_ = this as unknown as ReAskWorld;
+		world_.servedBeforeTurn = scriptedProvider(this).served;
+		await crew.runTurn();
+		// The turn ended as the scenario names it: the Quartermaster refused for
+		// unclean context, on a session whose context is in fact clean.
+		const replies = crew.runtime.session.messages
+			.filter((message) => message.role === "assistant")
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			replies.some((text) => /clear context|clean context/i.test(text)),
+			`the alongside Quartermaster's turn did not end by refusing for unclean context; its replies: ${JSON.stringify(
+				replies,
+			)}`,
+		);
+	},
+);
+
+Then(
+	"Estelle re-asks the Quartermaster once, stating the alongside session's context is clean",
+	function (this: EstelleWorld) {
+		// The re-ask is a second real turn on the Quartermaster's seat, served by the
+		// same live endpoint: the refused turn and exactly one more.
+		const { servedBefore } = reAsk(this);
+		const served = scriptedProvider(this).served - servedBefore;
+		assert.equal(
+			served,
+			2,
+			`Estelle did not re-ask the Quartermaster exactly once: the seat served ${served} turn(s) for the dispatch, where the refused turn plus one re-ask is 2`,
+		);
+		// The re-ask states the alongside session's context is clean. It is Estelle's
+		// own message into the Quartermaster's session, not the seat's own reply.
+		const asked = crewSession(this)
+			.runtime.session.messages.filter(
+				(message) => message.role !== "assistant",
+			)
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			asked.some((text) =>
+				/context (is |here is )?clean|clean context|no captain context/i.test(
+					text,
+				),
+			),
+			`Estelle's re-ask did not state that the alongside session's context is clean; messages Estelle sent into the Quartermaster's session: ${JSON.stringify(
+				asked,
+			)}`,
+		);
+	},
+);
+
 Then(
 	"the crew's seat turn returns live content from the model",
 	// The run is under way when this step opens, so the assertion waits on the

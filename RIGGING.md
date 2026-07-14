@@ -39,7 +39,8 @@ Procedure lives in the skills. Every role reads this on open.
 - coverage-sandbox: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "@sandbox and not @captain and not @eval and not @shipwright" --format json:coverage/weather-sandbox.json`
 - coverage-eval: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright" --format json:coverage/weather-eval.json`
 - step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @shipwright" --format usage-json`
-- eval: `pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright"`
+- eval: `pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright" --format summary --format "json:coverage/eval-run.json" > coverage/eval-run.log 2>&1`
+- note: the `eval` tier runs long, so its output must survive the run and its verdict must be its own; the command redirects an unpiped failure-naming summary to `coverage/eval-run.log` and the machine-readable run to `coverage/eval-run.json`, so the shell's exit status is cucumber's rather than a pipeline's last command, and a truncated read cannot pass as a green tier
 - conformance: `pnpm exec cucumber-js --tags "not @captain and not @shipwright" --name "discharges? against the"`
 - plank-inventory: `node scripts/plank-inventory.mjs`
 - typecheck: `pnpm exec tsc --noEmit`

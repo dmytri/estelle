@@ -27,7 +27,9 @@ re-probed green. The mode stands.
 
 **STILL OWED BEFORE 0.2.7:** Crew changed `src/index.ts`, which **voids the green on the twelve `@eval`
 scenarios that passed before the fix**. A focused run is intermediate proof only; terminal proof runs whole.
-One fresh full regression, every tier, ~45 min. Do not shortcut this.
+One whole-suite sweep, every tier. **Route: harbour.** A full regression is a harbour action and harbour is
+its only trigger; there is no such thing as a bare pre-outbound rerun. Sequence: weather voyage, then harbour,
+then ship 0.2.7 on harbour's regression.
 
 **Harbour, non-blocking:** `src/index.ts` now carries two flags for one fact, `riggingRefitEnded` and
 `state.riggingRefitting`, written in lockstep. Collapse them.
@@ -111,9 +113,31 @@ behaviour-bearing `@logic` steps.**
 commit, project root, and **target references** -- a file path is a **seam hint**, beyond the contract. Keep
 dispatches thin even when the fact seems harmless.
 
-## THE WEATHER VOYAGE — operator's call, next to sail. THE RELEASE GATE CONTAINS DICE.
+## THE WEATHER VOYAGE — SAILING NOW. Specs written, watchbill set, QM next.
 
-**Why 0.2.7 cannot ship.** The pre-outbound regression will not clear, and not because of a bug. Two `@eval`
+**Operator's three calls, taken 2026-07-14:**
+
+1. **Supersede, do not retain.** The four duties a machine can guarantee are now machine-guaranteed and
+   asserted at `@logic`; their `@eval` twins are **deleted**, not rewritten to assert live content. The voice
+   is decoration and no scenario asserts decoration. **`@eval` is 15 scenarios down to 11** (command-verified).
+   The four: the reset nudge's fresh-context offer, the opening's derived pending review, the handoff
+   narration, the crew-run report. Each new scenario proves the guarantee the only honest way -- **with no
+   model, or with a model that returns nothing** -- so a silent model costs the operator colour, never signal.
+2. **The two genuine choosers get a bounded re-ask,** not deletion and not m-of-k. `Bonny embarks the crew`
+   and `A manually invoked Quartermaster proceeds` stay in `@eval`, measuring the odds. Beneath them, a new
+   `Rule:` makes Estelle re-ask a seat **exactly once** when the artifact the turn existed for is absent.
+   **The bound is the point.** An unbounded repair is this project's own defect wearing a repair's coat, so
+   the third scenario pins that a twice-omitting turn passes through.
+3. **The `eval` command is refit** in `RIGGING.md`: unpiped, redirected to `coverage/eval-run.log` with a
+   failure-naming `summary` format plus JSON. The shell's exit status is now cucumber's own. **This is the
+   one that would have shipped 0.2.7 on a regression that never passed.**
+
+**Owed by this voyage, still:** nothing in the specs. Deleting the four twins removes the flake class from
+the gate; whether it is *gone* is proven by harbour's regression, not by this note.
+
+## WHY IT SAILED. THE RELEASE GATE CONTAINS DICE.
+
+**Why 0.2.7 could not ship.** The pre-outbound regression would not clear, and not because of a bug. Two `@eval`
 runs at the **identical tree hash with no code change between them disagreed**: one red, one 15/15 green. QM
 refused to certify, correctly -- a tier that disagrees with itself is flaky, and **re-running until green
 manufactures the clearance rather than earning it**. The failing scenario's identity was lost (`--format
@@ -268,16 +292,11 @@ Estelle already proves the shape works: the crew loop spawns verification itself
 
 **Roles stalling in the Claude Code harness are not Estelle's seats.** Cannot fix that from here. Fix Estelle's own seats; the upstream text covers everyone else.
 
-## QUEUED — moving the odds on probabilistic seats
+## SPENT — moving the odds on probabilistic seats
 
-`captain-reset-nudge:24` and `live-crew:198` fail because a **live model chose differently**, not because code is wrong. A gate that reddens at random is weather, not a gate. Levers, best value first:
-
-- **Retry with repair.** If the expected artifact is absent after the turn, re-ask, or have the harness supply it. One re-ask turns 70% into 91%.
-- **Force a tool call, not prose.** Models attend to tools far more reliably, and the assertion becomes exact. This is why `/embark` works and "Bonny decides to embark" does not.
-- **Fire the nudge at a turn boundary,** not mid-task. The reset nudge failed because Bonny was busy writing rigging and specs; nothing competed with it, it would likely have landed.
-- **Shrink the turn.** A model asked to do five things drops one.
-- **Take the duty off the model entirely** where possible (machine-emitted offer; model keeps the voice, not the duty).
-- **Gate honestly:** a probabilistic scenario should be m-of-k, not a boolean. This changes what "green" means, so it is an **upstream doctrine conversation**, not a local Estelle convention.
+Decided and specced; see THE WEATHER VOYAGE above. Levers 1 (take the duty off the model) and 3+4 (shrink the
+turn, re-ask once) are in the specs. **m-of-k was not reached for and should not be:** it changes what "green"
+MEANS, so it is an upstream doctrine conversation, never a local Estelle convention. Keep it last.
 
 ## 2026-07-14 — the session's record
 

@@ -8,10 +8,12 @@ Feature: Bonny opens the session
   one: the Captain opening instructions live in their prompt yet never run,
   because startup only injects a canned greeting and never gives them a turn.
   Starting Estelle must actuate the opening the way a /captain invocation does
-  elsewhere, every start, so Bonny reads the specs and CAPTAIN.md and surfaces
-  the pending review scenarios and blockers before inviting direction. Without a
-  model they cannot take a turn, so they fall back to the canned fitting-out
-  steer.
+  elsewhere, every start, so Bonny reads the specs and CAPTAIN.md and speaks to
+  the deck before inviting direction. Surfacing a pending review is a duty, so
+  Estelle derives it from the specs and carries it into the opening itself
+  rather than trusting Bonny to notice it. Bonny frames what the machine
+  surfaces. Without a model they cannot take a turn, so they fall back to the
+  canned fitting-out steer.
 
   Scenario: Bonny begins their Captain opening turn when a model is available
     Given an operator directory that carries no Estelle assets
@@ -25,10 +27,7 @@ Feature: Bonny opens the session
     When the operator starts Estelle in that directory
     Then Bonny opens the session with the guidance "Commodore, no model is rigged yet. Use /login, then /model."
 
-  @eval
-  Scenario: Bonny's opening surfaces a pending review from the specs unprompted
-    Given a started Estelle session seated as the Captain "Bonny"
-    And a live eval model is configured for Bonny
-    And the specs carry a "@captain" scenario awaiting the Captain's review
-    When Bonny runs their opening turn
-    Then Bonny's opening surfaces the pending "@captain" scenario before inviting direction
+  Scenario: The opening carries the derived pending review to the operator
+    Given an operator directory whose specs carry a "@captain" scenario awaiting the Captain's review
+    When the operator starts Estelle in that directory
+    Then the session's opening carries the pending "@captain" scenario to the operator

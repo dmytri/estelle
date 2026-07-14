@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Given, Then } from "@cucumber/cucumber";
@@ -132,6 +132,91 @@ Then(
 		assert.ok(
 			handle.providerRequestCount!() > 0,
 			"Bonny drove no provider request before the operator spoke: startup posted a canned message rather than actuating a Captain opening turn",
+		);
+	},
+);
+
+// The pending review the opening must surface. A real feature file carrying a
+// real tagged scenario is seeded into the operator's own directory, so the
+// opening has to read the workspace specs to find it. The title is distinctive:
+// an opening that never derived the pending scenario cannot name it.
+const PENDING_SCENARIO = "Refund a fully shipped order to the original card";
+
+Given(
+	"an operator directory whose specs carry a {string} scenario awaiting the Captain's review",
+	function (this: EstelleWorld, tag: string) {
+		// A bare operator directory carrying no Estelle assets, so the package
+		// resolves its own shipped assets, with real specs of the operator's own.
+		// One scenario is tagged and awaits the Captain's review; the other is
+		// binding and settled, so surfacing the pending one is a derivation and not
+		// a listing of every scenario in the file.
+		this.workspaceDir ??= mkdtempSync(join(tmpdir(), "estelle-operator-"));
+		const featuresDir = join(this.workspaceDir, "features");
+		mkdirSync(featuresDir, { recursive: true });
+		writeFileSync(
+			join(featuresDir, "refunds.feature"),
+			[
+				"@logic",
+				"Feature: Refunds on shipped orders",
+				"",
+				"  Scenario: A refund is refused on an unpaid order",
+				'    Given a customer has not paid for order "SO-4418"',
+				"    When the operator issues a refund for the order",
+				"    Then the refund is refused",
+				"",
+				`  ${tag}`,
+				`  Scenario: ${PENDING_SCENARIO}`,
+				'    Given a customer paid for order "SO-4417" with a saved card',
+				"    And the order has shipped in full",
+				"    When the operator issues a refund for the order",
+				"    Then the refund returns to the original saved card",
+				"",
+			].join("\n"),
+			"utf8",
+		);
+	},
+);
+
+Then(
+	"the session's opening carries the pending {string} scenario to the operator",
+	function (this: EstelleWorld, tag: string) {
+		// Estelle derives the pending review from the workspace specs and carries it
+		// into the opening itself, so it reaches the operator whether or not a model
+		// speaks. Read the opening the operator actually sees: the display messages
+		// the session opens with, before the operator has spoken.
+		const opening = openingMessages(this)
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			opening.length > 0,
+			"the started session opened with no operator-visible message at all",
+		);
+		const text = opening.join("\n");
+		const lower = text.toLowerCase();
+		// Naming the pending scenario: the opening carries the awaiting scenario's
+		// own title. An opening that never read the specs cannot produce it.
+		assert.ok(
+			lower.includes(PENDING_SCENARIO.toLowerCase()),
+			`the session's opening did not carry the pending scenario ${JSON.stringify(
+				PENDING_SCENARIO,
+			)} to the operator; opening messages: ${JSON.stringify(opening)}`,
+		);
+		// Carried as pending: the opening marks it as awaiting the Captain's review,
+		// by its tag or by the review language, rather than mentioning it bare.
+		assert.ok(
+			lower.includes(tag.toLowerCase()) ||
+				/awaiting|pending|review|promot|unreviewed/.test(lower),
+			`the session's opening named the scenario but did not carry it as awaiting the Captain's review; opening messages: ${JSON.stringify(
+				opening,
+			)}`,
+		);
+		// The settled binding scenario is not a pending review, so an opening that
+		// lists every scenario in the specs has derived nothing.
+		assert.ok(
+			!lower.includes("a refund is refused on an unpaid order"),
+			`the session's opening listed the settled binding scenario alongside the pending one, so it carried the specs rather than the derived pending review; opening messages: ${JSON.stringify(
+				opening,
+			)}`,
 		);
 	},
 );
