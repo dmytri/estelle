@@ -135,6 +135,31 @@ dispatches thin even when the fact seems harmless.
 **Owed by this voyage, still:** nothing in the specs. Deleting the four twins removes the flake class from
 the gate; whether it is *gone* is proven by harbour's regression, not by this note.
 
+**How the silence got proven, and it is the reusable trick.** A hosted model cannot be *asked* to go silent,
+so QM stood up **two real HTTP servers speaking the provider's completions API**: one answering empty content,
+one serving a scripted reply and counting turns. Both inline `@exceptional-double`, naming the condition. The
+silence is now a **fact of the fixture**, not a hope about a model -- which is exactly why these scenarios
+cannot flake. Reach for this shape again wherever a duty must survive a model that says nothing.
+
+**A `Rule:` I wrote was a requirement no scenario pinned and no mechanism could keep:** the operator "receives
+one reply rather than two" on a re-ask. **pi honours `display: false` only for `role: "custom"` messages**, so
+an assistant reply cannot be withheld from the real TUI. **QM struck the check rather than let it pass
+unfalsifiably** -- the gate working exactly as it should, and the second time this week a role refused to
+manufacture green. Prose corrected. If the single reply is genuinely wanted, it needs a scenario AND a
+mechanism; today it has neither.
+
+### Harbour, from Boatswain's custody of this voyage
+
+- **Plank convention drift, repo-wide and pre-existing: 175 of 343 planks carry a concrete step LINE rather
+  than the step-definition PATTERN** the Planking agreement requires verbatim. The derived rule set checks
+  docblock *placement*, not plank-string *form*, so **nothing reddens on it today**. Every plank this voyage
+  added is in correct pattern form. A rule-set entry is the fix, not 175 hand edits.
+- **The fresh-context offer copy is a string literal in `src/index.ts`.** It is operator-facing copy and
+  belongs in `assets/agent-prompts.json` with the rest. Crew's write scope excludes `assets/**`, so Crew
+  could not have put it there.
+- **`narrateCrewRun` may carry the same empty-voiced pattern** the two silent-model targets fixed elsewhere.
+  **Unverified: no command was run against it.** Treat as a lead, not a finding.
+
 ## WHY IT SAILED. THE RELEASE GATE CONTAINS DICE.
 
 **Why 0.2.7 could not ship.** The pre-outbound regression would not clear, and not because of a bug. Two `@eval`

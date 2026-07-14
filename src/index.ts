@@ -980,7 +980,6 @@ function createEstelleExtension(
 		 * @planks("Then the reset nudge's guidance is delivered into Bonny's session context")
 		 * @planks("When a non-outbound command runs in the started session")
 		 * @planks("Then no reset nudge guidance is delivered into Bonny's session context")
-		 * @planks("Then Bonny offers the operator a fresh context for the next batch")
 		 * @planks("Then the started session offers the operator a fresh context for the next batch")
 		 * @planks("When Bonny's write tool call to \"features/login.feature\" completes in the running session")
 		 * @planks("When Bonny's edit tool call to \"features/login.feature\" completes in the running session")
@@ -1753,7 +1752,6 @@ export async function run(options?: RunOptions): Promise<void> {
 	// leaving no visible assistant text for the operator.
 	/**
 	 * @planks("When Bonny takes their next turn")
-	 * @planks("Then Bonny offers the operator a fresh context for the next batch")
 	 */
 	const buildRuntime = (runtimeState: EstelleState) =>
 		createAgentSessionRuntime(
@@ -1915,7 +1913,6 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("When Estelle reports the crew's run back to Bonny")
 	 * @planks("Then the started session records a crew-run report")
 	 * @planks("Then the started session's history excludes the crew's raw message \"greeting.md warmer; three planks green\"")
-	 * @planks("Then Bonny's crew-run report carries a live summary of the crew's work")
 	 * @planks("Then the crew run is reported back into Bonny's session")
 	 * @planks("Then the started session receives Bonny's report when the run ends")
 	 * @planks("Then the started session receives a report of the crew's run")
@@ -2607,7 +2604,6 @@ export async function run(options?: RunOptions): Promise<void> {
 	// later turns run to completion on a connected session.
 	/**
 	 * @planks("When Bonny takes their next turn")
-	 * @planks("Then Bonny offers the operator a fresh context for the next batch")
 	 */
 	const interactive =
 		options?.interactive ??
@@ -2719,7 +2715,6 @@ export async function run(options?: RunOptions): Promise<void> {
 		 * @planks("Then the crew session is seated as a Crew hand")
 		 * @planks("Then the crew session's message history excludes the Quartermaster's message \"target greeting.md is red\"")
 		 * @planks("Then Bonny's narration log records a handoff from the Quartermaster to the Crew")
-		 * @planks("Then Bonny's narration for the handoff carries a live line in their voice")
 		 * @planks("Then the started session receives a narration of the handoff from the Quartermaster to the Crew")
 		 */
 		handOffToCrew: async () => {

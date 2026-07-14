@@ -571,37 +571,6 @@ Given(
 	},
 );
 
-Then(
-	"Bonny's narration for the handoff carries a live line in their voice",
-	function (this: EstelleWorld) {
-		// A live line is real text Bonny's model voiced for the handoff, not a
-		// static template. Require the recorded QM -> Crew narration line to be the
-		// output of a real provider turn on Bonny's Captain seat: it MUST appear as
-		// a non-empty assistant message in Bonny's own live session, the same seam
-		// the Quartermaster's live-reply scenario reads. A hardcoded template pushed
-		// straight into the log never reaches Bonny's session, so this fails rather
-		// than passing green without a live Bonny round trip.
-		const entry = handoffNarration(this);
-		assert.ok(
-			entry.line.trim().length > 0,
-			`Bonny's narration for the handoff carries no live line: ${JSON.stringify(
-				entry,
-			)}`,
-		);
-		const handle = this.interactiveSession as unknown as InteractiveHandleView;
-		const bonnyReplies = handle.runtime.session.messages
-			.filter((m) => m.role === "assistant")
-			.map(messageText)
-			.filter((text) => text.trim().length > 0);
-		assert.ok(
-			bonnyReplies.includes(entry.line),
-			`Bonny's narration line was not voiced by their live model; line: ${JSON.stringify(
-				entry.line,
-			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
-		);
-	},
-);
-
 When(
 	"Estelle reports the crew's run back to Bonny",
 	// Under @eval this seam runs a live provider turn on Bonny's Captain seat to
@@ -645,37 +614,6 @@ Then(
 			`started session's history carries the crew's raw message ${JSON.stringify(
 				message,
 			)}; leaked messages: ${JSON.stringify(leaked.map(messageText))}`,
-		);
-	},
-);
-
-Then(
-	"Bonny's crew-run report carries a live summary of the crew's work",
-	function (this: EstelleWorld) {
-		// A live summary is real text Bonny's model voiced for the crew-run report,
-		// not a static template. Require the recorded summary to be the output of a
-		// real provider turn on Bonny's Captain seat: it MUST appear as a non-empty
-		// assistant message in Bonny's own live session, the same seam the live
-		// narration and live-reply scenarios read. A hardcoded template pushed
-		// straight into the log never reaches Bonny's session, so this fails rather
-		// than passing green without a live Bonny round trip.
-		const report = crewRunReport(this);
-		assert.ok(
-			report.summary.trim().length > 0,
-			`Bonny's crew-run report carries no live summary: ${JSON.stringify(
-				report,
-			)}`,
-		);
-		const handle = this.interactiveSession as unknown as InteractiveHandleView;
-		const bonnyReplies = handle.runtime.session.messages
-			.filter((m) => m.role === "assistant")
-			.map(messageText)
-			.filter((text) => text.trim().length > 0);
-		assert.ok(
-			bonnyReplies.includes(report.summary),
-			`Bonny's crew-run summary was not voiced by their live model; summary: ${JSON.stringify(
-				report.summary,
-			)}; Bonny's assistant replies: ${JSON.stringify(bonnyReplies)}`,
 		);
 	},
 );
@@ -934,77 +872,6 @@ Then(
 	},
 );
 
-// The live opening turn's AgentSession. openWithBonnyVoice triggers Bonny's
-// Captain opening turn at startup fire-and-forget, resolving startup once the
-// first provider request dispatches. The turn keeps streaming after that: Bonny
-// surveys the workspace through real read tools, then voices the opening. The
-// @eval opening step awaits agent_end so the full opening reply is observable
-// before run() disposes the session. agent_end fires once the model stops
-// streaming for the turn.
-interface OpeningSessionView {
-	messages: MessageView[];
-	subscribe(
-		listener: (event: { type: string; willRetry?: boolean }) => void,
-	): () => void;
-}
-
-Given(
-	"the specs carry a {string} scenario awaiting the Captain's review",
-	function (this: EstelleWorld, tag: string) {
-		// Seed a real feature file carrying a real tag-tagged scenario into the
-		// started session's project workspace, so Bonny's opening turn discovers it
-		// by reading the workspace feature files. The scenario names a distinctive
-		// refund behaviour: an opening that never reads the specs cannot surface it.
-		const featuresDir = join(this.workspaceDir!, "features");
-		mkdirSync(featuresDir, { recursive: true });
-		writeFileSync(
-			join(featuresDir, "refunds.feature"),
-			`${tag}\nFeature: Refunds on shipped orders\n\n  ${tag}\n  Scenario: Refund a fully shipped order to the original card\n    Given a customer paid for order "SO-4417" with a saved card\n    And the order has shipped in full\n    When the operator issues a refund for the order\n    Then the refund returns to the original saved card\n`,
-			"utf8",
-		);
-	},
-);
-
-When(
-	"Bonny runs their opening turn",
-	// The opening turn drives a live provider turn on Bonny's Captain seat, then
-	// Bonny surveys the workspace through real read tools before voicing the
-	// opening. It needs a live-run budget well beyond cucumber's 5000ms default.
-	{ timeout: 600000 },
-	async function (this: EstelleWorld) {
-		const { run } = await import("../../src/index.js");
-		let openingReply = "";
-		await run({
-			cwd: this.workspaceDir!,
-			agentDir: this.agentDir!,
-			interactive: async (session) => {
-				this.interactiveSession = session;
-				const runtime = session.runtime as SessionRuntimeView;
-				const opening = runtime.session as unknown as OpeningSessionView;
-				// openWithBonnyVoice already triggered the opening turn at startup.
-				// Await agent_end so Bonny's full opening reply lands before run()
-				// disposes the session; a truncated turn leaves the reply empty and
-				// reddens the assertion rather than passing green without a live
-				// opening.
-				await new Promise<void>((resolve) => {
-					const unsubscribe = opening.subscribe((event) => {
-						if (event.type === "agent_end" && event.willRetry === false) {
-							unsubscribe();
-							resolve();
-						}
-					});
-				});
-				openingReply = runtime.session.messages
-					.filter((m) => m.role === "assistant")
-					.map(messageText)
-					.filter((text) => text.trim().length > 0)
-					.join("\n");
-			},
-		});
-		(this as unknown as { openingReply?: string }).openingReply = openingReply;
-	},
-);
-
 // Slice 8: the alongside experience in the real run. The loop-driving,
 // narration, and report-back must reach the operator's OWN session on the real
 // run, not only a handle array a test callback reads. So these steps observe the
@@ -1123,47 +990,6 @@ Then(
 		assert.ok(
 			crew,
 			"Bonny did not embark the crew from their turn; no crew session opened alongside. Bonny instructed a role command instead of embarking.",
-		);
-	},
-);
-
-Then(
-	"Bonny's opening surfaces the pending {string} scenario before inviting direction",
-	function (this: EstelleWorld, tag: string) {
-		const reply =
-			(this as unknown as { openingReply?: string }).openingReply ?? "";
-		assert.ok(
-			reply.trim().length > 0,
-			"Bonny produced no opening reply to inspect; the opening turn drove no live model reply",
-		);
-		const lower = reply.toLowerCase();
-		// Surfacing the specific pending scenario: Bonny names the seeded refund
-		// scenario, not a generic status line. "refund" is the scenario's domain
-		// token; an opening that never read the specs omits it.
-		assert.ok(
-			lower.includes("refund"),
-			`Bonny's opening did not surface the pending refund scenario; opening reply: ${JSON.stringify(
-				reply,
-			)}`,
-		);
-		// Flagged as awaiting the Captain's review: Bonny carries the tag or the
-		// review language that marks an unpromoted scenario, not a bare mention.
-		assert.ok(
-			lower.includes(tag.toLowerCase()) ||
-				/awaiting|pending|review|promot|unreviewed/.test(lower),
-			`Bonny's opening mentioned the scenario but did not flag it as awaiting the Captain's review; opening reply: ${JSON.stringify(
-				reply,
-			)}`,
-		);
-		// Before inviting direction: the surfacing precedes Bonny's closing
-		// invitation for the operator's next move.
-		const refundAt = lower.indexOf("refund");
-		const inviteAt = lower.lastIndexOf("?");
-		assert.ok(
-			inviteAt === -1 || refundAt < inviteAt,
-			`Bonny invited direction before surfacing the pending scenario; opening reply: ${JSON.stringify(
-				reply,
-			)}`,
 		);
 	},
 );
@@ -1984,6 +1810,16 @@ After(async function (this: EstelleWorld) {
 // turn Estelle drives on Bonny comes back with no line. The crew's own seat model
 // is left unset: this scenario is about Bonny's voice, and the crew resolves its
 // model the way a real session does.
+//
+// @exceptional-double: the condition under test is a model that answers and says
+// nothing. A hosted model cannot be asked to return an empty assistant line on
+// demand, and a model that happened to fall silent would turn the scenario green
+// by luck rather than by the seam holding. A live HTTP endpoint speaking the
+// provider's own completions API serves a well-formed completion whose assistant
+// content is empty, in both the streaming and non-streaming shapes. The live
+// coverage rides this feature's @eval scenarios. Everything else on this path is
+// real: the real provider client, the real seat turn, the real session, and
+// Estelle's own fallback seam.
 async function fitSilentCaptainModel(world: EstelleWorld): Promise<void> {
 	const server = createServer((request, response) => {
 		let body = "";

@@ -374,31 +374,3 @@ When(
 		this.nextTurnEvents = events;
 	},
 );
-
-Then(
-	"Bonny offers the operator a fresh context for the next batch",
-	function (this: NextTurnWorld) {
-		const replies = this.nextTurnReplies ?? [];
-		assert.ok(
-			replies.length > 0,
-			`Bonny produced no live assistant reply on their next turn; observed turn events: ${JSON.stringify(
-				this.nextTurnEvents ?? [],
-			)}; all session replies: ${JSON.stringify(
-				startedSession(this)
-					.messages.filter((message) => message.role === "assistant")
-					.map(messageText),
-			)}`,
-		);
-		const reply = replies.join("\n");
-		const offersFresh =
-			/fresh context|fresh session|fresh start|start fresh|start anew|clean slate|new context|new session|reset (the |your |our |this )?(context|session)|clear (the |your |our )?context/i.test(
-				reply,
-			);
-		assert.ok(
-			offersFresh,
-			`Bonny did not offer the operator a fresh context for the next batch; their reply: ${JSON.stringify(
-				reply,
-			)}`,
-		);
-	},
-);
