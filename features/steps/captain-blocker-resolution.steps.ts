@@ -201,19 +201,17 @@ Given(
 		// Fit the live eval model as the agent's default, with no per-seat override,
 		// exactly as a real operator session is configured. This tier requires the
 		// model credential as fitting-out and assumes it present.
-		this.agentDir ??= mkdtempSync(join(tmpdir(), "estelle-agent-"));
 		const model = process.env.HARNESS_EVAL_MODEL!;
 		const key = process.env.HARNESS_OPENROUTER_API_KEY!;
-		writeFileSync(
-			join(this.agentDir, "settings.json"),
-			JSON.stringify({ defaultProvider: "openrouter", defaultModel: model }),
-			"utf8",
-		);
-		writeFileSync(
-			join(this.agentDir, "auth.json"),
-			JSON.stringify({ openrouter: { type: "api_key", key } }),
-			"utf8",
-		);
+		this.prepareAgentDir({
+			"settings.json": JSON.stringify({
+				defaultProvider: "openrouter",
+				defaultModel: model,
+			}),
+			"auth.json": JSON.stringify({
+				openrouter: { type: "api_key", key },
+			}),
+		});
 		const { run } = await import("../../src/index.js");
 		await run({
 			cwd: project.dir,

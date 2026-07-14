@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { After, Before, setWorldConstructor, World } from "@cucumber/cucumber";
 import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import type { EstelleSession, LaunchOptions } from "../../src/index.js";
+import { seedUpstreamPackage } from "./upstream.js";
 
 /**
  * Shared Cucumber world for Estelle verification.
@@ -113,6 +114,12 @@ export class EstelleWorld extends World {
 		for (const [relPath, contents] of Object.entries(files)) {
 			writeFileSync(join(this.agentDir, relPath), contents, "utf8");
 		}
+		// Resolve the upstream Shipshape package from the run's one shared clone.
+		// The package is ambient state no scenario here asserts, so it is
+		// provisioned once and shared; a per-scenario git clone is setup cost paid
+		// again for nothing. Seeded after the scenario's own files, so the settings
+		// merge keeps both the package and the scenario's provider configuration.
+		seedUpstreamPackage(this.agentDir);
 		return this.agentDir;
 	}
 

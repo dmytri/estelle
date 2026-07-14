@@ -60,3 +60,24 @@ Feature: Methodology conformance
   Scenario: Every live crew-session step carries a live-step timeout budget
     Given the project's step definitions that await a live crew-session turn
     Then each one declares an explicit timeout at least as long as the live-step budget
+
+  @invariant
+  Scenario: One custody implementation decides every write
+    Given the project's write-custody decision points in the implementation
+    Then each one resolves its decision through the Shipshape plugin's custody hook
+    And no decision point applies a write scope written in the implementation
+
+  @invariant
+  Scenario: One custody implementation decides every read
+    Given the project's read-custody decision points in the implementation
+    Then each one resolves its decision through the Shipshape plugin's custody hook
+
+  @invariant
+  Scenario: Every role dispatch prompt is served from the agent-prompt catalog
+    Given the project's implementation and the agent-prompt catalog
+    Then no role dispatch prompt appears as a string literal in the implementation
+
+  @invariant
+  Scenario: The upstream Shipshape package is cloned once for the whole run
+    Given the project's step definitions that install the upstream Shipshape package
+    Then they resolve it from one shared clone provisioned once per run

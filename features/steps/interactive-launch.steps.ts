@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
@@ -58,7 +57,7 @@ When(
 		// A disposable agent dir keeps runtime construction hermetic and harmless:
 		// Estelle resolves its skills and extension without touching the host ~/.pi.
 		// A preceding step may have seeded the operator's agent dir already.
-		this.agentDir ??= mkdtempSync(join(tmpdir(), "estelle-agent-"));
+		this.prepareAgentDir();
 		const { run } = await import("../../src/index.js");
 		await run({
 			cwd: this.workspaceDir,

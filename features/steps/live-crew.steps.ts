@@ -163,7 +163,7 @@ function messageText(message: MessageView): string {
 // runner; everything it captures is real production state.
 async function startSession(world: EstelleWorld): Promise<void> {
 	world.workspaceDir ??= mkdtempSync(join(tmpdir(), "estelle-live-crew-"));
-	world.agentDir ??= mkdtempSync(join(tmpdir(), "estelle-agent-"));
+	world.prepareAgentDir();
 	const { run } = await import("../../src/index.js");
 	await run({
 		cwd: world.workspaceDir,

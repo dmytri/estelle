@@ -57,7 +57,7 @@ function seedWorkspace(world: EstelleWorld): string {
 		recursive: true,
 	});
 	world.workspaceDir = dir;
-	world.agentDir = mkdtempSync(join(tmpdir(), "estelle-agent-"));
+	world.prepareAgentDir();
 	return dir;
 }
 

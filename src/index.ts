@@ -434,54 +434,6 @@ function assistantText(message: { content?: unknown }): string {
 }
 
 /**
- * @planks("Then the crew session allows a Crew hand to write \"src/handoff.ts\"")
- * @planks("Then the crew session blocks a Crew hand from writing \"features/new.feature\"")
- */
-function evaluateWrite(
-	role: string,
-	relPath: string,
-): { allowed: boolean; reason?: string } {
-	if (relPath === "watchbill.json" && role !== "captain") {
-		return {
-			allowed: false,
-			reason: 'only the Captain may write "watchbill.json"',
-		};
-	}
-	if (role === "crew") {
-		if (relPath.startsWith("src/")) {
-			return { allowed: true };
-		}
-		return { allowed: false, reason: 'the Crew may write only "src/**"' };
-	}
-	if (role === "captain") {
-		if (
-			relPath === "CAPTAIN.md" ||
-			relPath === "watchbill.json" ||
-			relPath.startsWith("features/") ||
-			relPath.startsWith("assets/")
-		) {
-			return { allowed: true };
-		}
-		return {
-			allowed: false,
-			reason:
-				'the Captain writes specifications, assets, "CAPTAIN.md", and "watchbill.json"',
-		};
-	}
-	return { allowed: true };
-}
-
-/**
- * @planks("Then the running session allows the read")
- */
-function evaluateRead(
-	_role: string,
-	_relPath: string,
-): { allowed: boolean; reason?: string } {
-	return { allowed: true };
-}
-
-/**
  * @planks("Then the name is present before the hand first provider request")
  * @planks("Then the running session blocks the write")
  * @planks("Then the running session blocks the read")
@@ -894,10 +846,7 @@ function createEstelleExtension(
 					cwd,
 					(event.input as { path: string }).path,
 				);
-				const decision =
-					state.activeSeat.role === "captain"
-						? evaluateRead(state.activeSeat.role, relPath)
-						: custody.checkReadSync(seat, relPath, process.cwd());
+				const decision = custody.checkReadSync(seat, relPath, process.cwd());
 				if (!decision.allowed) {
 					return { block: true, reason: decision.reason };
 				}
@@ -1339,17 +1288,20 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain writes specs\"")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Production code belongs to Crew\"")
 		 * @planks("Then the block reason carries the Shipshape plugin's denial \"Captain-custodied or configuration artifact\"")
+		 * @planks("When Bonny writes \"features/steps/pay.steps.ts\" through the Estelle session write seam")
+		 * @planks("When Bonny writes \"RIGGING.md\" through the Estelle session write seam")
+		 * @planks("When Bonny writes \"src/pay.ts\" through the Estelle session write seam")
+		 * @planks("Then the session write seam allows the write")
+		 * @planks("Then the session write seam blocks the write")
+		 * @planks("Then the block reason carries the Shipshape plugin's denial for the Captain writing verification support")
 		 */
 		write: (path, contents) => {
 			const relPath = relativeToCwd(cwd, path);
-			const decision =
-				state.activeSeat.role === "captain"
-					? evaluateWrite(state.activeSeat.role, relPath)
-					: shipshapeCustody.checkWriteSync(
-							`shipshape:${state.activeSeat.skill}`,
-							relPath,
-							process.cwd(),
-						);
+			const decision = shipshapeCustody.checkWriteSync(
+				`shipshape:${state.activeSeat.skill}`,
+				relPath,
+				process.cwd(),
+			);
 			if (!decision.allowed) {
 				return decision;
 			}
@@ -1369,6 +1321,14 @@ export async function launch(options?: LaunchOptions): Promise<EstelleSession> {
 		perturb: (relPath) => {
 			if (state.activeSeat.role !== "captain") {
 				return { allowed: false, reason: "only the Captain perturbs a seam" };
+			}
+			const decision = shipshapeCustody.checkWriteSync(
+				`shipshape:${state.activeSeat.skill}`,
+				relPath,
+				process.cwd(),
+			);
+			if (!decision.allowed) {
+				return decision;
 			}
 			const statement = riggingPerturbStatement();
 			const absolute = resolve(cwd, relPath);
@@ -2313,10 +2273,16 @@ Use your tools; do not answer from memory.`;
 					/**
 					 * @planks("Then the crew session allows a Crew hand to write \"src/handoff.ts\"")
 					 * @planks("Then the crew session blocks a Crew hand from writing \"features/new.feature\"")
+					 * @planks("Then the crew session allows a Crew hand to write \"packages/pi-open-plugin-shim/src/index.ts\"")
+					 * @planks("Then the crew session allows a Crew hand to write \"bin/estelle.js\"")
 					 */
 					write: (path: string, contents: string) => {
 						const relPath = relativeToCwd(cwd, path);
-						const decision = evaluateWrite(crewSeat.role, relPath);
+						const decision = shipshapeCustody.checkWriteSync(
+							`shipshape:${crewSeat.skill}`,
+							relPath,
+							process.cwd(),
+						);
 						if (!decision.allowed) {
 							return decision;
 						}

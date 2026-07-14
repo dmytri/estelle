@@ -12,7 +12,10 @@ Given(
 		// and no skills are installed. Isolate the agent dir too so no host-global
 		// skill leaks in, making any skill present one the package itself serves.
 		this.workspaceDir = mkdtempSync(join(tmpdir(), "estelle-builtin-"));
-		this.agentDir = mkdtempSync(join(tmpdir(), "estelle-builtin-agent-"));
+		// The isolated agent dir resolves the upstream Shipshape package from the
+		// run's one shared clone: the package is ambient state here, and the skills
+		// this scenario asserts are the ones the package itself serves.
+		this.prepareAgentDir();
 	},
 );
 

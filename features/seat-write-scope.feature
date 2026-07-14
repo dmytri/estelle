@@ -53,3 +53,19 @@ Feature: Seat write custody
     When Bonny writes "features/steps/pay.steps.ts" in the running session
     Then the running session blocks the write
     And the block reason carries the Shipshape plugin's denial for the Captain writing verification support
+
+  Scenario: The Captain may not write verification support through the session write seam
+    Given the active seat is the Captain "Bonny"
+    When Bonny writes "features/steps/pay.steps.ts" through the Estelle session write seam
+    Then the session write seam blocks the write
+    And the block reason carries the Shipshape plugin's denial for the Captain writing verification support
+
+  Scenario: The Captain may write the rigging through the session write seam
+    Given the active seat is the Captain "Bonny"
+    When Bonny writes "RIGGING.md" through the Estelle session write seam
+    Then the session write seam allows the write
+
+  Scenario: The Captain may write production code through the session write seam
+    Given the active seat is the Captain "Bonny"
+    When Bonny writes "src/pay.ts" through the Estelle session write seam
+    Then the session write seam allows the write

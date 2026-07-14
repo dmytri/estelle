@@ -1224,6 +1224,444 @@ Then(
 	},
 );
 
+// Scenarios: One custody implementation decides every write, and every read.
+//
+// The Shipshape plugin's custody hook, loaded through the shim, is the one
+// authority on what a seat may write or read. A decision the flagship computes
+// itself is a second implementation that drifts from the plugin's. These steps
+// find every custody decision point in the flagship and check where its decision
+// comes from. The shim package is excluded from the scan: it carries the plugin's
+// hook rather than a second implementation of it.
+
+interface CustodyPoint {
+	file: string;
+	line: number;
+	name: string;
+	body: string;
+}
+
+type CustodyKind = "write" | "read";
+
+const CUSTODY_HOOK: Record<CustodyKind, RegExp> = {
+	write: /\bcheckWriteSync\s*\(/,
+	read: /\bcheckReadSync\s*\(|\bcheckRead\s*\(/,
+};
+
+// A decision point gates the tool the seat acts with, or the file access itself.
+const GATES: Record<CustodyKind, RegExp[]> = {
+	write: [
+		/toolName\s*===\s*["']write["']/,
+		/\bwriteFileSync\s*\(/,
+		/\bcheckWriteSync\s*\(/,
+	],
+	read: [
+		/toolName\s*===\s*["']read["']/,
+		/\bcheckReadSync\s*\(/,
+		/\bcheckRead\s*\(/,
+	],
+};
+
+const DECIDES = /\ballowed\b/;
+
+// A path scope written in the implementation: a custody decision keyed on the
+// repository path itself, by prefix or by exact file. This is the copy of the
+// plugin's scope that the Articles forbid.
+const HAND_WRITTEN_SCOPE: RegExp[] = [
+	/\.startsWith\(\s*["'`][^"'`]*\/["'`]/,
+	/[=!]==\s*["'`][^"'`]*\.(?:md|json|ts|js|feature)["'`]/,
+];
+
+// The flagship implementation: the RIGGING implementation paths outside the shim
+// package, which is the plugin hook's carrier.
+function flagshipImplementationFiles(root: string): string[] {
+	return tsProductionFiles(root).filter((file) => !file.includes("/packages/"));
+}
+
+function declarationName(node: ts.Node, sf: ts.SourceFile): string {
+	const named = node as ts.NamedDeclaration;
+	if (named.name && ts.isIdentifier(named.name)) {
+		return named.name.text;
+	}
+	const parent = node.parent;
+	if (
+		parent &&
+		(ts.isVariableDeclaration(parent) || ts.isPropertyAssignment(parent)) &&
+		ts.isIdentifier(parent.name)
+	) {
+		return parent.name.text;
+	}
+	if (parent && ts.isPropertyAssignment(parent)) {
+		return parent.name.getText(sf);
+	}
+	return "(anonymous)";
+}
+
+function gatesKind(body: string, name: string, kind: CustodyKind): boolean {
+	if (!DECIDES.test(body)) {
+		return false;
+	}
+	if (GATES[kind].some((pattern) => pattern.test(body))) {
+		return true;
+	}
+	return new RegExp(`${kind}`, "i").test(name);
+}
+
+// Every custody decision point of one kind, taken at the innermost function that
+// owns the decision: a wrapper that merely contains a decision point is not
+// itself one.
+function custodyPoints(files: string[], kind: CustodyKind): CustodyPoint[] {
+	const points: CustodyPoint[] = [];
+	for (const file of files) {
+		const src = readFileSync(file, "utf8");
+		const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+		const candidates: { start: number; end: number; point: CustodyPoint }[] =
+			[];
+		function visit(node: ts.Node) {
+			if (
+				ts.isFunctionDeclaration(node) ||
+				ts.isFunctionExpression(node) ||
+				ts.isArrowFunction(node) ||
+				ts.isMethodDeclaration(node)
+			) {
+				const start = node.getStart(sf);
+				const end = node.getEnd();
+				const body = src.slice(start, end);
+				const name = declarationName(node, sf);
+				if (gatesKind(body, name, kind)) {
+					candidates.push({
+						start,
+						end,
+						point: {
+							file,
+							line: sf.getLineAndCharacterOfPosition(start).line + 1,
+							name,
+							body,
+						},
+					});
+				}
+			}
+			ts.forEachChild(node, visit);
+		}
+		ts.forEachChild(sf, visit);
+		for (const candidate of candidates) {
+			const wraps = candidates.some(
+				(other) =>
+					other !== candidate &&
+					other.start >= candidate.start &&
+					other.end <= candidate.end,
+			);
+			if (!wraps) {
+				points.push(candidate.point);
+			}
+		}
+	}
+	return points;
+}
+
+// A decision function the implementation declares itself, such as an
+// "evaluateWrite": it returns a custody decision of its own rather than the
+// plugin's. A decision point that calls one is deciding by that copy.
+function localDecisionFunctions(
+	files: string[],
+	kind: CustodyKind,
+): Set<string> {
+	const names = new Set<string>();
+	for (const file of files) {
+		const src = readFileSync(file, "utf8");
+		const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+		function visit(node: ts.Node) {
+			if (ts.isFunctionDeclaration(node) && node.name) {
+				const body = src.slice(node.getStart(sf), node.getEnd());
+				if (
+					DECIDES.test(body) &&
+					new RegExp(`${kind}`, "i").test(node.name.text) &&
+					!CUSTODY_HOOK[kind].test(body)
+				) {
+					names.add(node.name.text);
+				}
+			}
+			ts.forEachChild(node, visit);
+		}
+		ts.forEachChild(sf, visit);
+	}
+	return names;
+}
+
+type CustodyWorld = MethWorld & {
+	methCustodyPoints?: CustodyPoint[];
+	methCustodyKind?: CustodyKind;
+	methLocalDeciders?: Set<string>;
+};
+
+function gatherCustodyPoints(world: CustodyWorld, kind: CustodyKind): void {
+	const files = flagshipImplementationFiles(process.cwd());
+	assert.ok(files.length > 0, "no implementation files were found to scan");
+	const points = custodyPoints(files, kind);
+	assert.ok(
+		points.length > 0,
+		`no ${kind}-custody decision point was found in the implementation`,
+	);
+	world.methCustodyPoints = points;
+	world.methCustodyKind = kind;
+	world.methLocalDeciders = localDecisionFunctions(files, kind);
+}
+
+Given(
+	"the project's write-custody decision points in the implementation",
+	function (this: CustodyWorld) {
+		gatherCustodyPoints(this, "write");
+	},
+);
+
+Given(
+	"the project's read-custody decision points in the implementation",
+	function (this: CustodyWorld) {
+		gatherCustodyPoints(this, "read");
+	},
+);
+
+Then(
+	"each one resolves its decision through the Shipshape plugin's custody hook",
+	function (this: CustodyWorld) {
+		const kind = this.methCustodyKind ?? "write";
+		const deciders = this.methLocalDeciders ?? new Set<string>();
+		const violations: string[] = [];
+		for (const point of this.methCustodyPoints ?? []) {
+			if (!CUSTODY_HOOK[kind].test(point.body)) {
+				violations.push(
+					`  ${point.file}:${point.line}: "${point.name}" decides a ${kind} without the plugin's custody hook`,
+				);
+				continue;
+			}
+			const copied = [...deciders].filter((name) =>
+				new RegExp(`\\b${name}\\s*\\(`).test(point.body),
+			);
+			if (copied.length > 0) {
+				violations.push(
+					`  ${point.file}:${point.line}: "${point.name}" decides a ${kind} through the implementation's own "${copied.join(
+						'", "',
+					)}" instead of the plugin's custody hook`,
+				);
+			}
+		}
+		assert.equal(
+			violations.length,
+			0,
+			`a ${kind}-custody decision does not come from the Shipshape plugin's custody hook:\n${violations.join(
+				"\n",
+			)}`,
+		);
+	},
+);
+
+Then(
+	"no decision point applies a write scope written in the implementation",
+	function (this: CustodyWorld) {
+		const violations: string[] = [];
+		for (const point of this.methCustodyPoints ?? []) {
+			const scopes = HAND_WRITTEN_SCOPE.filter((pattern) =>
+				pattern.test(point.body),
+			);
+			if (scopes.length > 0) {
+				violations.push(
+					`  ${point.file}:${point.line}: "${point.name}" keys its decision on a path scope written in the implementation`,
+				);
+			}
+		}
+		assert.equal(
+			violations.length,
+			0,
+			`a write-custody decision applies a scope copied into the implementation:\n${violations.join(
+				"\n",
+			)}`,
+		);
+	},
+);
+
+// Scenario: Every role dispatch prompt is served from the agent-prompt catalog.
+//
+// A role dispatch prompt is agent-facing copy: it addresses the seat it dispatches
+// in the second person and tells them their job. That copy is product material and
+// lives in the catalog the seams read, so it can be tuned without a code change.
+// A prompt written as a literal in the implementation is a copy of that material
+// sitting outside the catalog.
+
+const ROLE_DISPATCH_PROMPT = /\bYou are (?:the|a|an)\b/;
+
+type DispatchPromptWorld = MethWorld & {
+	methPromptLiterals?: { file: string; line: number; text: string }[];
+};
+
+// Every string and template literal the implementation carries, with its line.
+function literalTexts(
+	files: string[],
+): { file: string; line: number; text: string }[] {
+	const out: { file: string; line: number; text: string }[] = [];
+	for (const file of files) {
+		const src = readFileSync(file, "utf8");
+		const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+		function visit(node: ts.Node) {
+			if (
+				ts.isStringLiteral(node) ||
+				ts.isNoSubstitutionTemplateLiteral(node) ||
+				ts.isTemplateExpression(node)
+			) {
+				out.push({
+					file,
+					line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+					text: node.getText(sf),
+				});
+			}
+			ts.forEachChild(node, visit);
+		}
+		ts.forEachChild(sf, visit);
+	}
+	return out;
+}
+
+Given(
+	"the project's implementation and the agent-prompt catalog",
+	function (this: DispatchPromptWorld) {
+		const files = flagshipImplementationFiles(process.cwd());
+		assert.ok(files.length > 0, "no implementation files were found to scan");
+		this.methPromptLiterals = literalTexts(files);
+		assert.ok(
+			this.methPromptLiterals.length > 0,
+			"the implementation carries no string literals to scan",
+		);
+		this.methCatalogTexts = catalogTexts(process.cwd());
+		assert.ok(
+			this.methCatalogTexts.length > 0,
+			"the agent-prompt catalog carries no copy",
+		);
+	},
+);
+
+Then(
+	"no role dispatch prompt appears as a string literal in the implementation",
+	function (this: DispatchPromptWorld) {
+		const violations = (this.methPromptLiterals ?? []).filter((literal) =>
+			ROLE_DISPATCH_PROMPT.test(literal.text),
+		);
+		assert.equal(
+			violations.length,
+			0,
+			`role dispatch prompt copy is written into the implementation instead of served from the agent-prompt catalog:\n${violations
+				.map(
+					(v) =>
+						`  ${v.file}:${v.line}: ${v.text.slice(0, 70).replace(/\n/g, " ")}...`,
+				)
+				.join("\n")}`,
+		);
+	},
+);
+
+// Scenario: The upstream Shipshape package is cloned once for the whole run.
+//
+// A launch into an agent directory that does not already carry the upstream
+// Shipshape package installs it with a real git clone. The package is ambient
+// state no scenario asserts, except the install scenarios, which launch against a
+// genuinely empty agent directory because provisioning is their behaviour under
+// test. Every other scenario resolves it from the run's one shared clone, so the
+// clone is paid once instead of once per scenario.
+
+// A step definition that provisions its own disposable agent directory launches
+// into an unseeded directory, so its scenario installs the upstream package
+// again. The shared provisioner in the test support is the one legitimate site.
+const OWN_AGENT_DIR =
+	/mkdtempSync\(\s*join\(\s*tmpdir\(\)\s*,\s*["'][^"']*agent/;
+
+type UpstreamWorld = MethWorld & {
+	methAgentDirSites?: { file: string; line: number }[];
+};
+
+Given(
+	"the project's step definitions that install the upstream Shipshape package",
+	function (this: UpstreamWorld) {
+		const stepFiles: string[] = [];
+		collectFiles(
+			join(process.cwd(), "features", "steps"),
+			(p) => p.endsWith(".ts"),
+			stepFiles,
+		);
+		assert.ok(stepFiles.length > 0, "no step definition files were found");
+		const sites: { file: string; line: number }[] = [];
+		for (const file of stepFiles) {
+			readFileSync(file, "utf8")
+				.split("\n")
+				.forEach((line, index) => {
+					if (OWN_AGENT_DIR.test(line)) {
+						sites.push({ file, line: index + 1 });
+					}
+				});
+		}
+		this.methAgentDirSites = sites;
+	},
+);
+
+Then(
+	"they resolve it from one shared clone provisioned once per run",
+	{ timeout: 120000 },
+	async function (this: UpstreamWorld) {
+		const own = this.methAgentDirSites ?? [];
+		assert.equal(
+			own.length,
+			0,
+			`step definition provisions its own agent directory, so its scenario clones the upstream Shipshape package again instead of resolving it from the shared clone:\n${own
+				.map((site) => `  ${site.file}:${site.line}`)
+				.join("\n")}`,
+		);
+		const {
+			installedPluginPath,
+			seedUpstreamPackage,
+			sharedUpstreamClone,
+			upstreamCloneCount,
+			upstreamClonePath,
+			SHIPSHAPE_PACKAGE_SOURCE,
+		} = await import("../support/upstream.js");
+		// The shared clone really resolves the package: two agent directories both
+		// carry the installed plugin, both from the same clone, and the run performed
+		// at most the one clone that provisioned it.
+		const clone = sharedUpstreamClone();
+		assert.equal(
+			clone,
+			upstreamClonePath(),
+			"the shared clone does not resolve to the one shared clone path",
+		);
+		assert.ok(
+			existsSync(join(clone, "skills")),
+			`the shared upstream clone at ${clone} carries no "skills": the clone is incomplete`,
+		);
+		const dirs = [
+			mkdtempSync(join(tmpdir(), "estelle-upstream-check-")),
+			mkdtempSync(join(tmpdir(), "estelle-upstream-check-")),
+		];
+		this.methTempDirs ??= [];
+		this.methTempDirs.push(...dirs);
+		for (const dir of dirs) {
+			seedUpstreamPackage(dir);
+			assert.ok(
+				existsSync(join(installedPluginPath(dir), "skills")),
+				`the agent directory ${dir} does not resolve the upstream package from the shared clone`,
+			);
+			const settings = JSON.parse(
+				readFileSync(join(dir, "settings.json"), "utf8"),
+			) as { packages?: Array<string | { source: string }> };
+			const sources = (settings.packages ?? []).map((entry) =>
+				typeof entry === "string" ? entry : entry.source,
+			);
+			assert.ok(
+				sources.includes(SHIPSHAPE_PACKAGE_SOURCE),
+				`the agent directory ${dir} does not persist the upstream package, so a launch would clone it again`,
+			);
+		}
+		assert.ok(
+			upstreamCloneCount() <= 1,
+			`the upstream Shipshape package was cloned ${upstreamCloneCount()} times in this run; one shared clone serves the whole run`,
+		);
+	},
+);
+
 Then(
 	"no crew-loop seam treats a written file's contents as proof of a target green",
 	function (this: CrewLoopWorld) {

@@ -42,6 +42,32 @@ When(
 	},
 );
 
+When(
+	"{word} writes {string} through the Estelle session write seam",
+	async function (this: EstelleWorld, _name: string, path: string) {
+		const estelle = await this.ensureWorkspace();
+		this.result = estelle.write(path, "estelle verification\n");
+	},
+);
+
+Then("the session write seam allows the write", function (this: EstelleWorld) {
+	assert.ok(this.result, "no write was attempted");
+	assert.equal(
+		this.result.allowed,
+		true,
+		`write was blocked: ${this.result.reason ?? ""}`,
+	);
+});
+
+Then("the session write seam blocks the write", function (this: EstelleWorld) {
+	assert.ok(this.result, "no write was attempted");
+	assert.equal(
+		this.result.allowed,
+		false,
+		"write was allowed but should have been blocked",
+	);
+});
+
 Then("the running session allows the write", function (this: EstelleWorld) {
 	assert.ok(this.result, "no write was attempted");
 	assert.equal(

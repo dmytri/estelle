@@ -66,6 +66,18 @@ Feature: Embarking runs the crew alongside Bonny
       Then the crew session allows a Crew hand to write "src/handoff.ts"
       And the crew session blocks a Crew hand from writing "features/new.feature"
 
+    Scenario: The handed-off Crew session may write the shim package's production code
+      Given a started Estelle session seated as the Captain "Bonny"
+      When the operator runs the "/embark" command in the started session
+      And Estelle hands the crew off from the Quartermaster to the Crew
+      Then the crew session allows a Crew hand to write "packages/pi-open-plugin-shim/src/index.ts"
+
+    Scenario: The handed-off Crew session may write the launch bin
+      Given a started Estelle session seated as the Captain "Bonny"
+      When the operator runs the "/embark" command in the started session
+      And Estelle hands the crew off from the Quartermaster to the Crew
+      Then the crew session allows a Crew hand to write "bin/estelle.js"
+
     @eval
     Scenario: A live Quartermaster turn hands off to a fresh Crew session
       Given a started Estelle session seated as the Captain "Bonny"
