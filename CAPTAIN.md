@@ -59,8 +59,25 @@ score is that Article made executable. The planted-red rule is already the same 
 that has never been red is unproven.* Mutation testing is that rule generalized and automated. Likely the
 most load-bearing check Shipshape could carry.
 
-**3. IN FLIGHT — the open red, the empty turn.** The signal is now sharp, and consolidating the loop is what
-sharpened it. It is no longer "a live turn returns empty in 0.4s against a healthy provider". It is
+**3. CLOSED (`5e40d2f`) — and the defect was never real.** Against a funded provider the live seat turn
+returns real content, and the `@eval` target **passed live: 16 steps, 2m11s, the crew genuinely turned a
+scratch project green through real crew work.** The whole loop is now proven end to end with a real model,
+so the consolidated seam from (1) no longer rides on fast-tier proof alone.
+
+The "empty turn" was a dead account wearing a crew-loop costume. What was really broken, now fixed:
+**a refused turn passed as a quiet turn** (every seat returned `(no report)` while the provider answered
+402, the loop spun to its 5-round cap, and the refusal never reached the operator); and behind it **a
+delivery race**, intermittent 1-in-4, the refusal report swallowed by **Bonny's in-flight opening turn**.
+
+**PATTERN, third sighting: Bonny's opening turn eats what is delivered into it.** Also seen as narration
+steered into Bonny's live turn, and as the operator-input race ("Agent is already processing") when typing
+during a refit. Three incidents, one shape. Next time this appears, treat it as the known defect and fix the
+delivery discipline, not the symptom.
+
+The history below is kept because the diagnosis is the lesson.
+
+The signal sharpened when the loop was consolidated. It was no longer "a live turn returns empty in 0.4s
+against a healthy provider". It became
 `features/live-crew.feature:Embark turns a genuinely failing project scenario green through real crew work`
 (`@eval`), failing at `features/steps/live-crew.steps.ts:1815` with **"the crew left the scratch project's
 production code untouched; embark drove no real crew edit"**, in **2.6s**. Boatswain proved it inherited by
