@@ -11,6 +11,55 @@ Estelle rests on faithfully consuming the real upstream Shipshape plugin, never 
 2. **Live-fire pilot** producing the maintainer's evidence: what enforces on pi, what fumbles, every false red and vacuous green.
 3. **A coding agent** in its own right: Bonny and the crew personas, `/embark`, `/clear`, alongside-crew UX, per-seat models, fitting-out.
 
+## FULL REGRESSION 2026-07-14, second of this project's history: 12/15 `@eval`, THREE REDS
+
+`@logic` and `@sandbox` green. **`@eval`: 15 scenarios, 12 passed, 3 failed, 40m51s.** First `@eval` run
+ever to complete against a funded provider. **0.2.7 does not ship on this.**
+
+The three reds, unrouted (the tier-tag watchbill was never spent -- QM stalled before dispatching them):
+
+1. **`captain-blocker-resolution.feature:19`** "Bonny repairs a rigging fault rather than ending the turn on
+   a blocker". The started session **never settled to idle within 900000ms (15 min)**, so the operator could
+   not speak to it. The captured replies show Bonny working the problem **correctly** -- reading `RIGGING.md`,
+   itemizing every missing required value, concluding rigging fault, deciding to dispatch Shipwright -- and
+   the last reply is **cut off mid-sentence**. The turn did not fail. It did not end.
+2. **`captain-blocker-resolution.feature:23`** `spawn /tmp/estelle-agent-XGhrsE/git/github.com/dmytri/
+   shipshape/hooks/scripts/bash-custody.sh ENOENT`.
+3. **`live-crew.feature:282`** "The crew greens a non-cucumber project and the Boatswain commits the work",
+   **timed out at the 600000ms budget** on the embark step.
+
+**CORRECTION to these notes, made from evidence:** the old entry said this ENOENT family comes from "a cloned
+upstream Shipshape **lacking** that script". **False.** Every cached plugin version, all 50-odd including the
+current `19fd03a31d11`, carries all ten hook scripts including `bash-custody.sh`. A clone of a repo that
+contains the script cannot lack it -- but it can **not have it yet**. **Hypothesis, not finding: a launch race,
+hooks live before the clone completes.** Cheap to test; test it before believing it.
+
+**DO NOT INFER THE OTHER TWO.** A 15-minute non-settle and a 10-minute timeout are equally consistent with
+(a) a genuine hang and (b) a real-service step whose budget is smaller than a live crew loop's real latency,
+which is verification debt, not a product defect. The Verification agreement demands budgets sized to real
+latency. Route them and let the evidence answer. Captain reasoned from symptoms twice today and was wrong
+both times.
+
+## THE SHAPE OF EVERY DEFECT: Estelle's bug is WHEN, not WHAT
+
+Six sightings, one family. Not one is a wrong answer; all are work that never ends, or work that starts before
+its dependency is ready:
+
+- a Captain session that never settles (red 1 above)
+- an embark that times out (red 3 above)
+- a hook that fires before the clone it needs exists (red 2, hypothesis)
+- a refusal swallowed by Bonny's in-flight opening turn (**fixed**, `5e40d2f`)
+- the operator-input race, "Agent is already processing" while typing during a refit
+- narration steered into Bonny's live turn
+
+**And the roles have the identical bug.** Misson ended their turn holding a live run **twice in one hour**,
+the second time by spawning a *waiter* and calling it a signal -- the exact busy-wait the doctrine names. Six
+role-stalls across two sessions. Captain has now been the heartbeat by hand five times.
+
+**The product and the process share one defect: nothing guarantees a turn ends when its work does.** That is
+the enforcement voyage (4 below), and it is no longer a nice-to-have -- it is plausibly the root of the reds
+blocking 0.2.7. Promote it accordingly.
+
 ## THE BOARD, in order
 
 **1. LANDED (`8663c84`) — the crew-loop twin is dead.** The decision now lives in one seam: `advanceCrewLoop`
