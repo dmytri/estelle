@@ -2134,7 +2134,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("When the operator asks Bonny to specify a greeting page for the project")
 	 * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
 	 */
-	state.dispatchRole = async (seat: Seat, job?: string, floated = false) => {
+	const dispatchRole = async (seat: Seat, job?: string, floated = false) => {
 		// The refit's own dispatch reads this before it is recorded, so it never
 		// waits on itself.
 		if (riggingRefit && !riggingRefitEnded) {
@@ -2309,6 +2309,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		status.seat = undefined;
 		return outcome;
 	};
+	state.dispatchRole = dispatchRole;
 
 	/**
 	 * @planks("When Bonny embarks the crew as an ordinary act of their own turn")
