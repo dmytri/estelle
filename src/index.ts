@@ -109,9 +109,16 @@ interface EstelleState {
 	// Dispatch a single role to actually DO its job, rather than seating it idle.
 	// The dispatch is thin by contract: the role, the base commit, and for the
 	// Boatswain the job. The role works from the repository and its own role skill.
-	// No operator conversation crosses this line.
-	dispatchRole?: (seat: Seat, job?: string) => Promise<string>;
+	// No operator conversation crosses this line. A floated dispatch is Estelle's
+	// own startup routing rather than a crew run the operator embarked, so it keeps
+	// its work off the crew's live status.
+	dispatchRole?: (
+		seat: Seat,
+		job?: string,
+		floated?: boolean,
+	) => Promise<string>;
 	crewStatus?: CrewRunStatus;
+	riggingRefitting?: boolean;
 	onProviderRequest?: () => void;
 }
 
@@ -461,6 +468,8 @@ function assistantText(message: { content?: unknown }): string {
  * @planks("Then the started session carries no greeting before the operator speaks")
  * @planks("Then Bonny embarks the crew rather than instructing the operator to run a role command")
  * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
+ * @planks("Given the operator tells Bonny to embark the crew on the failing scenario")
+ * @planks("When Bonny embarks the crew as an ordinary act of their own turn")
  */
 function createEstelleExtension(
 	state: EstelleState,
@@ -580,11 +589,17 @@ function createEstelleExtension(
 				execute: async () => {
 					const status = state.crewStatus;
 					if (!status) {
+						// The startup rigging refit floats past the helm on its own. Reported
+						// as a running crew it reads as work to wait for, and Bonny holds
+						// their turn polling this tool until the refit lands. It blocks
+						// nothing, so it is reported as what it is: work running alongside.
 						return {
 							content: [
 								{
 									type: "text" as const,
-									text: "No crew run has been embarked in this session.",
+									text: state.riggingRefitting
+										? `No crew run has been embarked in this session. ${SEATS.johnson.name} (${SEATS.johnson.role}) is refitting the rigging alongside. The refit blocks nothing and needs no waiting: carry on with your turn, and set the crew to work when the operator asks.`
+										: "No crew run has been embarked in this session.",
 								},
 							],
 							details: undefined,
@@ -2101,6 +2116,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	// dispatch would clobber the refit's seat and take custody of a deck the refit
 	// is still writing.
 	let riggingRefit: Promise<unknown> | undefined;
+	let riggingRefitEnded = false;
 
 	/**
 	 * Dispatch one role to actually DO its job. Opening a crew session seats a role
@@ -2115,11 +2131,34 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("When the operator runs the \"/bellamy\" command in the started session")
 	 * @planks("When the operator runs the \"/johnson\" command in the started session")
 	 * @planks("Given the operator tells Bonny to embark the crew on the failing scenario")
+	 * @planks("When the operator asks Bonny to specify a greeting page for the project")
+	 * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
 	 */
-	state.dispatchRole = async (seat: Seat, job?: string) => {
+	state.dispatchRole = async (seat: Seat, job?: string, floated = false) => {
 		// The refit's own dispatch reads this before it is recorded, so it never
 		// waits on itself.
-		await riggingRefit;
+		if (riggingRefit && !riggingRefitEnded) {
+			// The rigging fault is already routed and Johnson is refitting it now.
+			// Bonny surveys the same fault and dispatches the Shipwright for it too, so
+			// a second Shipwright dispatch would hold Bonny's live turn until the refit
+			// finished and then refit the same rigging again. The turn that routed the
+			// fault could never continue, and the operator could never speak to a
+			// session that never goes idle. Report the refit already under way and
+			// carry on: the fault is routed, and the work continues in the same turn.
+			if (seat.role === SEATS.johnson.role) {
+				const line = `${SEATS.johnson.name} (${SEATS.johnson.role}) is already refitting the rigging. The refit runs alongside and blocks nothing: carry on with your turn now rather than waiting for it.`;
+				await runtime.session.sendCustomMessage(
+					{
+						customType: "crew-narration",
+						content: line,
+						display: true,
+					},
+					runtime.session.isStreaming ? { deliverAs: "nextTurn" } : undefined,
+				);
+				return line;
+			}
+			await riggingRefit;
+		}
 		const liveModelId = liveCrewModel();
 		// Seat the role first, so an unfitted session still shows the crew seated and
 		// says plainly why they cannot be set to work, rather than failing the command.
@@ -2180,7 +2219,13 @@ export async function run(options?: RunOptions): Promise<void> {
 			verifyCommand,
 			reports: [],
 		};
-		state.crewStatus = status;
+		// A floated dispatch is Estelle's own startup routing, not a run the operator
+		// embarked. Published as the crew's live status it reads to Bonny as a run in
+		// progress, and Bonny holds their turn until it ends. It stays off the crew's
+		// status, so the crew's status keeps naming the crew's own run.
+		if (!floated) {
+			state.crewStatus = status;
+		}
 		// The dispatch narration is the operator's display line, not work for Bonny's
 		// live turn. A plain send into a streaming session steers the line into that
 		// turn, where it stays queued: the turn restarts the moment it ends, so the
@@ -2353,11 +2398,22 @@ export async function run(options?: RunOptions): Promise<void> {
 			riggingRefit = state.dispatchRole?.(
 				SEATS.johnson,
 				`refit RIGGING.md: it carries no ${missing.join(", ")} under its headings, and every one is a required value. Record each missing value as a real, working value on its own \`- <key>: <value>\` line under its heading. A required key left blank, or written as \`none\` or a placeholder, is still the fault you were sent to repair. Derive each value from this project's own stack and tooling; where the tooling for a value is not fitted yet, fit it first, then record the value that runs with it. The \`focused\` command runs one named scenario and carries the \`{scenario}\` placeholder. When you are done, read RIGGING.md back and confirm every one of ${missing.join(", ")} now carries a value.`,
+				true,
 			);
+			// The refit is under way from here, and Bonny's own seams read it: a second
+			// Shipwright dispatch is answered with the refit already running, and the
+			// crew's live status names the refit as work running alongside rather than
+			// a crew run to wait on.
+			state.riggingRefitting = true;
 			state.pendingDeliveries.push(
 				riggingRefit.then(
-					() => {},
 					() => {
+						riggingRefitEnded = true;
+						state.riggingRefitting = false;
+					},
+					() => {
+						riggingRefitEnded = true;
+						state.riggingRefitting = false;
 						state.deliveryFailures += 1;
 					},
 				),
@@ -2563,9 +2619,19 @@ export async function run(options?: RunOptions): Promise<void> {
 		crewDispatches: () => crewDispatches,
 		crewRunEnded: () => crewRunEnded,
 		/**
+		 * The crew's held runs: the embarked loop, and the startup rigging refit that
+		 * floats past the helm. Both are Johnson's and the crew's own work running
+		 * alongside a live Bonny, so awaiting the run awaits both; a refit still in
+		 * flight has not yet landed its repaired rigging on disk.
+		 *
 		 * @planks("Then the scratch project's own verification command reports the scenario \"adds two numbers\" green")
+		 * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
+		 * @planks("Then the scratch project carries a specification for the greeting page")
 		 */
-		awaitCrewRun: () => crewRun ?? Promise.resolve(),
+		awaitCrewRun: async () => {
+			await riggingRefit;
+			await crewRun;
+		},
 		/**
 		 * @planks("Then the crew runs on while Bonny's turn stays live")
 		 */
