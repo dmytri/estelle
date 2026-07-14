@@ -88,6 +88,51 @@ poll loop in `crew_status`, and role stalls by agents that can all recite the ru
 the enforcement voyage (4 below), and it is no longer a nice-to-have -- it is plausibly the root of the reds
 blocking 0.2.7. Promote it accordingly.
 
+## THE WEATHER VOYAGE — operator's call, next to sail. THE RELEASE GATE CONTAINS DICE.
+
+**Why 0.2.7 cannot ship.** The pre-outbound regression will not clear, and not because of a bug. Two `@eval`
+runs at the **identical tree hash with no code change between them disagreed**: one red, one 15/15 green. QM
+refused to certify, correctly -- a tier that disagrees with itself is flaky, and **re-running until green
+manufactures the clearance rather than earning it**. The failing scenario's identity was lost (`--format
+progress` prints an `F` with no name, and the run truncated before the failure block). **A truncated red is
+not a red.** Do not guess which scenario it was.
+
+**The flake is not a defect. It is dice in the gate.** Of the 13 `@eval` scenarios, the ones that can flake
+are exactly those where **a live model must DECIDE to do something**:
+
+- `Bonny offers a fresh context when the reset nudge fires` (the known flake, `captain-reset-nudge:24`)
+- `Bonny's opening surfaces a pending review from the specs unprompted`
+- `Bonny voices a live line at the seat handoff`
+- `Bonny's crew-run report carries a live summary`
+- `Bonny embarks the crew instead of sending the operator to a role command`
+- `A manually invoked Quartermaster proceeds instead of refusing for unclean context`
+
+The rest assert machine-observable facts -- an event stream, a verification going green, session state -- and
+**those do not flake**.
+
+**THE PRINCIPLE, and it is already this project's standing rule: MODEL JUDGES, MACHINE GUARANTEES.** A duty
+that MUST happen belongs in code. The model supplies the **voice**, never the **guarantee**. Estelle should
+**emit** the reset offer and **emit** the handoff narration deterministically, and let Bonny phrase them. The
+scenario then asserts a machine artifact instead of praying for a token sequence. This is **better product
+behaviour, not a test convenience**: an offer the operator reliably receives beats one that arrives 70% of
+the time.
+
+**Levers, best value first:**
+1. **Take the duty off the model entirely** -- machine-emitted offer/narration; model keeps the voice. Use
+   wherever the behaviour MUST happen. This is the main lever and it deletes the flake class.
+2. **Force a tool call, not prose**, where a model genuinely must choose. Models attend to tools far more
+   reliably and the assertion becomes exact. **This is why `/embark` works and "Bonny decides to embark"
+   does not.**
+3. Fire a nudge at a **turn boundary**, not mid-task. The reset nudge failed because Bonny was busy writing
+   rigging and specs; nothing competed with it, it would likely have landed.
+4. **Shrink the turn.** A model asked to do five things drops one.
+5. **m-of-k gating** for what remains genuinely probabilistic. This changes what "green" MEANS, so it is an
+   **upstream doctrine conversation**, not a local Estelle convention. Reach for it last.
+
+**Also owed by this voyage:** the `@eval` tier must run **detached, unpiped, in a failure-naming format to a
+file**. QM piped cucumber through `tail` and read **`tail`'s exit code (0)** as the tier's -- a pipeline
+reports its last command. **That would have shipped 0.2.7 on a regression that never passed.**
+
 ## THE BOARD, in order
 
 **1. LANDED (`8663c84`) — the crew-loop twin is dead.** The decision now lives in one seam: `advanceCrewLoop`
