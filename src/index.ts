@@ -1987,6 +1987,12 @@ export async function run(options?: RunOptions): Promise<void> {
 		crewRunReports.push({ summary: voiced[voiced.length - 1] });
 	};
 
+	// The startup rigging refit, once it is under way. It is a live seat turn that
+	// runs on the one crew runtime, so a later dispatch waits for it: an overlapping
+	// dispatch would clobber the refit's seat and take custody of a deck the refit
+	// is still writing.
+	let riggingRefit: Promise<unknown> | undefined;
+
 	/**
 	 * Dispatch one role to actually DO its job. Opening a crew session seats a role
 	 * and drives nothing, so a seated Boatswain never commits and a seated Shipwright
@@ -1996,10 +2002,15 @@ export async function run(options?: RunOptions): Promise<void> {
 	 *
 	 * @planks("When Bonny dispatches the Boatswain to take custody of the work")
 	 * @planks("Then the Boatswain committed the crew's work")
+	 * @planks("Then the scratch project's working tree is clean")
 	 * @planks("When the operator runs the \"/bellamy\" command in the started session")
 	 * @planks("When the operator runs the \"/johnson\" command in the started session")
+	 * @planks("Given the operator tells Bonny to embark the crew on the failing scenario")
 	 */
 	state.dispatchRole = async (seat: Seat, job?: string) => {
+		// The refit's own dispatch reads this before it is recorded, so it never
+		// waits on itself.
+		await riggingRefit;
 		const liveModelId = liveCrewModel();
 		// Seat the role first, so an unfitted session still shows the crew seated and
 		// says plainly why they cannot be set to work, rather than failing the command.
@@ -2061,12 +2072,23 @@ export async function run(options?: RunOptions): Promise<void> {
 			reports: [],
 		};
 		state.crewStatus = status;
+		// The dispatch narration is the operator's display line, not work for Bonny's
+		// live turn. A plain send into a streaming session steers the line into that
+		// turn, where it stays queued: the turn restarts the moment it ends, so the
+		// session is busy again and the operator's next message hits a processing
+		// agent. The startup refit dispatches while Bonny's opening turn is still
+		// streaming, so that is the launch the operator speaks into. Next-turn
+		// delivery lands the line at the turn boundary instead and leaves the
+		// session idle for the operator.
 		const say = async (line: string) => {
-			await runtime.session.sendCustomMessage({
-				customType: "crew-narration",
-				content: line,
-				display: true,
-			});
+			await runtime.session.sendCustomMessage(
+				{
+					customType: "crew-narration",
+					content: line,
+					display: true,
+				},
+				runtime.session.isStreaming ? { deliverAs: "nextTurn" } : undefined,
+			);
 		};
 		await say(
 			`${seat.name} (${seat.role}) is dispatched: ${job ?? "per their role"}. Base commit ${baseCommit}.`,
@@ -2199,18 +2221,28 @@ export async function run(options?: RunOptions): Promise<void> {
 
 	// A fitted project whose RIGGING.md is missing a required value carries a
 	// rigging fault. The fault is Bonny's to route, never to hold, so Johnson is
-	// dispatched to refit the rigging before Bonny opens at the helm. The refit
-	// lands before the operator's work begins, so the work is never held on the
-	// fault.
+	// dispatched to refit the rigging. The refit is a live seat turn, so it floats
+	// past startup the way Bonny's opening turn does: the helm opens on the
+	// operator's session while Johnson works, and the crew's own dispatches queue
+	// behind the refit. Its failure is recorded as a delivery failure, the same
+	// observable state every floated turn keeps.
 	/**
 	 * @planks("Then the scratch project's \"RIGGING.md\" carries a \"focused\" command")
 	 */
 	if (existsSync(join(cwd, "RIGGING.md"))) {
 		const missing = missingRiggingValues(cwd);
 		if (missing.length > 0) {
-			await state.dispatchRole?.(
+			riggingRefit = state.dispatchRole?.(
 				SEATS.johnson,
 				`refit RIGGING.md: it carries no ${missing.join(", ")} under its headings, and every one is a required value. Record each missing value as a real, working value on its own \`- <key>: <value>\` line under its heading. A required key left blank, or written as \`none\` or a placeholder, is still the fault you were sent to repair. Derive each value from this project's own stack and tooling; where the tooling for a value is not fitted yet, fit it first, then record the value that runs with it. The \`focused\` command runs one named scenario and carries the \`{scenario}\` placeholder. When you are done, read RIGGING.md back and confirm every one of ${missing.join(", ")} now carries a value.`,
+			);
+			state.pendingDeliveries.push(
+				riggingRefit.then(
+					() => {},
+					() => {
+						state.deliveryFailures += 1;
+					},
+				),
 			);
 		}
 	}

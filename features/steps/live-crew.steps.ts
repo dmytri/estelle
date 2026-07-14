@@ -540,6 +540,10 @@ Given(
 
 Given(
 	"the live eval model is fitted as the session default",
+	// Relaunches the real session, which installs the upstream Shipshape package
+	// and clones on first launch, so this is a real-service step and carries the
+	// live-step budget its siblings carry, not cucumber's 5000ms default.
+	{ timeout: 120000 },
 	async function (this: EstelleWorld) {
 		const model = process.env.HARNESS_EVAL_MODEL!;
 		const key = process.env.HARNESS_OPENROUTER_API_KEY!;
