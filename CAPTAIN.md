@@ -67,7 +67,7 @@ It immediately earned its keep, three layers deep:
 
 ### OPEN RED — a live turn returns empty in under a second
 
-`features/live-crew.feature:266` and `:300` still fail: the live crew loop leaves the project red because **a live turn ends in 0.4s with no streamed content**, where the same turn streamed 13s with real tool calls earlier the same day. **The provider is healthy** (direct `curl` to `deepseek/deepseek-v4-flash` with the `.env` key returns 200 "ok"; key present, no spending limit). So this is NOT an auth or credit blocker, and Captain wrongly relayed it as one before probing.
+Three scenarios, one root defect: `features/live-crew.feature:266`, `:300`, and `:38` ("A live crew run drives the heartbeat off the real event stream", which failed the sweep with "no live assistant reply"). The live crew loop leaves the project red because **a live turn ends in 0.4s with no streamed content**, where the same turn streamed 13s with real tool calls earlier the same day. **The provider is healthy** (direct `curl` to `deepseek/deepseek-v4-flash` with the `.env` key returns 200 "ok"; key present, no spending limit). So this is NOT an auth or credit blocker, and Captain wrongly relayed it as one before probing.
 
 **Proven not to be today's fixes:** a clean control, deck exactly as it stood with only the new seam reverted, fails identically in 4.8s.
 
