@@ -29,13 +29,13 @@ Procedure lives in the skills. Every role reads this on open.
 
 ## Commands
 
-- discover: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @eval and not @shipwright"`
+- discover: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @shipwright"`
 - focused: `pnpm exec cucumber-js --tags "not @captain and not @shipwright" --name "{scenario}"`
 - broad: `pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright"`
-- broad-logic: `pnpm exec cucumber-js --tags "@logic and not @captain and not @shipwright"`
-- broad-sandbox: `pnpm exec cucumber-js --tags "@sandbox and not @captain and not @shipwright"`
+- broad-logic: `pnpm exec cucumber-js --tags "@logic and not @captain and not @eval and not @shipwright"`
+- broad-sandbox: `pnpm exec cucumber-js --tags "@sandbox and not @captain and not @eval and not @shipwright"`
 - coverage: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "not @captain and not @eval and not @shipwright" --format json:coverage/weather.json`
-- coverage-sandbox: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "@sandbox and not @captain and not @shipwright" --format json:coverage/weather-sandbox.json`
+- coverage-sandbox: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "@sandbox and not @captain and not @eval and not @shipwright" --format json:coverage/weather-sandbox.json`
 - coverage-eval: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright" --format json:coverage/weather-eval.json`
 - step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @shipwright" --format usage-json`
 - eval: `pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright"`
