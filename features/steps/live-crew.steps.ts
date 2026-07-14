@@ -4,12 +4,15 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	rmSync,
 	symlinkSync,
 	writeFileSync,
 } from "node:fs";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Given, Then, When } from "@cucumber/cucumber";
+import { After, Given, Then, When } from "@cucumber/cucumber";
 import type { EstelleWorld } from "../support/world.js";
 
 // Structural view of the real pi session the interactive handle carries. The
@@ -1763,6 +1766,211 @@ Then(
 			`the scratch project's own verification still reports ${JSON.stringify(
 				scenarioName,
 			)} red after the run: ${result.output}`,
+		);
+	},
+);
+
+// A seat turn the provider refuses. The refusal is real: a live HTTP endpoint
+// speaking the provider's own completions API answers every seat turn with the
+// refusal status and message, so the turn travels the real provider client and
+// the real seat-turn seam. The crew works a disposable red project, because a
+// provider refuses a turn only where a turn is taken: no verification command
+// means no seat turn and no refusal to surface.
+interface RefusingProviderView {
+	server: Server;
+}
+
+// Teardown registered before anything is created: a listening server left open
+// holds the run's event loop and leaks a live endpoint into the next scenario.
+After(async function (this: EstelleWorld) {
+	const refusing = (
+		this as unknown as { refusingProvider?: RefusingProviderView }
+	).refusingProvider;
+	if (!refusing) {
+		return;
+	}
+	refusing.server.closeAllConnections();
+	await new Promise<void>((resolve, reject) => {
+		refusing.server.close((error) => (error ? reject(error) : resolve()));
+	});
+	(
+		this as unknown as { refusingProvider?: RefusingProviderView }
+	).refusingProvider = undefined;
+});
+
+Given(
+	"the crew's provider refuses the turn with {string}",
+	{ timeout: 120000 },
+	async function (this: EstelleWorld, refusal: string) {
+		const server = createServer((_request, response) => {
+			response.writeHead(402, { "content-type": "application/json" });
+			response.end(
+				JSON.stringify({
+					error: { message: refusal, type: "payment_required", code: 402 },
+				}),
+			);
+		});
+		(
+			this as unknown as { refusingProvider?: RefusingProviderView }
+		).refusingProvider = { server };
+		await new Promise<void>((resolve) => {
+			server.listen(0, "127.0.0.1", resolve);
+		});
+		const address = server.address() as AddressInfo;
+		const baseUrl = `http://127.0.0.1:${address.port}/v1`;
+		// The crew needs a turn to be refused, so the workspace is a project with a
+		// verification command and a red target: the loop reads the verdict and sets
+		// the crew to work, and the seat's first real turn meets the refusal.
+		if (this.workspaceDir) {
+			rmSync(this.workspaceDir, { recursive: true, force: true });
+		}
+		const dir = mkdtempSync(join(tmpdir(), "estelle-refused-"));
+		writeFileSync(
+			join(dir, "verify.js"),
+			[
+				'console.error("FAIL: add(2, 2) must be 4, got 0");',
+				"process.exit(1);",
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		writeFileSync(
+			join(dir, "RIGGING.md"),
+			[
+				"# Rigging",
+				"",
+				"## Stack",
+				"",
+				"- language: javascript",
+				"",
+				"## Directories",
+				"",
+				"- implementation: src",
+				"- specs: features",
+				"",
+				"## Commands",
+				"",
+				"- broad: `node verify.js`",
+				"",
+				"## Perturbation",
+				"",
+				"- message: `PERTURBATION: consider current durable context; remove when fixed`",
+				'- perturb: `throw new Error("PERTURBATION: consider current durable context; remove when fixed");`',
+				"",
+			].join("\n"),
+			"utf8",
+		);
+		this.workspaceDir = dir;
+		// Fit the refusing provider as the crew's seat model, the same way the live
+		// eval model is fitted, then relaunch: the crew session the embark opens
+		// inherits the seat model, so every crew turn runs against the refusal.
+		this.prepareAgentDir();
+		const provider = "estelle-refusing";
+		const modelId = "estelle-refusing-1";
+		writeFileSync(
+			join(this.agentDir!, "models.json"),
+			JSON.stringify({
+				providers: {
+					[provider]: {
+						baseUrl,
+						apiKey: "sk-estelle-refused",
+						api: "openai-completions",
+						models: [
+							{
+								id: modelId,
+								name: "Estelle Refusing",
+								reasoning: false,
+								input: ["text"],
+								cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+								contextWindow: 100000,
+								maxTokens: 1000,
+							},
+						],
+					},
+				},
+			}),
+			"utf8",
+		);
+		writeFileSync(
+			join(this.agentDir!, "auth.json"),
+			JSON.stringify({
+				[provider]: { type: "api_key", key: "sk-estelle-refused" },
+			}),
+			"utf8",
+		);
+		writeFileSync(
+			join(this.agentDir!, "estelle.json"),
+			JSON.stringify({
+				seats: { quartermaster: `${provider}/${modelId}` },
+			}),
+			"utf8",
+		);
+		this.interactiveSession = undefined;
+		await startSession(this);
+	},
+);
+
+Then(
+	"the operator's session carries the provider's refusal {string}",
+	// The refusal surfaces while the crew run is under way, so the assertion waits
+	// on the run's own completion signal rather than a clock.
+	{ timeout: 600000 },
+	async function (this: EstelleWorld, refusal: string) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		await handle.awaitCrewRun();
+		const carried = operatorSession(this)
+			.messages.map(messageText)
+			.filter((text) => text.includes(refusal));
+		assert.ok(
+			carried.length > 0,
+			`the operator's session never carried the provider's refusal ${JSON.stringify(
+				refusal,
+			)}; the refused turn passed as an ordinary quiet turn. Operator session text: ${JSON.stringify(
+				operatorSession(this)
+					.messages.map(messageText)
+					.filter((text) => text.trim().length > 0),
+			)}`,
+		);
+	},
+);
+
+Then(
+	"the crew run ends without reporting the crew's work as done",
+	{ timeout: 600000 },
+	async function (this: EstelleWorld) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		await handle.awaitCrewRun();
+		// crewRunEnded latches only where the loop ran to an all-green verdict and
+		// the crew's work is reported done. A refused crew did no work, so a latched
+		// run here is the defect the Rule names: the refusal read as a crew that
+		// worked and changed nothing.
+		assert.equal(
+			handle.crewRunEnded(),
+			false,
+			"the crew run reported the crew's work as done after the provider refused every turn",
+		);
+	},
+);
+
+Then(
+	"the crew's seat turn returns live content from the model",
+	// The run is under way when this step opens, so the assertion waits on the
+	// run's own completion signal rather than a clock.
+	{ timeout: 900000 },
+	async function (this: EstelleWorld) {
+		const handle = this.interactiveSession as unknown as InteractiveHandleView;
+		await handle.awaitCrewRun();
+		// A seat turn that returned live content left the model's own reply in the
+		// seat's live message history. An empty turn leaves none: the seat reports
+		// nothing, the operator reads a crew that worked and changed nothing, and
+		// this fails rather than passing on a turn that never carried content.
+		const replies = crewSession(this)
+			.runtime.session.messages.filter((m) => m.role === "assistant")
+			.map(messageText)
+			.filter((text) => text.trim().length > 0);
+		assert.ok(
+			replies.length > 0,
+			"the crew's seat turn returned no live content from the model: the seat's live history carries no assistant reply with content",
 		);
 	},
 );

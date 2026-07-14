@@ -254,9 +254,22 @@ Feature: Embarking runs the crew alongside Bonny
       And the live eval model is fitted as the session default
       And the operator tells Bonny to embark the crew on the failing scenario
       When Bonny embarks the crew as an ordinary act of their own turn
-      Then the crew edits production code in the scratch project during the run
+      Then the crew's seat turn returns live content from the model
+      And the crew edits production code in the scratch project during the run
       And the scratch project's own verification command reports the scenario "adds two numbers" green
       And the started session receives the crew's narration and Bonny's completed-run report
+
+  Rule: A seat turn the provider refuses surfaces the refusal, never an empty turn
+    A live seat that returns no content has either done nothing or been refused, and those are
+    different failures. Estelle says which. A refused turn that returns quietly reads as a crew
+    that worked and changed nothing, and the operator debugs the crew instead of the account.
+
+    Scenario: A seat whose provider refuses the turn surfaces the refusal to the operator
+      Given a started Estelle session seated as the Captain "Bonny"
+      And the crew's provider refuses the turn with "402 This request requires more credits"
+      When the operator runs the "/embark" command in the started session
+      Then the operator's session carries the provider's refusal "402 This request requires more credits"
+      And the crew run ends without reporting the crew's work as done
 
   Rule: The crew works any project through its own verification command, and the Boatswain commits
     The crew reads the project's own verification command from its RIGGING.md, so a project that

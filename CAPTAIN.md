@@ -13,7 +13,13 @@ Estelle rests on faithfully consuming the real upstream Shipshape plugin, never 
 
 ## THE BOARD, in order
 
-**1. IN FLIGHT — the crew-loop twin (perturbation planted, watchbill live).** Johnson's harbour found a
+**1. LANDED (`8663c84`) — the crew-loop twin is dead.** The decision now lives in one seam: `advanceCrewLoop`
+at `src/index.ts:1705`, called by `driveCrewLoopToCompletion` at `:1997` and delegated to by the
+`InteractiveHandle` at `:2530`. Live run and fast tier drive identical code. Verified by reading, not by the
+green. The cluster perturbation is the instrument that did it; below is what it found, kept because the
+*shape* of the finding is the lesson.
+
+Johnson's harbour found a
 second crew loop. `advanceCrewLoop` and `advanceCrewLoopThroughToBoatswain`, reachable only from
 `InteractiveHandle`, reimplement the loop's decision from scratch: push a target onto an array, and
 hand-build a Boatswain runtime. The real loop is `driveCrewLoopToCompletion` -> `runSeatTurn`. Four
@@ -53,9 +59,38 @@ score is that Article made executable. The planted-red rule is already the same 
 that has never been red is unproven.* Mutation testing is that rule generalized and automated. Likely the
 most load-bearing check Shipshape could carry.
 
-**3. THEN — the open red, the empty turn.** Still standing; Johnson reproduced it independently (`@eval`
-blocked: 26 min, one step failed, then ten minutes of silence). Detail below under OPEN RED. The
-consolidated crew loop from (1) is the fast grip needed to chase it.
+**3. IN FLIGHT — the open red, the empty turn.** The signal is now sharp, and consolidating the loop is what
+sharpened it. It is no longer "a live turn returns empty in 0.4s against a healthy provider". It is
+`features/live-crew.feature:Embark turns a genuinely failing project scenario green through real crew work`
+(`@eval`), failing at `features/steps/live-crew.steps.ts:1815` with **"the crew left the scratch project's
+production code untouched; embark drove no real crew edit"**, in **2.6s**. Boatswain proved it inherited by
+stashing the voyage's work and reproducing bit-identically at base `2992df4`. Not a listed false-failure mode.
+
+So: the seat takes its turn and writes nothing. **Do not run the `@eval` tier unfiltered to chase this** --
+that is what stalled Johnson for 26 minutes. This one scenario reproduces in 2.6s. Name it as the target.
+
+**That scenario is the only live proof of the crew loop.** With it red, the consolidated seam rides on
+fast-tier proof alone: green at `@logic`, with nothing proving it does real work with a real model. That is
+the whole reason it comes before the mutation tier and before enforcement.
+
+**ROOT CAUSE: the provider was out of money, and Captain's own probe hid it for a session.** OpenRouter
+returns `402: You requested up to 65536 tokens, but can only afford 19031.` Account: `total_credits: 335`,
+`total_usage: 335.17`. The key authenticates and the model exists -- **a small capped request completes**,
+which is exactly why the `curl` probe returned 200 "ok" and why these notes carried, in bold, the false
+claim that the provider was healthy and this was "NOT an auth or credit blocker". The first diagnosis was
+right; the probe overturned it. **Operator topped the account up 2026-07-14.**
+
+**New standing rule, bought at the price of a session: a probe that is not shaped like the real request is
+inference, not evidence.** The real crew turn asks for 65536 tokens; the probe asked for a handful. Same
+key, same model, opposite answer. "Read, do not infer" was already on the board and did not save us, because
+a `curl` *feels* like reading. The real run is the only detector -- which is also what the Verification
+policy says about credentials, in plain words, and Captain reached for a pre-check anyway.
+
+**The seat swallowed the 402 and returned an empty turn.** That is the second defect, now specced: `Rule: A
+seat turn the provider refuses surfaces the refusal, never an empty turn`. It is what made a dead account
+look like a broken crew loop. The `@eval` target also gained `Then the crew's seat turn returns live content
+from the model`, so a dead provider now reddens as itself instead of as "the crew edited nothing" -- the
+ambiguity that burned a full Crew dispatch.
 
 **4. QUEUED — the harness guarantees the turn**
 

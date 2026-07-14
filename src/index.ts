@@ -1923,15 +1923,35 @@ export async function run(options?: RunOptions): Promise<void> {
 		};
 		// A working turn on the seat the crew session already holds. The seat the
 		// decision seam named is the seat that works.
+		/**
+		 * @planks("Then the operator's session carries the provider's refusal \"402 This request requires more credits\"")
+		 * @planks("Then the crew run ends without reporting the crew's work as done")
+		 */
 		const runTurnOnCrewSeat = async (prompt: string) => {
 			const seatSession = state.crewRuntime?.session;
 			if (!seatSession) {
 				throw new Error("crew loop ran a seat turn before the seat was taken");
 			}
 			await seatSession.sendUserMessage(prompt);
+			const assistantMessages = seatSession.messages.filter(
+				(message) => message.role === "assistant",
+			);
+			// A provider that refuses the turn leaves an errored assistant message with
+			// the refusal and no content. Returned as a quiet report it reads as a crew
+			// that worked and changed nothing, so the refusal is raised: it stops the
+			// run and surfaces to the operator instead of passing as an ordinary turn.
+			const last = assistantMessages[assistantMessages.length - 1] as
+				| { stopReason?: string; errorMessage?: string }
+				| undefined;
+			if (last?.stopReason === "error") {
+				throw new Error(
+					`${crewSeat.name} (${crewSeat.role})'s provider refused the turn: ${
+						last.errorMessage ?? "the provider returned an error"
+					}`,
+				);
+			}
 			return (
-				seatSession.messages
-					.filter((message) => message.role === "assistant")
+				assistantMessages
 					.map(assistantText)
 					.filter((text) => text.trim().length > 0)
 					.pop() ?? "(no report)"
@@ -2250,6 +2270,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	 * @planks("Then the crew edits production code in the scratch project during the run")
 	 * @planks("Then the started session receives the crew's narration and Bonny's completed-run report")
 	 * @planks("Then the crew runs on while Bonny's turn stays live")
+	 * @planks("Then the operator's session carries the provider's refusal \"402 This request requires more credits\"")
 	 */
 	state.embark = async () => {
 		// A stream already in flight at embark entry is Bonny's own turn calling
@@ -2281,6 +2302,14 @@ export async function run(options?: RunOptions): Promise<void> {
 					// Any other failure is surfaced into the operator's own session, so
 					// a crew run that could not complete is visible rather than silent.
 					if (!crewRunCancelled) {
+						// A message sent into a streaming session is steered into the
+						// in-flight turn instead of landing in the session, and Bonny's
+						// opening turn floats past startup, so it can still be streaming
+						// when the run fails. Interrupt it: the failure report is the
+						// session's next message, not a whisper into a live turn.
+						if (runtime.session.isStreaming) {
+							await runtime.session.abort();
+						}
 						await runtime.session.sendCustomMessage({
 							customType: "crew-run-report",
 							content: `${SEATS.bellamy.name}: the crew run stopped before every target was green. ${
