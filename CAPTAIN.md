@@ -88,6 +88,29 @@ poll loop in `crew_status`, and role stalls by agents that can all recite the ru
 the enforcement voyage (4 below), and it is no longer a nice-to-have -- it is plausibly the root of the reds
 blocking 0.2.7. Promote it accordingly.
 
+## 0.2.6 SHIPPED OVER A RED `@logic` TARGET. The gate only works if you let it say no.
+
+Boatswain, from ancestry, not inference: release commit **`bf45f1f` ("Release @dk/estelle 0.2.6", 2026-07-13)
+introduced the in-body assignment form** that reddens `methodology-conformance.feature:Every plank annotates a
+seam declaration in docblock form` -- **and that check predates it** (`9c6346c`, 2026-07-10). So 0.2.6 went out
+with the **cheap, deterministic, 15-second fast tier RED**. The pre-outbound full regression **either never ran
+or its red was not honoured.** Fixed at `08a146e`: the docblock now leads a `const dispatchRole` declaration, so
+its eight planks seat on a seam instead of floating in `run`'s body.
+
+**This is the whole argument for the day's stubbornness.** QM refused to certify a green Captain handed them;
+refused to read `tail`'s exit code as cucumber's; refused to clear a flaky tier. **0.2.7 is not shipping
+because the gate said no and we listened.** 0.2.6 shipped because nobody did. A gate you overrule is a gate
+you do not have.
+
+**Also owed (Boatswain, harbour):** the dispatch seam is exercised by many `@logic` scenarios -- crew loop
+seats the Crew, seats the Boatswain, manual dispatch -- **yet carries planks only from `@eval` step texts.**
+That is why a behaviour-neutral hunk routed its recheck to a paid tier. **Re-seat the plank set on
+behaviour-bearing `@logic` steps.**
+
+**Captain discipline, from Boatswain:** my dispatch named `src/index.ts`. A Boatswain row carries job, base
+commit, project root, and **target references** -- a file path is a **seam hint**, beyond the contract. Keep
+dispatches thin even when the fact seems harmless.
+
 ## THE WEATHER VOYAGE — operator's call, next to sail. THE RELEASE GATE CONTAINS DICE.
 
 **Why 0.2.7 cannot ship.** The pre-outbound regression will not clear, and not because of a bug. Two `@eval`
