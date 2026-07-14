@@ -11,7 +11,28 @@ Estelle rests on faithfully consuming the real upstream Shipshape plugin, never 
 2. **Live-fire pilot** producing the maintainer's evidence: what enforces on pi, what fumbles, every false red and vacuous green.
 3. **A coding agent** in its own right: Bonny and the crew personas, `/embark`, `/clear`, alongside-crew UX, per-seat models, fitting-out.
 
-## FULL REGRESSION 2026-07-14, second of this project's history: 12/15 `@eval`, THREE REDS
+## ALL THREE `@eval` REDS RESOLVED (`650ff44`). 0.2.7 owes ONE fresh full regression.
+
+Two reds, one defect: **Bonny's turn awaited the rigging refit that Bonny's own turn dispatched**, so the
+session never reached idle (the 900s non-settle AND the 600s embark timeout). Remove the await and a second
+failure surfaced beneath it: **Bonny polled `crew_status` 93 times** waiting on the refit, which published
+itself as a RUNNING crew, so the turn still never returned. The refit now floats past the helm: a second
+Shipwright dispatch is answered rather than awaited, the refit stays off the crew's live status, and
+`awaitCrewRun` awaits it so the repaired rigging is on disk when the run is read.
+
+**ESTELLE BUSY-WAITS IN PRODUCTION. 93 iterations.** The theme below is no longer inferred; it is in the
+source. Third red (`bash-custody.sh` ENOENT) ruled a **known false-failure**: it comes from the upstream
+Shipshape clone `ensureShipshapePackage` installs, nothing in our code or verification references it,
+re-probed green. The mode stands.
+
+**STILL OWED BEFORE 0.2.7:** Crew changed `src/index.ts`, which **voids the green on the twelve `@eval`
+scenarios that passed before the fix**. A focused run is intermediate proof only; terminal proof runs whole.
+One fresh full regression, every tier, ~45 min. Do not shortcut this.
+
+**Harbour, non-blocking:** `src/index.ts` now carries two flags for one fact, `riggingRefitEnded` and
+`state.riggingRefitting`, written in lockstep. Collapse them.
+
+## The regression that found them (12/15 `@eval`)
 
 `@logic` and `@sandbox` green. **`@eval`: 15 scenarios, 12 passed, 3 failed, 40m51s.** First `@eval` run
 ever to complete against a funded provider. **0.2.7 does not ship on this.**
@@ -52,9 +73,16 @@ its dependency is ready:
 - the operator-input race, "Agent is already processing" while typing during a refit
 - narration steered into Bonny's live turn
 
-**And the roles have the identical bug.** Misson ended their turn holding a live run **twice in one hour**,
-the second time by spawning a *waiter* and calling it a signal -- the exact busy-wait the doctrine names. Six
-role-stalls across two sessions. Captain has now been the heartbeat by hand five times.
+**And the roles have the identical bug.** Misson ended a turn holding a live run **five times in one cycle**,
+once by spawning a *waiter* and calling it a signal. Captain was the heartbeat by hand **six times**. The
+decisive datum: **Misson refused a green Captain handed them (correctly -- a role must read its own evidence,
+and Captain must not verify at all), and then ended the very next turn holding their own live run.** They
+understand the rule well enough to defend it against their Captain and still cannot execute it. **Knowing the
+rule is not the mechanism that keeps it.**
+
+Bonny's 93-iteration poll is the same failure one layer down: nothing in the runtime would end her turn on a
+signal, so she spun. **Three independent proofs, one mechanism: a deadlock in `dispatchRole`, a 93-iteration
+poll loop in `crew_status`, and role stalls by agents that can all recite the rule forbidding them.**
 
 **The product and the process share one defect: nothing guarantees a turn ends when its work does.** That is
 the enforcement voyage (4 below), and it is no longer a nice-to-have -- it is plausibly the root of the reds
