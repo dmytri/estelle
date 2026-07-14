@@ -1465,6 +1465,7 @@ export async function run(options?: RunOptions): Promise<void> {
 	const crewRunPrompts = JSON.parse(
 		readFileSync(join(assetsDir(cwd), "agent-prompts.json"), "utf8"),
 	) as {
+		noVerifyCommand: string;
 		crewRunSummary: string;
 		crewRunNarration: string;
 		crewLoopPrompts: {
@@ -1781,9 +1782,7 @@ export async function run(options?: RunOptions): Promise<void> {
 		// anything else, and the loop would spin forever.
 		const verifyCommand = projectVerifyCommand(cwd);
 		if (!verifyCommand) {
-			throw new Error(
-				"No verification command found: this project's RIGGING.md has no `broad` (or `focused`) command under `## Commands`. The crew cannot decide green without it. Fix RIGGING.md, then embark again.",
-			);
+			throw new Error(crewRunPrompts.noVerifyCommand);
 		}
 		// Every seat is a real working turn with real tools, and every seat works from
 		// the DURABLE artifacts alone: watchbill.json and the specs, which the Captain
