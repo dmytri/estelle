@@ -65,6 +65,14 @@ It immediately earned its keep, three layers deep:
 
 **Only a completed `@eval` tier could find any of it.** Every focused run stayed green, because a focused run launches once.
 
+### OPEN RED — a live turn returns empty in under a second
+
+`features/live-crew.feature:266` and `:300` still fail: the live crew loop leaves the project red because **a live turn ends in 0.4s with no streamed content**, where the same turn streamed 13s with real tool calls earlier the same day. **The provider is healthy** (direct `curl` to `deepseek/deepseek-v4-flash` with the `.env` key returns 200 "ok"; key present, no spending limit). So this is NOT an auth or credit blocker, and Captain wrongly relayed it as one before probing.
+
+**Proven not to be today's fixes:** a clean control, deck exactly as it stood with only the new seam reverted, fails identically in 4.8s.
+
+Suspects: model resolution in the session's registry, the agent dir's settings not carrying the key, or the eval model config not reaching the seat. **The seat fails silently rather than saying it is unfitted — that silence is itself a defect worth naming.** This is the next red target after the enforcement voyage.
+
 ### WATCH THIS — a live refit deleted the project's verification
 
 During a `266` run, the **live Shipwright deleted the scratch project's `verify.js`** — the very script that proves the project works. Observed once; a rerun was ordered to see whether it recurs. Under the Articles a Shipwright may remove only code that `@shipwright`-condemned scenarios trace to, so an autonomous seat deleting the verification is a serious behaviour even as a one-off. **Do not wave this past.** If it recurs, it is a Crew target and arguably an enforcement gap (Boatswain/hook custody does not stop a seat deleting a project's verify script). If it does not recur, it is still evidence for the odds-and-guardrails work above.
