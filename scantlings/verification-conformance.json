@@ -1,0 +1,66 @@
+{
+  "scantling": "verification-conformance",
+  "purpose": "Static rules that redden Verification-agreement breaches in verification support and in the seams verification drives. Green verification debt reaches the Quartermaster only as failing verification: a new debt kind lands here as a rule entry, never as a new scenario. The Captain extends this file when routing a verification-debt finding.",
+  "targets": {
+    "verificationSupport": [
+      "features/steps",
+      "features/support",
+      "packages/*/features/steps",
+      "packages/*/features/support"
+    ],
+    "implementation": ["src", "bin", "packages/*/src"]
+  },
+  "rules": [
+    {
+      "id": "expensive-creation-amortized",
+      "clause": "Verification agreement, Reuse: contain real creation of an expensive external resource to the one seam that creates it, and reuse it.",
+      "applies": "verificationSupport",
+      "reddens": "A build, pack, or package-install invocation reached from a step definition body rather than from the run's one shared provisioner in the test support.",
+      "creationCommands": [
+        "pnpm build",
+        "pnpm pack",
+        "npm pack",
+        "npm install",
+        "pnpm install"
+      ],
+      "sharedProvisioners": ["features/support/upstream.ts"]
+    },
+    {
+      "id": "ambient-state-provisioned-once",
+      "clause": "Verification agreement, Reuse: provision ambient state once and share it behind a lock or marker file.",
+      "applies": "verificationSupport",
+      "reddens": "A step definition provisions ambient state that no scenario asserts, where a once-per-run shared provisioner already exists for it.",
+      "exempt": "A scenario whose behaviour under assertion is the provisioning itself."
+    },
+    {
+      "id": "live-step-timeout-budget",
+      "clause": "Verification agreement, Signals: give real-service steps explicit budgets sized to real latency.",
+      "applies": "verificationSupport",
+      "reddens": "A step definition that awaits a live crew-session turn and declares no explicit timeout, or declares one shorter than the live-step budget.",
+      "liveStepBudgetMs": 600000
+    },
+    {
+      "id": "no-guessed-delay",
+      "clause": "Verification agreement, Signals: end every wait on an observed signal; where none is observable, retry in short bounded intervals toward a deadline.",
+      "applies": "verificationSupport",
+      "reddens": "A literal delay that is neither a bounded retry interval inside a deadline loop nor a drain after an observed settle signal.",
+      "boundedRetryMaxMs": 500
+    },
+    {
+      "id": "no-forbidden-double",
+      "clause": "Real by default Article; Verification agreement, Proof: a test double stands only under a named condition, marked inline.",
+      "applies": "verificationSupport",
+      "reddens": "A test double in the verification support carrying no inline mark naming its condition.",
+      "mark": "@exceptional-double"
+    },
+    {
+      "id": "dispatch-prompt-from-catalog",
+      "clause": "Asset policy: product-facing content lives in assets or project-approved content catalogs.",
+      "applies": "implementation",
+      "reddens": "A prompt argument passed to a role dispatch or a seat session that is a string or template literal rather than a value read from the agent-prompt catalog.",
+      "catalog": "assets/agent-prompts.json",
+      "dispatchSeams": ["dispatchRole", "sendUserMessage", "fillPrompt"],
+      "note": "Structural, not textual. The methodology-conformance text pattern matches only a literal opening with \"You are the/a/an\", so a dispatch prompt phrased as an instruction sits in the implementation and passes."
+    }
+  ]
+}

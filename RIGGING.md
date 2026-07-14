@@ -26,6 +26,7 @@ Procedure lives in the skills. Every role reads this on open.
 - assets: assets
 - assets: packages/*/assets
 - scantlings: assets/scantlings/internal-api-shape.d.ts
+- scantlings: scantlings/verification-conformance.json
 
 ## Commands
 
@@ -39,7 +40,7 @@ Procedure lives in the skills. Every role reads this on open.
 - coverage-eval: `pnpm exec c8 --reporter=text --reporter=json-summary --include='src/**' --include='bin/**' --include='packages/*/src/**' pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright" --format json:coverage/weather-eval.json`
 - step-usage: `pnpm exec cucumber-js --dry-run --tags "not @captain and not @shipwright" --format usage-json`
 - eval: `pnpm exec cucumber-js --tags "@eval and not @captain and not @shipwright"`
-- conformance: `pnpm exec cucumber-js --tags "not @captain and not @shipwright" --name "The flagship and shim seams discharge against the internal API shape scantling"`
+- conformance: `pnpm exec cucumber-js --tags "not @captain and not @shipwright" --name "discharges? against the"`
 - plank-inventory: `node scripts/plank-inventory.mjs`
 - typecheck: `pnpm exec tsc --noEmit`
 - lint: `pnpm exec biome check .`
@@ -60,6 +61,7 @@ Procedure lives in the skills. Every role reads this on open.
 - policy: @eval is opt-in live-crew model evaluation over a genuinely-running crew session; requires `HARNESS_OPENROUTER_API_KEY` and `HARNESS_EVAL_MODEL` from `.env` as fitting-out, assumed present; excluded from the default and broad runs; a missing credential is a Captain blocker for incomplete fitting-out, not a skip
 - policy: every tier runs serial, the runner's derived worker setting; live seat sessions and package installs share operator-level state, so worker isolation is not yet established
 - weather: coverage/weather.json
+- runrecord: coverage/runrecord.jsonl
 
 ## Dependencies
 
@@ -92,3 +94,4 @@ Procedure lives in the skills. Every role reads this on open.
 - mode: `pi-command-passthrough.feature` runs `bin/estelle.js` as a real child process via `execFileSync`, so c8's parent-process instrumentation never sees the child's execution of `bin/estelle.js` or the `run()` argv branch in `src/index.ts`; a 0%-line report there is the subprocess-coverage gap, not a missing spec
 - mode: the default `coverage` command excludes `@eval`, so `src/index.ts` live-crew internals (`reportCrewRun`, `narrateCrewRun`, `driveCrewLoopToCompletion`, the embark tool registration, `handOffToCrew`'s live-voice branch, `configureRedTarget`, `assistantText`) read uncovered under it even though each is planked and exercised by `@eval` scenarios in `features/live-crew.feature`; that is the intended `@logic`/`@eval` split, not a missing spec
 - mode: the same dynamic-`import()` attribution gap undercounts `src/index.ts` seams loaded by `features/steps/*.steps.ts`, observed on `evaluateWrite`, `evaluateRead`, the `tool_call` handler's read and bash branches, `createSkill` past its opening line, and the back half of `installExtension`, resourceLoader reload, session recreation, and command merge; each is planked and its owning scenario passes under `@logic` or `@sandbox`; a 0%-line report confined to these segments is the tooling gap, not dead code
+- mode: the `methodology-conformance.feature` role-dispatch-prompt check is text-derived: it matches a literal opening with "You are the/a/an", so a dispatch prompt phrased as an instruction sits in the implementation and the check stays green; a green result from that scenario is weaker than its title reads, and the `dispatch-prompt-from-catalog` rule in `scantlings/verification-conformance.json` is the structural replacement

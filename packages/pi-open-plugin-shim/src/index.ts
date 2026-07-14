@@ -442,6 +442,11 @@ class WriteCustodyShim implements OpenPluginShim {
 	}
 }
 
+/**
+ * @planks("Given the shim runs an open-plugin whose only matcher is \"Bash\"")
+ * @planks("Given the shim runs an open-plugin whose matcher \"Edit|Write|MultiEdit|NotebookEdit\" carries a hook that denies the write")
+ * @planks("Then no PostToolUse hook runs")
+ */
 function matcherMatchesTool(matcher: string, toolName: string): boolean {
 	const target = toolName.toLowerCase();
 	return matcher
@@ -449,6 +454,11 @@ function matcherMatchesTool(matcher: string, toolName: string): boolean {
 		.some((name) => name.trim().toLowerCase() === target);
 }
 
+/**
+ * @planks("Then the block reason carries the hook's denial message")
+ * @planks("Then the SessionStart hook output carries \"orient\"")
+ * @planks("Then the plugin's PostToolUse hook output carries \"batch shipped\"")
+ */
 function runHook(
 	hookPath: string,
 	cwd: string,

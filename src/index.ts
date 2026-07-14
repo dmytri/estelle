@@ -372,6 +372,9 @@ function missingRiggingValues(cwd: string): string[] {
  * "## Commands". The crew loop decides green by running this, never a hardcoded
  * runner: a project that verifies with anything else would never turn green, and
  * the loop would spin forever without an outcome.
+ *
+ * @planks("Then the loop decides a target green by running the project's verification command")
+ * @planks("Then no crew-loop driver hardcodes a test runner")
  */
 function projectVerifyCommand(cwd: string): string | undefined {
 	let rigging: string;
@@ -401,6 +404,9 @@ function projectVerifyCommand(cwd: string): string | undefined {
  * The perturbation statement is durable configuration under "## Perturbation"
  * in RIGGING.md, read from the project root so the stamped seam tracks the
  * project value.
+ *
+ * @planks("Then the seam \"src/pay.ts\" carries the perturbation statement from \"RIGGING.md\"")
+ * @planks("Then the perturbed seam carries no step text, scenario name, or rationale")
  */
 function riggingPerturbStatement(): string {
 	const rigging = readFileSync(join(__dirname, "..", "RIGGING.md"), "utf8");
