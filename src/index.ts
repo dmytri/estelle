@@ -1473,7 +1473,27 @@ export async function run(options?: RunOptions): Promise<void> {
 			boatswain: string;
 			crewReady: string;
 		};
+		roleDispatch: {
+			verifyLine: string;
+			noVerifyLine: string;
+			boatswain: string;
+			boatswainDefaultJob: string;
+			shipwright: string;
+			shipwrightScope: string;
+			seat: string;
+			seatJob: string;
+		};
 	};
+	// Prompt copy is catalogued, not written into the implementation. The catalog
+	// carries `{placeholder}` slots the dispatch fills at the seam.
+	const fillPrompt = (
+		template: string,
+		slots: Record<string, string>,
+	): string =>
+		Object.entries(slots).reduce(
+			(text, [slot, value]) => text.split(`{${slot}}`).join(value),
+			template,
+		);
 	const state: EstelleState = {
 		providerRequestCount: 0,
 		activeSeat: SEATS.bonny,
@@ -1770,17 +1790,17 @@ export async function run(options?: RunOptions): Promise<void> {
 		// writes. The operator's conversation never crosses this line; carrying it
 		// into a dispatch would breach the Captain-to-Quartermaster bulkhead, and a
 		// conforming Quartermaster must refuse a dispatch beyond its contract.
-		const quartermasterDispatch = `You are the Quartermaster. Work only from the repository's durable artifacts.
-
-Read \`watchbill.json\` at the project root: it is your one work channel. If it is absent, the deck is at rest, and you say so. Then run this project's verification command with your bash tool: \`${verifyCommand}\`.
-
-Name the single next failing target the Crew should work, concretely. If the command itself cannot run (missing config, malformed RIGGING.md, missing dependency), name that blocker plainly instead of guessing. Use your tools; do not answer from memory.`;
-		const crewDispatch = `You are a Crew hand dispatched to the single failing target the Quartermaster named. This project's verification command is \`${verifyCommand}\`.
-
-Run it with your bash tool to reproduce the failure, read the durable spec and the production code it exercises, then make the smallest production edit that turns the failing target green. Use your edit or write tool to change the real production file. Do not edit the specs or the tests. Re-run the verification command to confirm your change, and report concretely what you changed.`;
-		const boatswainDispatch = `You are the Boatswain. Run this project's verification command with your bash tool: \`${verifyCommand}\`.
-
-If it is green, stage the role-advanced work and commit it with git, with a clear message describing the change. If it is not green, do not commit: say plainly what is still failing. Use your tools; do not answer from memory.`;
+		const quartermasterDispatch = fillPrompt(
+			crewRunPrompts.crewLoopPrompts.quartermaster,
+			{ verifyCommand },
+		);
+		const crewDispatch = fillPrompt(crewRunPrompts.crewLoopPrompts.crew, {
+			verifyCommand,
+		});
+		const boatswainDispatch = fillPrompt(
+			crewRunPrompts.crewLoopPrompts.boatswain,
+			{ verifyCommand },
+		);
 		// Run the project's own verification and keep what it SAID, not just whether
 		// it passed. The output is what names the failure, and Bonny needs it to
 		// answer the operator's "what is the crew doing?" from fact.
@@ -1996,35 +2016,31 @@ If it is green, stage the role-advanced work and commit it with git, with a clea
 		}
 		const verifyCommand = projectVerifyCommand(cwd);
 		const baseCommit = headCommit(cwd);
+		const roleDispatch = crewRunPrompts.roleDispatch;
 		const verifyLine = verifyCommand
-			? `This project's verification command is \`${verifyCommand}\`. Run it with your bash tool.`
-			: "This project's RIGGING.md names no verification command under `## Commands`. Say so plainly rather than guessing.";
+			? fillPrompt(roleDispatch.verifyLine, { verifyCommand })
+			: roleDispatch.noVerifyLine;
 		const dispatch =
 			seat.role === "boatswain"
-				? `You are the Boatswain. Job: ${job ?? "post-implementation custody"}. Base commit: ${baseCommit}.
-
-${verifyLine} Work from the repository as it stands and from its durable artifacts. Make only hygiene edits and add no new behaviour.
-
-You are the only seat that may commit, so custody ends with you. If the verification is green you MUST take custody now, with your bash tool, not describe what you would do:
-1. \`git status --porcelain\` to see the work.
-2. \`git add -A\` to stage it.
-3. \`git commit -m "<clear message describing the change>"\` to commit it.
-4. \`git log --oneline -1\` and report the commit you made.
-
-Do not finish your turn with uncommitted work still on the deck. If the verification is NOT green, do not commit: say plainly what is failing.
-
-Use your tools; do not answer from memory.`
+				? fillPrompt(roleDispatch.boatswain, {
+						job: job ?? roleDispatch.boatswainDefaultJob,
+						baseCommit,
+						verifyLine,
+					})
 				: seat.role === "shipwright"
-					? `You are the Shipwright. Harbour. Base commit: ${baseCommit}.${job ? ` Scope: ${job}.` : ""}
-
-${verifyLine} Work from the repository and its durable artifacts, per your role: inspect the code, repair the rigging and the trace, and report your findings.
-
-Use your tools; do not answer from memory.`
-					: `You are the ${seat.role}. Base commit: ${baseCommit}.${job ? ` Job: ${job}.` : ""}
-
-${verifyLine} Work from the repository's durable artifacts, per your role.
-
-Use your tools; do not answer from memory.`;
+					? fillPrompt(roleDispatch.shipwright, {
+							baseCommit,
+							scope: job
+								? fillPrompt(roleDispatch.shipwrightScope, { job })
+								: "",
+							verifyLine,
+						})
+					: fillPrompt(roleDispatch.seat, {
+							role: seat.role,
+							baseCommit,
+							job: job ? fillPrompt(roleDispatch.seatJob, { job }) : "",
+							verifyLine,
+						});
 		const seatModels: Record<string, string> = { ...state.seatModels };
 		seatModels[seat.role] = liveModelId;
 		crewSeat = seat;
