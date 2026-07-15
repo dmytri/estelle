@@ -148,12 +148,37 @@ unfalsifiably** -- the gate working exactly as it should, and the second time th
 manufacture green. Prose corrected. If the single reply is genuinely wanted, it needs a scenario AND a
 mechanism; today it has neither.
 
-### Harbour, from Boatswain's custody of this voyage
+### HARBOUR, FIRST ORDER — the plank-trace check enforces the INVERSE of the doctrine. OPERATOR DECIDED.
 
-- **Plank convention drift, repo-wide and pre-existing: 175 of 343 planks carry a concrete step LINE rather
-  than the step-definition PATTERN** the Planking agreement requires verbatim. The derived rule set checks
-  docblock *placement*, not plank-string *form*, so **nothing reddens on it today**. Every plank this voyage
-  added is in correct pattern form. A rule-set entry is the fix, not 175 hand edits.
+**The fast tier is red, and this voyage reddened it against a broken check.**
+`methodology-conformance.feature:Every plank traces to a live feature step` fails on the **4 pattern-form
+planks Crew added this voyage** -- and pattern form is what the Planking agreement **mandates**. QM measured
+the whole corpus: **334 planks carry concrete step TEXT, 4 carry step-definition PATTERN form.** The check
+compares planks against concrete pickle text, so a *correct* plank can never match it. **The project's
+convention and its conformance check both invert the doctrine.** QM fenced Crew off it and held it as a
+project-scale methodology decision; it is not a fresh foul and not a Crew target.
+
+**OPERATOR'S DECISION (2026-07-14): fix the check, re-plank the 334. Harbour job.** Rewrite the check to join
+planks against `step-usage` **patterns**, per the Planking agreement, and convert the 334 concrete planks to
+pattern form. Mechanical and scriptable. It reddens 334 annotations before it greens them, which is why it
+rides **behind harbour's full regression**. Shipwright's write scope covers exactly this: `@planks`
+annotations and the derived rule set. **Rejected:** rewriting the 4 correct planks to concrete form -- that is
+manufacturing green, the 0.2.6 mistake, and would sink the doctrine breach 338 planks deep instead of 334.
+
+**Boatswain's second face of the same decision:** 4 planks beyond this diff lead with a keyword their step
+definition does not register (`src/index.ts:1365,:1370` `Given` against a `Then`-registered def; `:1547,:1548`
+`Then` against a `Given`-registered one). Each is faithful to its scenario's own keyword. Same pattern-form
+vs concrete-text call, not separate drift. Fixed by the same harbour re-plank.
+
+**Custody near-miss worth keeping:** this red went INTO commit `2fffb74` because the `conformance` command
+filters `--name "discharges? against the"`, which does not match `Every plank traces to a live feature step`.
+**Boatswain's recheck could not see the scenario it needed to catch.** The `conformance` command's `--name`
+filter is too narrow to cover the methodology tier -- a rigging finding for harbour in its own right.
+
+- **Plank convention drift, repo-wide and pre-existing: 334 of 338 planks carry a concrete step LINE rather
+  than the step-definition PATTERN** the Planking agreement requires verbatim. This is the same finding as the
+  decided harbour order above; the numbers are QM's whole-corpus count. A rule-set fix plus a scripted
+  re-plank, not hand edits.
 - **The fresh-context offer copy is a string literal in `src/index.ts`.** It is operator-facing copy and
   belongs in `assets/agent-prompts.json` with the rest. Crew's write scope excludes `assets/**`, so Crew
   could not have put it there.
